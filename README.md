@@ -1,6 +1,6 @@
 # bnf: Birkhoff normal form
 
-Compute the Birkhoff normal form of a Hamiltonian.
+Compute the Birkhoff normal form of a Hamiltonian up to a specific order.
 
 ## Features
 
