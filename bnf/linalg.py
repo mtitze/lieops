@@ -9,7 +9,6 @@ def twonorm(vector, code='numpy'):
         return np.sqrt(sum2)
     if code == 'mpmath':
         return mp.sqrt(sum2)
-
     
 def almosteq(a, b, tol=1e-14, **kwargs):
     '''
@@ -38,7 +37,7 @@ def almosteq(a, b, tol=1e-14, **kwargs):
     
     
 def column_matrix_2_code(M, code):
-    # translate a list of column vectors to a respective matrix of a code
+    # translate a list of column vectors to a numpy or mpmath matrix
     if code == 'numpy':
         return np.matrix(M).transpose()
     if code == 'mpmath':
@@ -141,7 +140,7 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
         eigenvectors = [[eigenvectors[k, j] for k in range(len(eigenvalues))] for j in range(len(eigenvalues))]
         
     n = len(eigenvalues)
-    assert n > 0
+    assert n == len(M)
     
     # group the indices of the eigenvectors if they belong to the same eigenvalues.
     eigenspaces = [[0]] # 'eigenspaces' will be the collection of these groups of indices.
@@ -170,8 +169,14 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
     return eigenvalues_result, eigenvectors_result
 
 
-def diagonalize_skew(M, code='numpy', **kwargs):
-    '''Diagonalize a real skew symmetric matrix.
+def anti_diagonalize_skew(M, code='numpy', **kwargs):
+    '''Anti-diagonalize a real skew symmetric matrix A so that it will have the block-form
+    
+        /  0  X \
+    A = |       |
+        \ -X  0 /
+    
+    where X is a diagonal matrix with positive entries.
     
     Attention: No check is made if the given matrix has real coefficients.
     
@@ -186,8 +191,8 @@ def diagonalize_skew(M, code='numpy', **kwargs):
     
     Returns
     -------
-    list
-        List of column vectors which correspond to an orthogonal real matrix R so that R^(-1)*M*R has 
+    matrix
+        Matrix correspond to an orthogonal real matrix R so that R^(-1)*M*R has 
         skew-symmetric antidiagonal form, either with respect to (2 x 2) block matrices
         or with respect to (n x n) block matrices (Hereby M denotes the input matrix).
     '''
@@ -229,14 +234,13 @@ def diagonalize_skew(M, code='numpy', **kwargs):
             bi = [-1j*(evectors[pos_index][k] - evectors[pos_index][k].conjugate())/sqrt2 for k in range(n)]
             v_block1.append(ai)
             v_block2.append(bi)
-            
-    return v_block1 + v_block2
+    return column_matrix_2_code(v_block1 + v_block2, code=code)
 
 
 def williamson(V, code='numpy', **kwargs):
     '''Compute Williamson's decomposition of a symmetric positive definite real matrix,
-    according to R. Simon, S. Chaturvedi, and V. Srinivasan: Congruences and Canonical Forms 
-    for a Positive Matrix: Application to the Schweinler-Wigner Extremum Principle.
+    according to 'R. Simon, S. Chaturvedi, and V. Srinivasan: Congruences and Canonical Forms 
+    for a Positive Matrix: Application to the Schweinler-Wigner Extremum Principle'.
     
     The output matrix S and the diagonal D are satisfying the relation:
     S.transpose()*D*S = V
@@ -249,24 +253,25 @@ def williamson(V, code='numpy', **kwargs):
         List of vectors (subscriptables) defining the matrix.
         
     **kwargs
-        Additional arguments are passed to 'diagonalize_skew' routine.
+        Additional arguments are passed to 'anti_diagonalize_skew' routine.
     
     Returns
     -------
-    S: list
-        List of vectors defining the diagonalizing symplectic matrix with respect to the standard block-diagonal
-        form
+    S: matrix
+        Symplectic matrix with respect to the standard block-diagonal form
         
              /  0   1  \
         J =  |         |
              \ -1   0  /
              
+        which diagonalizes V as described above.
+        
         Note that results for a different J' can be obtained by applying a matrix congruence operation T.transpose()*S*T to the
         result S, where S is obtained by an input matrix V' by the respective inverse congruence operation on V.
         Here T denotes the transformation satisfying J' = T.transpose()*J*T. 
         
-    D: list
-        List of diagonal entries.    
+    D: matrix
+        The diagonal matrix as described above.    
     '''
     if code == 'numpy':
         evalues, evectors = np.linalg.eigh(V)
@@ -288,24 +293,14 @@ def williamson(V, code='numpy', **kwargs):
     
     dim2 = len(V12)
     assert dim2%2 == 0
-    J = create_J(dim2//2)
-    if code == 'numpy':
-        J = np.matrix(J).transpose()
-    if code == 'mpmath':
-        J = mp.matrix(J).transpose()
+    dim = dim2//2
     
+    J = column_matrix_2_code(create_J(dim), code=code)    
     skewmat = V12i*J*V12i
-    skewmat_list = [[skewmat[j, i] for i in range(dim2)] for j in range(dim2)] # the entries of skwemat_list are column vectors
-    A = diagonalize_skew(skewmat_list, code=code, **kwargs)
-    if code == 'numpy':
-        A = np.matrix(A).transpose()
-    if code == 'mpmath':
-        A = mp.matrix(A).transpose()
-    
-    K = A.transpose()*skewmat*A # the sought anti-diagonalized matrix
+    A = anti_diagonalize_skew(skewmat, code=code, **kwargs)    
+    K = A.transpose()*skewmat*A # the sought anti-diagonal matrix
     
     # obtain D as described in the reference above
-    dim = dim2//2
     Di_values = [K[i, i + dim] for i in range(dim)]*2
     D = [1/e for e in Di_values]
     if code == 'numpy':
@@ -330,14 +325,15 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     ---------
     H2: dict
         Dictionary of the form H2 = {(i, j): h_ij}, so that the corresponding matrix 
-        (h_ij) is a real, symmetric and positive definite (square) matrix. H2 can be sparse.
+        (h_ij) is a real, symmetric and positive definite (square) matrix. H2 can be sparsely defined;
+        the mirrored indices will be added accordingly.
         The prime example is that H2 comes from extracting the second-order coefficients 
         in the Taylor expansion of a given Hamiltonian.
         
-    T: list, optional
-        list of real column-vectors (lists) to change the ordering of canoncial
+    T: matrix, optional
+        Orthogonal matrix to change the ordering of canoncial
         coordinates and momenta, given here by default as (q1, ..., qn, p1, ..., pn), 
-        into a different order. I.e. the list is representing a matrix T which transforms the 
+        into a different order. I.e. T transforms the 
         (n x n) block matrix
         
              /  0   1  \
@@ -353,7 +349,8 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         
         S: The symplectic map diagonalizing H2 via S.transpose()*D*S = H2, where D is a diagonal matrix.
         Sinv: The inverse of S, i.e. the symplectic map to (real) normal form.
-        T: The optional matrix T described above.
+        H2: The input in matrix form.
+        T: The (optional) matrix T described above.
         J: The (original) symplectic structure J' = J.transpose()*J*T, where J is the block-matrix given above.
         J2: The new symplectic structure for the (xi, eta)-coordinates.
         U: The unitary map from the S(p, q) = (u, v)-block coordinates to the (xi, eta)-coordinates.
@@ -367,7 +364,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
             normalizing (xi, eta)-coordinates.
         D: The real entries of rnf in form of a list.
     '''
-    # Create square matrix from (sparse) dict
+    # Create symmetric matrix from (sparse) dict
     dim = kwargs.get('dim', max(max(H2.keys())) + 1)
     assert dim%2 == 0, 'Dimension must be even.'
     
@@ -376,11 +373,12 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     if code == 'mpmath':
         mp.mp.dps = kwargs.get('dps', 32) 
         sqrt2 = mp.sqrt(2)
-    
-    H2_matrix = column_matrix_2_code([[H2.get((i, j), 0) for i in range(dim)] for j in range(dim)], code=code)            
-    if len(T) != 0: # transform H2 back to default block ordering
-        T = column_matrix_2_code(T, code=code)
+    H2_matrix = column_matrix_2_code([[H2.get((i, j), 0) for i in range(dim)] for j in range(dim)], code=code)
+    H2_matrix = 0.5*(H2_matrix + H2_matrix.transpose()) # the entries of the dictionary can be sparse and may contain zeros for mirrored values.
+    if len(T) != 0: # transform H2 back to default block ordering in case a different order is requested
         H2_matrix = T*H2_matrix*T.transpose() 
+        
+    # Now perform symplectic diagonalization
     S, D = williamson(V=H2_matrix, code=code, **kwargs)
     
     # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
@@ -417,6 +415,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     out['S'] = S 
     out['Sinv'] = Sinv # this symplectic map will diagonalize H2 in its original 
     # (q, p)-coordinates via Sinv.transpose()*H2*Sinv. Sinv (and S) are symplectic wrt. J
+    out['H2'] = H2_matrix # the matrix of second-order terms in H
     out['rnf'] = D # the diagonal matrix obtained as a result of the symplectic diagonalization of H2
     out['D'] = [D[i, i].real for i in range(len(D))]
     out['T'] = T

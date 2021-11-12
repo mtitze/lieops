@@ -1,11 +1,11 @@
 from njet.jet import factorials
 from njet.ad import standardize_function
 from njet import derive
-
+from .linalg import first_order_normal_form
 
 def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, **kwargs):
     '''
-    Return the expansion of a Hamiltonian H in terms of first-order complex normal form coordinates
+    Return the Taylor-expansion of a Hamiltonian H in terms of first-order complex normal form coordinates
     around an optional point of interest. For the notation see my thesis.
     
     Parameters
@@ -51,7 +51,7 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     # Step 2: Derive H twice to get its second-order Taylor coefficients.
     dH_shift = derive(H_shift, order=2, n_args=dim)
     z0 = dim*[0]
-    H2_shift = dH_shift.hess(z0, mult=False) # obtain the Taylor coefficients of the 2nd order.
+    H2_shift = dH_shift.hess(z0, mult=False) # obtain the Taylor coefficients of the 2nd order near z.
     
     # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
     if warn:
@@ -60,20 +60,19 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
             print (f'Warning: H has non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
             print (gradient)
 
-    # Step 3: Compute the linear map to first-order complex normal form of the shifted Hamiltonian
-    nfdict_shift = linalg.first_order_normal_form(H2_shift, **kwargs)
+    # Step 3: Compute the linear map to first-order complex normal form of the shifted Hamiltonian around z.
+    nfdict_shift = first_order_normal_form(H2_shift, **kwargs)
     K_shift = nfdict_shift['K']  # K.transpose()*H_shift*K is in cnf
 
     # Step 4: Obtain the expansion of the shifted Hamiltonian up to the requested order
     trn_shift = lambda zz: [sum([K_shift[j, k]*zz[k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class 
     Hcnf_shift = lambda zz: H_shift(trn_shift(zz))
     dHcnf_shift = derive(Hcnf_shift, order=order, n_args=dim)
-    
-    results = dHcnf_shift.eval(trn_shift(z0))
+    results = dHcnf_shift.eval(z0, mult=False)
     
     if warn:
-        # check if the entries in the Hessian of the derived shifted Hamiltonian agree with the
-        # ones in linear theory.
+        # check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
+        # normal form with (twice) the ones predicted by linear theory.
         check_H2_shift = dHcnf_shift.hess(mult=False)
         check_H2_shift = {k: v for k, v in check_H2_shift.items() if abs(v) > tol}
         for k in check_H2_shift.keys():
