@@ -140,7 +140,7 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
         eigenvectors = [[eigenvectors[k, j] for k in range(len(eigenvalues))] for j in range(len(eigenvalues))]
         
     n = len(eigenvalues)
-    assert n == len(M)
+    assert n > 0
     
     # group the indices of the eigenvectors if they belong to the same eigenvalues.
     eigenspaces = [[0]] # 'eigenspaces' will be the collection of these groups of indices.
@@ -286,7 +286,7 @@ def williamson(V, code='numpy', **kwargs):
         diag = mp.diag([mp.sqrt(e) for e in evalues])
         diagi = mp.diag([1/mp.sqrt(e) for e in evalues])
 
-    assert all([e > 0 for e in evalues]), 'Input matrix eigenvalues not all positive.'
+    assert all([e > 0 for e in evalues]), f'Input matrix eigenvalues of matrix\n{V}\nnot all positive.'
     
     V12 = evectors*diag*evectors.transpose() # V12 means V^(1/2), the square root of V.
     V12i = evectors*diagi*evectors.transpose()
@@ -375,10 +375,10 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         sqrt2 = mp.sqrt(2)
     H2_matrix = column_matrix_2_code([[H2.get((i, j), 0) for i in range(dim)] for j in range(dim)], code=code)
     H2_matrix = 0.5*(H2_matrix + H2_matrix.transpose()) # the entries of the dictionary can be sparse and may contain zeros for mirrored values.
-    if len(T) != 0: # transform H2 back to default block ordering in case a different order is requested
-        H2_matrix = T*H2_matrix*T.transpose() 
         
     # Now perform symplectic diagonalization
+    if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
+        H2_matrix = T*H2_matrix*T.transpose() 
     S, D = williamson(V=H2_matrix, code=code, **kwargs)
     
     # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
@@ -401,7 +401,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     K = Sinv*Uinv  # this map will transform to the new (xi, eta)-coordinates via K.transpose()*H2*K
     Kinv = U*S
 
-    if len(T) != 0: # transform results to requested (q, p)-ordering
+    if len(T) != 0: # transform results back to the requested (q, p)-ordering
         S = T.transpose()*S*T
         Sinv = T.transpose()*Sinv*T
         D = T.transpose()*D*T

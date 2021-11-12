@@ -58,7 +58,7 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
         gradient = dH_shift.grad()
         if any([abs(gradient[k]) > tol for k in gradient.keys()]) > 0:
             print (f'Warning: H has non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
-            print (gradient)
+            print ([gradient[k] for k in sorted(gradient.keys())])
 
     # Step 3: Compute the linear map to first-order complex normal form of the shifted Hamiltonian around z.
     nfdict_shift = first_order_normal_form(H2_shift, **kwargs)
@@ -71,8 +71,10 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     results = dHcnf_shift.eval(z0, mult=False)
     
     if warn:
-        # check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
-        # normal form with (twice) the ones predicted by linear theory.
+        # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
+        # normal form with the values predicted by linear theory.
+        # The factor 2 involved here comes from the fact that we compare the cnf matrix entries with the
+        # 2nd order Taylor coefficients (which includes a sum over the two identical terms in the cnf matrix).
         check_H2_shift = dHcnf_shift.hess(mult=False)
         check_H2_shift = {k: v for k, v in check_H2_shift.items() if abs(v) > tol}
         for k in check_H2_shift.keys():
@@ -89,12 +91,13 @@ class liepoly:
     complex (xi, eta)-coordinates.
     '''
     def __init__(self, **kwargs):
+        # self.dim denotes the total number of available xi (or eta)-factors.
         if 'values' in kwargs.keys():
             self.values = kwargs['values']
             if len(self.values) == 0:
                 self.dim = kwargs.get('dim', 0)
             else:
-                self.dim = kwargs.get('dim', len(list(self.values.keys())[0])//2)
+                self.dim = kwargs.get('dim', len(next(iter(self.values)))//2)
         else:
             self.set_monomial(**kwargs)
         self.max_power = kwargs.get('max_power', 0)
@@ -107,6 +110,19 @@ class liepoly:
             b += [0]*(dim - len(b))
         self.dim = dim
         self.values = {tuple(a + b): value}
+        
+    def __call__(self, z):
+        # evaluate the polynomial at a specific position z.
+        result = 0
+        for k, v in self.values.items():
+            prod = v
+            for j in range(self.dim):
+                if z[j] == 0: # in Python 0**0 = 1, but here these values are zero.
+                    prod = 0
+                    break
+                prod *= z[j]**k[j]
+            result += prod
+        return result
         
     def __add__(self, other):
         add_values = {k: v for k, v in self.values.items()}
@@ -186,7 +202,7 @@ class liepoly:
             List [x**k(y) for k in range(n)], if n is the power requested.
         '''
         assert power >= 0
-        assert type(y) == self.__class__
+        assert self.__class__.__name__ == y.__class__.__name__
         result = self.__class__(values={k: v for k, v in y.values.items()}, 
                                 dim=y.dim, max_power=y.max_power)
         # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values are changing.
@@ -250,15 +266,15 @@ def exp_ad_par(e, t):
     return [t**k*e[k] for k in range(len(e))]
 
 
-def lie_pullback(x, power: int):
+def lie_pullback(x, power: int, components=[]):
     '''
-    Let f: R^n -> R be a differentiable function. Then this routine
-    will compute the Taylor polynomials in the components of M: R^n -> R^n,
+    Let f: R^n -> R be a differentiable function and :x: a polynomial Lie map. 
+    Then this routine will compute the Taylor polynomials in the components of M: R^n -> R^n,
     where M is the map satisfying
     exp(:x:) f = f o M
     Furthermore, the routine will provide the Taylor polynomials of the inverse M**(-1).
     
-    Note that the degree to which powers are discarded must be set by
+    Note that the degree to which powers are discarded can be set by
     x.max_power.
     
     Parameters
@@ -269,6 +285,9 @@ def lie_pullback(x, power: int):
     power: int
         The degree up to which exp(:x:) should be evaluated.
         
+    components: list
+        List of integers denoting the components to be computed. If nothing specified, all components are calculated.
+        
     Returns
     -------
     M: list
@@ -278,24 +297,27 @@ def lie_pullback(x, power: int):
         List of components of the map M**(-1) described above.
     '''
     
-    # We have to compute the maps exp(:x:)z_k for k = 1, ..., x.dim.
+    dim2 = 2*x.dim
+    if len(components) == 0:
+        components = range(dim2)
+
+    # We have to compute the maps exp(:x:)z_k for k in components.
     # Each one of these maps correspond to the k-th component of M.
+    # N.B. exp(:x:)eta required if x has complex entries (TODO: perhaps find a trick to avoid the calculation...)
     M1, M2 = [], []
     Minv1, Minv2 = [], []
-    for k in range(x.dim):
-        zeros = [0]*x.dim
-        ek = [0]*x.dim
-        ek[0] = 1
-        xi = liepoly(a=ek , b=zeros, value=1) # liepoly is initialized with a + b, so no danger of change in ek, zeros across instances
-        eta = liepoly(a=zeros, b=ek, value=1) # exp(:x:)eta required if x has complex entries (TODO: perhaps find a trick to avoid the calculation...)
-        exp_xi = exp_ad(x, xi, power=power)
-        exp_xi_inv = exp_ad_par(exp_xi, -1)
-        exp_eta = exp_ad(x, eta, power=power)
-        exp_eta_inv = exp_ad_par(exp_eta, -1)
-        M1.append(sum(exp_xi))
-        M2.append(sum(exp_eta))
-        Minv1.append(sum(exp_xi_inv))
-        Minv2.append(sum(exp_eta_inv))
+    for k in components:
+        lp = liepoly(values={tuple([0 if j != k else 1 for j in range(dim2)])  :1} , dim=x.dim)
+        
+        exp_lp = exp_ad(x, lp, power=power)
+        exp_lp_inv = exp_ad_par(exp_lp, -1)
+        
+        if k <= x.dim:
+            M1.append(sum(exp_lp))
+            Minv1.append(sum(exp_lp_inv))
+        else:
+            M2.append(sum(exp_lp))
+            Minv2.append(sum(exp_lp_inv))
     return M1 + M2, Minv1 + Minv2
 
 

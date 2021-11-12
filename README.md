@@ -4,8 +4,8 @@ Compute the Birkhoff normal form of a Hamiltonian up to a specific order.
 
 ## Features
 
-- Arbitrary order
-- Lightweight and easy to use.
+- Arbitrary order and phase space dimension.
+- Custom ordering of canonical coordinates possible.
 
 ## Installation
 
