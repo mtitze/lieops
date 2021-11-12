@@ -68,7 +68,7 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     trn_shift = lambda zz: [sum([K_shift[j, k]*zz[k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class 
     Hcnf_shift = lambda zz: H_shift(trn_shift(zz))
     dHcnf_shift = derive(Hcnf_shift, order=order, n_args=dim)
-    results = dHcnf_shift.eval(z0, mult=False)
+    results = dHcnf_shift(z0, mult=False)
     
     if warn:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
