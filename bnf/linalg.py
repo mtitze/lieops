@@ -10,6 +10,7 @@ def twonorm(vector, code='numpy'):
     if code == 'mpmath':
         return mp.sqrt(sum2)
     
+    
 def almosteq(a, b, tol=1e-14, **kwargs):
     '''
     Check if the relative difference between two values is smaller than a given value tol.
@@ -36,7 +37,7 @@ def almosteq(a, b, tol=1e-14, **kwargs):
         return abs(a - b)/max([abs(a), abs(b)]) < tol
     
     
-def column_matrix_2_code(M, code):
+def column_matrix_2_code(M, code='numpy', **kwargs):
     # translate a list of column vectors to a numpy or mpmath matrix
     if code == 'numpy':
         return np.matrix(M).transpose()
@@ -69,6 +70,59 @@ def create_J(dim: int):
         J1.append([0 if i != k + dim else -1 for i in range(dim2)])
         J2.append([0 if i != k else 1 for i in range(dim2)])
     return J1 + J2  
+
+
+def matrix_from_dict(M, symmetry: int=0, **kwargs):
+    
+    '''
+    Create matrix from (sparse) dict.
+    
+    Parameters
+    ----------
+    M: dict
+        The dictionary defining the entries M_ij of the matrix in the form:
+        M[(i, j)] = M_ij
+        
+    n_rows: int, optional
+        The number of rows.
+
+    n_cols: int, optional
+        The number of columns.
+    
+    symmetry: int, optional
+        If 0, no symmetry is assumed (default). 
+        If 1, matrix is assumed to be symmetric. Requires n_rows == n_cols.
+        If -1, matrix is assumed to be anti-symmetric. Requires n_rows == n_cols.
+        
+    **kwargs
+        Arguments passed to 'column_matrix_2_code' routine.
+    '''
+    assert symmetry in [-1, 0, 1]
+
+    dict_shape = max(M.keys())
+    n_rows = kwargs.get('n_rows', dict_shape[0] + 1)
+    n_cols = kwargs.get('n_cols', dict_shape[1] + 1)
+        
+    # create a column-matrix
+    mat = [[0]*n_rows for k in range(n_cols)]
+    if symmetry == 0:
+        for i in range(n_rows):
+            for j in range(n_cols):
+                mat[j][i] = M.get((i, j), 0)
+    else:
+        dim = max([n_rows, n_cols])
+        for i in range(dim):
+            for j in range(i + 1):
+                hij = M.get((i, j), 0)
+                hji = M.get((j, i), 0)
+                if hij != 0 and hji != 0:
+                    assert hij == symmetry*hji
+                if hij == 0 and hji != 0:
+                    hij = symmetry*hji
+                # (hij != 0 and hji == 0) or (hij == 0 and hji == 0). 
+                mat[j][i] = hij
+                mat[i][j] = symmetry*hij
+    return column_matrix_2_code(mat, **kwargs)
     
 
 def complex_gram_schmidt(vectors, **kwargs):
@@ -315,7 +369,7 @@ def williamson(V, code='numpy', **kwargs):
     
 def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     '''
-    Perform linear calculations to map a given second-order Hamiltonian,
+    Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
     complex normal form coordinates xi, eta. Along the way, the symplectic linear map to
     real normal form is computed. The quantities xi and eta are defined as in my thesis,
@@ -323,12 +377,8 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     
     Paramters
     ---------
-    H2: dict
-        Dictionary of the form H2 = {(i, j): h_ij}, so that the corresponding matrix 
-        (h_ij) is a real, symmetric and positive definite (square) matrix. H2 can be sparsely defined;
-        the mirrored indices will be added accordingly.
-        The prime example is that H2 comes from extracting the second-order coefficients 
-        in the Taylor expansion of a given Hamiltonian.
+    H2: matrix
+        Real symmetric positive definite Matrix.
         
     T: matrix, optional
         Orthogonal matrix to change the ordering of canoncial
@@ -341,6 +391,11 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
              \ -1   0  /
              
         into a matrix J' by matrix congruence: J' = T.transpose()*J*T.
+        
+    code: str, optional
+        The code in which the matrix calculations should be performed. Supported codes: 'numpy', 'mpmath'.
+        If the input is given in form of a matrix, the user has to ensure the correct code is selected.
+        Default: 'numpy'.
              
     Returns
     -------
@@ -364,22 +419,19 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
             normalizing (xi, eta)-coordinates.
         D: The real entries of rnf in form of a list.
     '''
-    # Create symmetric matrix from (sparse) dict
-    dim = kwargs.get('dim', max(max(H2.keys())) + 1)
-    assert dim%2 == 0, 'Dimension must be even.'
-    
     if code == 'numpy':
         sqrt2 = np.sqrt(2)
     if code == 'mpmath':
         mp.mp.dps = kwargs.get('dps', 32) 
         sqrt2 = mp.sqrt(2)
-    H2_matrix = column_matrix_2_code([[H2.get((i, j), 0) for i in range(dim)] for j in range(dim)], code=code)
-    H2_matrix = 0.5*(H2_matrix + H2_matrix.transpose()) # the entries of the dictionary can be sparse and may contain zeros for mirrored values.
         
-    # Now perform symplectic diagonalization
+    dim = len(H2)
+    assert dim%2 == 0, 'Dimension must be even.'
+        
+    # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
-        H2_matrix = T*H2_matrix*T.transpose() 
-    S, D = williamson(V=H2_matrix, code=code, **kwargs)
+        H2_matrix = T*H2*T.transpose() 
+    S, D = williamson(V=H2, code=code, **kwargs)
     
     # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
     # denote (new) canonical momenta v. The block-matrix U transforming the block-vector (u, v) to
@@ -415,7 +467,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     out['S'] = S 
     out['Sinv'] = Sinv # this symplectic map will diagonalize H2 in its original 
     # (q, p)-coordinates via Sinv.transpose()*H2*Sinv. Sinv (and S) are symplectic wrt. J
-    out['H2'] = H2_matrix # the matrix of second-order terms in H
+    out['H2'] = H2 # the input matrix
     out['rnf'] = D # the diagonal matrix obtained as a result of the symplectic diagonalization of H2
     out['D'] = [D[i, i].real for i in range(len(D))]
     out['T'] = T
@@ -425,7 +477,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     out['Uinv'] = Uinv
     out['K'] = K
     out['Kinv'] = Kinv
-    out['cnf'] = K.transpose()*H2_matrix*K # the representation of H2 in (xi, eta)-coordinates
+    out['cnf'] = K.transpose()*H2*K # the representation of H2 in (xi, eta)-coordinates
     
     return out
     

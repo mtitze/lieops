@@ -1,7 +1,11 @@
 from njet.jet import factorials
 from njet.ad import standardize_function
 from njet import derive
-from .linalg import first_order_normal_form
+from .linalg import first_order_normal_form, matrix_from_dict
+
+import mpmath as mp
+def pprint(mat):
+    mp.nprint(mp.chop(mp.matrix(mat), 1e-14))
 
 def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, **kwargs):
     '''
@@ -40,47 +44,46 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
         A dictionary of the Taylor coefficients of the Hamiltonian around z, where the first n
         entries denote powers of xi, while the last n entries denote powers of eta.
     '''
-    H, dim = standardize_function(H, n_args=n_args)
+    Hst, dim = standardize_function(H, n_args=n_args)
     
-    # Step 1: Shift H near z (N.B. shifts are symplectic, as they drop out from derivatives.)
+    # Step 1 (optional): Shift H near z (N.B. shifts are symplectic, as they drop out from derivatives.)
     if len(z) > 0:
-        H_shift = lambda x: H([x[k] + z[k] for k in range(len(z))])
+        H = lambda x: Hst([x[k] + z[k] for k in range(len(z))])
     else:
-        H_shift = H
+        H = Hst
     
-    # Step 2: Derive H twice to get its second-order Taylor coefficients.
-    dH_shift = derive(H_shift, order=2, n_args=dim)
+    # Step 2: Obtain the Hesse-matrix of H.
+    dH = derive(H, order=2, n_args=dim)
     z0 = dim*[0]
-    H2_shift = dH_shift.hess(z0, mult=False) # obtain the Taylor coefficients of the 2nd order near z.
+    Hesse_dict = dH.hess(z0)
+    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, **kwargs)
     
     # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
     if warn:
-        gradient = dH_shift.grad()
+        gradient = dH.grad()
         if any([abs(gradient[k]) > tol for k in gradient.keys()]) > 0:
             print (f'Warning: H has non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
             print ([gradient[k] for k in sorted(gradient.keys())])
 
-    # Step 3: Compute the linear map to first-order complex normal form of the shifted Hamiltonian around z.
-    nfdict_shift = first_order_normal_form(H2_shift, **kwargs)
-    K_shift = nfdict_shift['K']  # K.transpose()*H_shift*K is in cnf
-
-    # Step 4: Obtain the expansion of the shifted Hamiltonian up to the requested order
-    trn_shift = lambda zz: [sum([K_shift[j, k]*zz[k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class 
-    Hcnf_shift = lambda zz: H_shift(trn_shift(zz))
-    dHcnf_shift = derive(Hcnf_shift, order=order, n_args=dim)
-    results = dHcnf_shift(z0, mult=False)
+    # Step 3: Compute the linear map to first-order complex normal form.
+    nfdict = first_order_normal_form(Hesse_matrix, **kwargs)
+    K = nfdict['K'] # K.transpose()*Hesse_matrix*K is in cnf
+    
+    # Step 4: Obtain the expansion of the Hamiltonian up to the requested order.
+    Kmap = lambda zz: [sum([K[j, k]*zz[k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class 
+    HK = lambda zz: H(Kmap(zz))
+    dHK = derive(HK, order=order, n_args=dim)
+    results = dHK(z0, mult=False) # mult=False ensures that we obtain the Taylor-coefficients
     
     if warn:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
         # normal form with the values predicted by linear theory.
-        # The factor 2 involved here comes from the fact that we compare the cnf matrix entries with the
-        # 2nd order Taylor coefficients (which includes a sum over the two identical terms in the cnf matrix).
-        check_H2_shift = dHcnf_shift.hess(mult=False)
-        check_H2_shift = {k: v for k, v in check_H2_shift.items() if abs(v) > tol}
-        for k in check_H2_shift.keys():
-            diff = abs(check_H2_shift[k]/2 - nfdict_shift['cnf'][k[0], k[1]])
+        HK_hesse_dict = dHK.hess(z0)
+        HK_hesse_dict = {k: v for k, v in HK_hesse_dict.items() if abs(v) > tol}
+        for k in HK_hesse_dict.keys():
+            diff = abs(HK_hesse_dict[k] - nfdict['cnf'][k[0], k[1]])
             if diff > tol:
-                print(f'Cnf entry {k} does not agree with Hamiltonian expansion: diff {diff} > {tol} (tol).')
+                print(f'CNF entry {k} does not agree with Hamiltonian expansion: diff {diff} > {tol} (tol).')
         
     return results
 
