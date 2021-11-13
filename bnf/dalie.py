@@ -3,10 +3,6 @@ from njet.ad import standardize_function
 from njet import derive
 from .linalg import first_order_normal_form, matrix_from_dict
 
-import mpmath as mp
-def pprint(mat):
-    mp.nprint(mp.chop(mp.matrix(mat), 1e-14))
-
 def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, **kwargs):
     '''
     Return the Taylor-expansion of a Hamiltonian H in terms of first-order complex normal form coordinates
@@ -53,6 +49,11 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
         H = Hst
     
     # Step 2: Obtain the Hesse-matrix of H.
+    # N.B. we need to work with the Hesse-matrix here (and *not* with the Taylor-coefficients), because we want to get
+    # a (linear) map K so that H o K is in CNF (complex normal form). This is guaranteed if the Hesse-matrix 
+    # of H o K is in CNF form -- and this is true if the Hesse-matrix of H is transformed to CNF.
+    # Note that the Taylor-coefficients of H in 2nd-order are 1/2*Hesse_matrix. This means that at (++) (see below),
+    # no factor of two is required.
     dH = derive(H, order=2, n_args=dim)
     z0 = dim*[0]
     Hesse_dict = dH.hess(z0)
@@ -78,10 +79,10 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     if warn:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
         # normal form with the values predicted by linear theory.
-        HK_hesse_dict = dHK.hess(z0)
+        HK_hesse_dict = dHK.hess(Df=results)
         HK_hesse_dict = {k: v for k, v in HK_hesse_dict.items() if abs(v) > tol}
         for k in HK_hesse_dict.keys():
-            diff = abs(HK_hesse_dict[k] - nfdict['cnf'][k[0], k[1]])
+            diff = abs(HK_hesse_dict[k] - nfdict['cnf'][k[0], k[1]]) # (++)
             if diff > tol:
                 print(f'CNF entry {k} does not agree with Hamiltonian expansion: diff {diff} > {tol} (tol).')
         
