@@ -39,10 +39,15 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     dict
         A dictionary of the Taylor coefficients of the Hamiltonian around z, where the first n
         entries denote powers of xi, while the last n entries denote powers of eta.
+        
+    dict
+        The output of 'first_order_normal_form' routine, providing the linear map information at the requested point.
     '''
     Hst, dim = standardize_function(H, n_args=n_args)
     
-    # Step 1 (optional): Shift H near z (N.B. shifts are symplectic, as they drop out from derivatives.)
+    # Step 1 (optional): Construct H locally around z (N.B. shifts are symplectic, as they drop out from derivatives.)
+    # This step is required, because later on (at point (+)) we want to extract the Taylor coefficients, and
+    # this works numerically only if we consider a function around zero.
     if len(z) > 0:
         H = lambda x: Hst([x[k] + z[k] for k in range(len(z))])
     else:
@@ -50,8 +55,8 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     
     # Step 2: Obtain the Hesse-matrix of H.
     # N.B. we need to work with the Hesse-matrix here (and *not* with the Taylor-coefficients), because we want to get
-    # a (linear) map K so that H o K is in CNF (complex normal form). This is guaranteed if the Hesse-matrix 
-    # of H o K is in CNF form -- and this is true if the Hesse-matrix of H is transformed to CNF.
+    # a (linear) map K so that the Hesse-matrix of H o K is in CNF (complex normal form). This is guaranteed
+    # if the Hesse-matrix of H is transformed to CNF.
     # Note that the Taylor-coefficients of H in 2nd-order are 1/2*Hesse_matrix. This means that at (++) (see below),
     # no factor of two is required.
     dH = derive(H, order=2, n_args=dim)
@@ -66,7 +71,7 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
             print (f'Warning: H has non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
             print ([gradient[k] for k in sorted(gradient.keys())])
 
-    # Step 3: Compute the linear map to first-order complex normal form.
+    # Step 3: Compute the linear map to first-order complex normal form near z.
     nfdict = first_order_normal_form(Hesse_matrix, **kwargs)
     K = nfdict['K'] # K.transpose()*Hesse_matrix*K is in cnf
     
@@ -74,7 +79,7 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     Kmap = lambda zz: [sum([K[j, k]*zz[k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class 
     HK = lambda zz: H(Kmap(zz))
     dHK = derive(HK, order=order, n_args=dim)
-    results = dHK(z0, mult=False) # mult=False ensures that we obtain the Taylor-coefficients
+    results = dHK(z0, mult=False) # mult=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
     
     if warn:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
@@ -86,25 +91,36 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
             if diff > tol:
                 print(f'CNF entry {k} does not agree with Hamiltonian expansion: diff {diff} > {tol} (tol).')
         
-    return results
+    return results, nfdict
 
 
 class liepoly:
     '''
     Class to model the Lie operator :p:, where p is a polynomial given in terms of
     complex (xi, eta)-coordinates.
+    
+    self.max_power > 0 means that any calculations beyond this degree are discarded.
+    For binary operations this means that the minimum of both fields are computed.
+    
+    A liepoly class should be initialized with non-zero values.
     '''
-    def __init__(self, **kwargs):
-        # self.dim denotes the total number of available xi (or eta)-factors.
+    def __init__(self, max_power=float('inf'), **kwargs):
+        # self.dim denotes the number of xi (or eta)-factors.
         if 'values' in kwargs.keys():
             self.values = kwargs['values']
             if len(self.values) == 0:
                 self.dim = kwargs.get('dim', 0)
             else:
                 self.dim = kwargs.get('dim', len(next(iter(self.values)))//2)
-        else:
+        elif 'a' in kwargs.keys() or 'b' in kwargs.keys():
             self.set_monomial(**kwargs)
-        self.max_power = kwargs.get('max_power', 0)
+        else:
+            self.values = {}
+        self.set_max_power(max_power)
+        
+    def set_max_power(self, max_power):
+        self.max_power = max_power
+        self.values = {k: v for k, v in self.values.items() if sum(k) <= max_power}
         
     def set_monomial(self, a=[], b=[], value=1, **kwargs):
         dim = max([len(a), len(b)])
@@ -115,13 +131,63 @@ class liepoly:
         self.dim = dim
         self.values = {tuple(a + b): value}
         
+    def maxdeg(self):
+        '''
+        Obtain the maximal degree of the current Lie polynomial. 
+        '''
+        # It is assumed that the values of the Lie polynomial are non-zero.
+        return max([sum(k) for k, v in self.values.items()])
+    
+    def mindeg(self):
+        '''
+        Obtain the minimal degree of the current Lie polynomial. 
+        '''
+        # It is assumed that the values of the Lie polynomial are non-zero.
+        return min([sum(k) for k, v in self.values.items()])
+        
+    def copy(self):
+        return self.__class__(values={k: v for k, v in self.values.items()}, dim=self.dim, max_power=self.max_power)
+    
+    def extract(self, condition):
+        '''
+        Extract a Lie polynomial from the current Lie polynomial, based on a condition.
+        
+        Parameters
+        ----------
+        condition: callable
+            A function which maps a given tuple (an index) to a boolean. For example 'condition = lambda x: sum(x) == k' would
+            yield the homogeneous part of the current Lie polynomial (this is realized in 'self.homogeneous_part').
+            
+        Returns
+        -------
+        liepoly
+            The extracted Lie polynomial.
+        '''
+        return self.__class__(values={key: value for key, value in self.values.items() if condition(key)}, dim=self.dim, max_power=self.max_power)
+    
+    def homogeneous_part(self, k: int):
+        '''
+        Extract the homogeneous part of order k from the current Lie polynomial.
+        
+        Parameters
+        ----------
+        k: int
+            The requested order.
+            
+        Returns
+        -------
+        liepoly
+            The extracted Lie polynomial.
+        '''
+        return self.extract(condition=lambda x: sum(x) == k)
+        
     def __call__(self, z):
         # evaluate the polynomial at a specific position z.
         result = 0
         for k, v in self.values.items():
             prod = v
             for j in range(self.dim):
-                if z[j] == 0: # in Python 0**0 = 1, but here these values are zero.
+                if z[j] == 0: # in Python 0**0 = 1, but here these values are understood as zero.
                     prod = 0
                     break
                 prod *= z[j]**k[j]
@@ -131,12 +197,15 @@ class liepoly:
     def __add__(self, other):
         add_values = {k: v for k, v in self.values.items()}
         if self.__class__.__name__ != other.__class__.__name__:
-            zero_tpl = tuple([0]*self.dim*2)
-            new_value = add_values.get(zero_tpl, 0) + other
-            if new_value != 0:
-                add_values[zero_tpl] = new_value
-            else:
-                _ = add_values.pop(zero_tpl)
+            if other != 0:
+                zero_tpl = tuple([0]*self.dim*2)
+                new_value = add_values.get(zero_tpl, 0) + other
+                if new_value != 0:
+                    add_values[zero_tpl] = new_value
+                elif zero_tpl in add_values:
+                    _ = add_values.pop(zero_tpl)
+                else:
+                    pass
             max_power = self.max_power
         else:
             assert other.dim == self.dim
@@ -147,7 +216,7 @@ class liepoly:
                 else:
                     _ = add_values.pop(k)
 
-            max_power = max([self.max_power, other.max_power])
+            max_power = min([self.max_power, other.max_power])
         return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
     
     def __radd__(self, other):
@@ -161,10 +230,15 @@ class liepoly:
         return self + -other
 
     def __mul__(self, other):      
-        assert other.dim == self.dim      
+        assert other.dim == self.dim
+        max_power = min([self.max_power, other.max_power])
         mult = {}
         for t1, v1 in self.values.items():
+            power1 = sum(t1)
             for t2, v2 in other.values.items():
+                power2 = sum(t2)
+                if power1 + power2 - 2 > max_power:
+                    continue
                 a, b = t1[:self.dim], t1[self.dim:]
                 c, d = t2[:self.dim], t2[self.dim:]
                 for k in range(self.dim):
@@ -176,11 +250,6 @@ class liepoly:
                     new_value = mult.get(new_power, 0) - 1j*det*v1*v2
                     if new_value != 0:
                         mult[new_power] = new_value
-
-        # remove expressions larger than a given power, if max_power > 0:
-        max_power = max([self.max_power, other.max_power])
-        if max_power > 0:
-            mult = {k: v for k, v in mult.items() if sum(k) <= max_power}
         return self.__class__(values=mult, dim=self.dim, max_power=max_power)
         
     def __rmul__(self, other):
@@ -192,6 +261,16 @@ class liepoly:
         Compute nested Poisson-bracket.
         E.g. let x = self. Then {x, {x, {x, {x, {x, {x, y}}}}}} =: x**6(y)
         Special case: x**0(y) := y
+        
+        Let z be a homogeneous Lie polynomials and deg(z) the degree of z. Then it holds
+        deg(x**m(y)) = deg(y) + m*(deg(x) - 2).
+        This also holds for the maximal degrees and minimal degrees in case that x, and y
+        are inhomogeneous.
+        
+        Therefore, if x and y both have non-zero max_power fields, 'self.power' will not evaluate
+        terms x**m with
+        m > min([(max_power - mindeg(y))//(mindeg(x) - 2), power]).
+        
         
         Parameters
         ----------
@@ -207,8 +286,15 @@ class liepoly:
         '''
         assert power >= 0
         assert self.__class__.__name__ == y.__class__.__name__
+        
+        max_power = min([self.max_power, y.max_power])
+        mindeg_x = self.mindeg()
+        if mindeg_x > 2 and max_power < float('inf'):
+            mindeg_y = y.mindeg()
+            power = min([(max_power - mindeg_y)//(mindeg_x - 2), power]) # adjust power accordingly.
+        
         result = self.__class__(values={k: v for k, v in y.values.items()}, 
-                                dim=y.dim, max_power=y.max_power)
+                                dim=y.dim, max_power=max_power)
         # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values are changing.
         all_results = []
         for k in range(power):
@@ -225,14 +311,14 @@ class liepoly:
     
 def exp_ad(x, y, power: int):
     '''
-    Compute the exponential lie operator exp(:x:)y up to a given power.
+    Compute the exponential Lie operator exp(:x:)y up to a given power.
     
     Parameters
     ----------
-    x: liepolynom
+    x: liepoly
         The polynomial defining the Lie operator :x:
-    y: liepolynom
-        The polynomial of which we want to apply the exponential lie operator on.
+    y: liepoly
+        The polynomial of which we want to apply the exponential Lie operator on.
     power: int
         Integer defining the maximal power up to which we want to compute the expression.
         
@@ -242,12 +328,11 @@ def exp_ad(x, y, power: int):
         List containing the terms 1/k!*(:x:**k)y in the exponential expansion up to the given power.
     '''
     facts = factorials(power)
-    one = liepoly(a=[0]*x.dim, b=[0]*x.dim, value=1) 
     all_results = []
     powers = x.power(power, y)
     for k in range(power): # powers[0] corresponds to {x, y}, i.e. order 1
         powers[k] = 1/facts[k + 1]*powers[k]
-    return [one] + powers
+    return [y] + powers
             
     
 def exp_ad_par(e, t):
@@ -294,11 +379,11 @@ def lie_pullback(x, power: int, components=[]):
         
     Returns
     -------
-    M: list
-        List of components of the map M described above.
+    M: dict
+        Dictionary of the components of the map M described above.
         
-    Minv: list
-        List of components of the map M**(-1) described above.
+    Minv: dict
+        Dictionary of the components of the map M**(-1) described above.
     '''
     
     dim2 = 2*x.dim
@@ -308,21 +393,14 @@ def lie_pullback(x, power: int, components=[]):
     # We have to compute the maps exp(:x:)z_k for k in components.
     # Each one of these maps correspond to the k-th component of M.
     # N.B. exp(:x:)eta required if x has complex entries (TODO: perhaps find a trick to avoid the calculation...)
-    M1, M2 = [], []
-    Minv1, Minv2 = [], []
+    M, Minv = {}, {}
     for k in components:
-        lp = liepoly(values={tuple([0 if j != k else 1 for j in range(dim2)])  :1} , dim=x.dim)
-        
+        lp = liepoly(values={tuple([0 if j != k else 1 for j in range(dim2)]):1} , dim=x.dim)
         exp_lp = exp_ad(x, lp, power=power)
         exp_lp_inv = exp_ad_par(exp_lp, -1)
-        
-        if k <= x.dim:
-            M1.append(sum(exp_lp))
-            Minv1.append(sum(exp_lp_inv))
-        else:
-            M2.append(sum(exp_lp))
-            Minv2.append(sum(exp_lp_inv))
-    return M1 + M2, Minv1 + Minv2
+        M[k] = sum(exp_lp)
+        Minv[k] = sum(exp_lp_inv)
+    return M, Minv
 
 
 def Omega(mu, a, b):
@@ -343,7 +421,7 @@ def Omega(mu, a, b):
     return sum([mu[k]*(a[k] - b[k]) for k in range(len(mu))])
 
 
-def homological_eq(mu, Z):
+def homological_eq(mu, Z, **kwargs):
     '''
     Let e[k], k = 1, ..., len(mu) be actions, H0 := sum_k mu[k]*e[k] and Z a
     polynomial of degree n. Then this routine will solve 
@@ -352,7 +430,7 @@ def homological_eq(mu, Z):
     {H0, Q} = 0.
 
     Attention: No check whether Z is actually homogeneous or real, but if one of
-    these properties hold, then also chi and Q will admit this property.
+    these properties hold, then also chi and Q will admit such properties.
     
     Parameters
     ----------
@@ -362,6 +440,9 @@ def homological_eq(mu, Z):
     Z: liepoly
         Polynomial of degree n.
         
+    **kwargs
+        Arguments passed to liepoly initialization.
+        
     Returns
     -------
     chi: liepoly
@@ -370,7 +451,7 @@ def homological_eq(mu, Z):
     Q: liepoly
         Polynomial of degree n with the above property.
     '''
-    chi, Q = liepoly(values={}, dim=Z.dim), liepoly(values={}, dim=Z.dim)
+    chi, Q = liepoly(values={}, dim=Z.dim, **kwargs), liepoly(values={}, dim=Z.dim, **kwargs)
     for powers, value in Z.values.items():
         om = Omega(mu, powers[:Z.dim], powers[Z.dim:])
         if om != 0:
