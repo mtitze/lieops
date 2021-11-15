@@ -108,14 +108,16 @@ class liepoly:
         # self.dim denotes the number of xi (or eta)-factors.
         if 'values' in kwargs.keys():
             self.values = kwargs['values']
-            if len(self.values) == 0:
-                self.dim = kwargs.get('dim', 0)
-            else:
-                self.dim = kwargs.get('dim', len(next(iter(self.values)))//2)
         elif 'a' in kwargs.keys() or 'b' in kwargs.keys():
             self.set_monomial(**kwargs)
         else:
             self.values = {}
+            
+        if len(self.values) == 0:
+            self.dim = kwargs.get('dim', 0)
+        else:
+            self.dim = kwargs.get('dim', len(next(iter(self.values)))//2)
+            
         self.set_max_power(max_power)
         
     def set_max_power(self, max_power):
@@ -128,7 +130,6 @@ class liepoly:
             a += [0]*(dim - len(a))
         if len(b) < dim:
             b += [0]*(dim - len(b))
-        self.dim = dim
         self.values = {tuple(a + b): value}
         
     def maxdeg(self):
@@ -269,7 +270,7 @@ class liepoly:
         
         Therefore, if x and y both have non-zero max_power fields, 'self.power' will not evaluate
         terms x**m with
-        m > min([(max_power - mindeg(y))//(mindeg(x) - 2), power]).
+        m >= min([(max_power - mindeg(y))//(mindeg(x) - 2), power]).
         
         
         Parameters
@@ -284,18 +285,20 @@ class liepoly:
         list
             List [x**k(y) for k in range(n)], if n is the power requested.
         '''
-        assert power >= 0
         assert self.__class__.__name__ == y.__class__.__name__
+        assert power >= 0
         
+        # Adjust requested power if max_power makes this necessary, see comment above.
         max_power = min([self.max_power, y.max_power])
         mindeg_x = self.mindeg()
         if mindeg_x > 2 and max_power < float('inf'):
             mindeg_y = y.mindeg()
-            power = min([(max_power - mindeg_y)//(mindeg_x - 2), power]) # adjust power accordingly.
+            power = min([(max_power - mindeg_y)//(mindeg_x - 2), power]) # N.B. // works as floor division
         
         result = self.__class__(values={k: v for k, v in y.values.items()}, 
                                 dim=y.dim, max_power=max_power)
-        # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values are changing.
+        # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values is changing.
+        
         all_results = []
         for k in range(power):
             result = self*result
@@ -330,7 +333,7 @@ def exp_ad(x, y, power: int):
     facts = factorials(power)
     all_results = []
     powers = x.power(power, y)
-    for k in range(power): # powers[0] corresponds to {x, y}, i.e. order 1
+    for k in range(len(powers)): # powers[0] corresponds to {x, y}, i.e. order 1
         powers[k] = 1/facts[k + 1]*powers[k]
     return [y] + powers
             
@@ -460,3 +463,94 @@ def homological_eq(mu, Z, **kwargs):
             Q.values[powers] = value
     return chi, Q
 
+
+def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
+    '''
+    Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
+    
+    Attention: Constants and any gradients of H at z will be ignored. If There is 
+    a non-zero gradient, a warning is issued by default.
+    
+    Parameters
+    ----------
+    H: callable
+        The Hamiltonian to be normalized. 
+                
+    order: int
+        The order up to which we build the normal form. Results up to this order will provide the exact
+        derivatives.
+    
+    z: list, optional
+        List of length according to the signature of H. The point around which we are going to 
+        build the map to normal coordinates. H will be expanded around this point. If nothing specified,
+        then the expansion will take place around zero.
+        
+    tol: float, optional
+        Tolerance below which we consider a value as zero and ignore it from calculations. This may
+        improve performance.
+        
+    **kwargs
+        Keyword arguments are passed to 'first_order_nf_expansion' routine.
+    '''
+    
+    max_power = order # !!! TMP; need to set this very carefully
+    exp_power = order # !!! TMP; need to set this very carefully
+    
+    # obtain an expansion of H in terms of complex first-order normal form coordinates  
+    taylor_coeffs, nfdict = first_order_nf_expansion(H, z=z, order=order, **kwargs)
+
+    # get the dimension by looking at one key
+    dim2 = len(next(iter(taylor_coeffs)))
+    dim = dim2//2
+        
+    # define mu and H0. For H0 we skip any (small) off-diagonal elements.
+    H0 = {}
+    mu = []
+    for j in range(dim): # add the second-order coefficients (tunes)
+        tpl = tuple([0 if k != j and k != j + dim else 1 for k in range(dim2)])
+        muj = taylor_coeffs[tpl]
+        assert muj.imag == 0
+        muj = muj.real
+        H0[tpl] = muj
+        mu.append(muj)
+    H0 = liepoly(values=H0, dim=dim, max_power=max_power)
+    
+    # for H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants)).
+    H_values = {k: v for k, v in H0.values.items()}
+    H_values.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
+    H = liepoly(values=H_values, dim=dim, max_power=max_power)
+    
+    # Indution start (k = 2); get P_3 and R_4. Z_2 is set to zero.
+    Zk = liepoly(dim=dim, max_power=max_power) # Z_2
+    Pk = H.homogeneous_part(3) # P_3
+    Hk = H.copy() # H_2 = H
+        
+    chi_all, Hk_all = [], [H]
+    Zk_all, Qk_all = [], []
+
+    for k in range(3, order + 1):
+        chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
+        if len(chi.values) == 0:
+            # in this case the transformation is the identity and so the algorithm stops.
+            break
+        Hk = sum(exp_ad(-chi, Hk, power=exp_power))
+        Pk = Hk.homogeneous_part(k + 1)
+        Zk += Q 
+        
+        chi_all.append(chi)
+        Hk_all.append(Hk)
+        Zk_all.append(Zk)
+        Qk_all.append(Q)
+
+    # assemble output
+    out = {}
+    out['nfdict'] = nfdict
+    out['H'] = H
+    out['H0'] = H0
+    out['mu'] = mu    
+    out['chi'] = chi_all
+    out['Hk'] = Hk_all
+    out['Zk'] = Zk_all
+    out['Qk'] = Qk_all
+        
+    return out
