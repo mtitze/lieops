@@ -1,4 +1,4 @@
-from njet.jet import factorials
+from njet.jet import factorials, check_zero
 from njet.ad import standardize_function
 from njet import derive
 from .linalg import first_order_normal_form, matrix_from_dict
@@ -183,15 +183,24 @@ class liepoly:
         return self.extract(condition=lambda x: sum(x) == k)
         
     def __call__(self, z):
-        # evaluate the polynomial at a specific position z.
+        '''
+        Evaluate the polynomial at a specific position z.
+        
+        Parameters
+        ----------
+        z: subscriptable
+            The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim
+            (the components of z correspond to the xi-values).
+        '''
+        assert len(z) == 2*self.dim
         result = 0
         for k, v in self.values.items():
             prod = v
             for j in range(self.dim):
-                if z[j] == 0: # in Python 0**0 = 1, but here these values are understood as zero.
+                if check_zero(z[j]) or check_zero(z[j + self.dim]): # in Python 0**0 = 1, but here these values are understood as zero.
                     prod = 0
                     break
-                prod *= z[j]**k[j]
+                prod *= z[j]**k[j]*z[j + self.dim]**k[j + self.dim]
             result += prod
         return result
         
@@ -230,7 +239,8 @@ class liepoly:
     def __sub__(self, other):
         return self + -other
 
-    def __mul__(self, other):      
+    def __matmul__(self, other):
+        assert self.__class__.__name__ == other.__class__.__name__
         assert other.dim == self.dim
         max_power = min([self.max_power, other.max_power])
         mult = {}
@@ -251,15 +261,21 @@ class liepoly:
                     new_value = mult.get(new_power, 0) - 1j*det*v1*v2
                     if new_value != 0:
                         mult[new_power] = new_value
+                    else:
+                        if new_power in mult.keys():
+                            _ = mult.pop(new_power)
         return self.__class__(values=mult, dim=self.dim, max_power=max_power)
+    
+    def __mul__(self, other):
+        return self.__class__(values={k: v*other for k, v in self.values.items()}, 
+                                  dim=self.dim, max_power=self.max_power)
         
     def __rmul__(self, other):
-        return self.__class__(values={k: v*other for k, v in self.values.items()}, 
-                              dim=self.dim, max_power=self.max_power)
+        return self.__mul__(other)
         
     def power(self, power: int, y):
         '''
-        Compute nested Poisson-bracket.
+        Compute repeated Poisson-brackets.
         E.g. let x = self. Then {x, {x, {x, {x, {x, {x, y}}}}}} =: x**6(y)
         Special case: x**0(y) := y
         
@@ -271,7 +287,6 @@ class liepoly:
         Therefore, if x and y both have non-zero max_power fields, 'self.power' will not evaluate
         terms x**m with
         m >= min([(max_power - mindeg(y))//(mindeg(x) - 2), power]).
-        
         
         Parameters
         ----------
@@ -294,14 +309,14 @@ class liepoly:
         if mindeg_x > 2 and max_power < float('inf'):
             mindeg_y = y.mindeg()
             power = min([(max_power - mindeg_y)//(mindeg_x - 2), power]) # N.B. // works as floor division
-        
+            
         result = self.__class__(values={k: v for k, v in y.values.items()}, 
                                 dim=y.dim, max_power=max_power)
         # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values is changing.
         
         all_results = []
         for k in range(power):
-            result = self*result
+            result = self@result
             all_results.append(result)
         return all_results
     
@@ -310,6 +325,38 @@ class liepoly:
 
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>'
+    
+    def derive(self, order: int):
+        dself = derive(self, order=order, n_args=2*self.dim)
+        return dself
+    
+    def compose(self, lps): # TODO: implement :f@g: = :f: :g: ...
+        '''
+        Let :x: represent the current Lie polynomial and [:y1:, :y2:, ...] a list
+        of Lie operators of length x.dim.
+        Then this routine will compute the Lie polynomial :x(yk):, where x(yk) is
+        the polynomial in which yk has been applied to the elementary element zk of x.
+        '''
+        dim2 = self.dim*2
+        assert len(lps) == dim2
+
+        # A list of elementary Lie polynomials
+        z = [liepoly(values={tuple([0 if j != k else 1 for j in range(dim2)]):1} , dim=self.dim, max_power=self.max_power) for k in range(dim2)]
+        yz = [lps[k]*z[k] for k in range(dim2)]
+        
+        for tpl, value in self.values.items():
+            power1 = sum(tpl)
+            for k in range(dim2):
+                if tpl[k] == 0:
+                    continue
+                    
+                for tpl2, value2 in yz[k].values.items():
+                    if sum(tpl2) + power1 > self.max_power:
+                        continue
+                        
+                    tuple([tpl2[l] + tpl[l] for l in range(dim2)])
+            # now construct new lie polynomial based on the powers
+            
     
     
 def exp_ad(x, y, power: int):
@@ -468,13 +515,15 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
-    Attention: Constants and any gradients of H at z will be ignored. If There is 
+    Attention: Constants and any gradients of H at z will be ignored. If there is 
     a non-zero gradient, a warning is issued by default.
     
     Parameters
     ----------
-    H: callable
-        The Hamiltonian to be normalized. 
+    H: callable or dict
+        Defines the Hamiltonian to be normalized. If dict, then it must be of the
+        form (e.g. for phase space dimension 4): {(i, j, k, l): value}, where the tuple (i, j, k, l)
+        denotes the exponents in xi1, xi2, eta1, eta2.
                 
     order: int
         The order up to which we build the normal form. Results up to this order will provide the exact
@@ -496,14 +545,18 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
     max_power = order # !!! TMP; need to set this very carefully
     exp_power = order # !!! TMP; need to set this very carefully
     
-    # obtain an expansion of H in terms of complex first-order normal form coordinates  
-    taylor_coeffs, nfdict = first_order_nf_expansion(H, z=z, order=order, **kwargs)
-
-    # get the dimension by looking at one key
+    if type(H) != dict:
+        # obtain an expansion of H in terms of complex first-order normal form coordinates
+        taylor_coeffs, nfdict = first_order_nf_expansion(H, z=z, order=order, **kwargs)
+    else:
+        taylor_coeffs = H
+        nfdict = {}
+        
+    # get the dimension (by looking at one key in the dict)
     dim2 = len(next(iter(taylor_coeffs)))
     dim = dim2//2
         
-    # define mu and H0. For H0 we skip any (small) off-diagonal elements.
+    # define mu and H0. For H0 we skip any (small) off-diagonal elements as they must be zero by construction.
     H0 = {}
     mu = []
     for j in range(dim): # add the second-order coefficients (tunes)
@@ -515,7 +568,9 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
         mu.append(muj)
     H0 = liepoly(values=H0, dim=dim, max_power=max_power)
     
-    # for H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants)).
+    # for H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
+    # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
+    # to the original problem. By default, the user is getting informed if there is a non-zero gradient.
     H_values = {k: v for k, v in H0.values.items()}
     H_values.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     H = liepoly(values=H_values, dim=dim, max_power=max_power)
@@ -527,13 +582,13 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
         
     chi_all, Hk_all = [], [H]
     Zk_all, Qk_all = [], []
-
     for k in range(3, order + 1):
         chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
         if len(chi.values) == 0:
-            # in this case the transformation is the identity and so the algorithm stops.
+            # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
         Hk = sum(exp_ad(-chi, Hk, power=exp_power))
+        # Hk = sum(exp_ad(-chi, Hk, power=k + 1)) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)
         Zk += Q 
         
