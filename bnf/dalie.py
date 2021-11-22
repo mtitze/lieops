@@ -68,7 +68,7 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
     if warn:
         gradient = dH.grad()
         if any([abs(gradient[k]) > tol for k in gradient.keys()]) > 0:
-            print (f'Warning: H has non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
+            print (f'Warning: H has a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
             print ([gradient[k] for k in sorted(gradient.keys())])
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
@@ -89,7 +89,7 @@ def first_order_nf_expansion(H, order, z=[], warn: bool=True, n_args: int=0, tol
         for k in HK_hesse_dict.keys():
             diff = abs(HK_hesse_dict[k] - nfdict['cnf'][k[0], k[1]]) # (++)
             if diff > tol:
-                print(f'CNF entry {k} does not agree with Hamiltonian expansion: diff {diff} > {tol} (tol).')
+                raise RuntimeError(f'CNF entry {k} does not agree with Hamiltonian expansion: diff {diff} > {tol} (tol).')
         
     return results, nfdict
 
@@ -326,11 +326,27 @@ class liepoly:
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>'
     
-    def derive(self, order: int):
-        dself = derive(self, order=order, n_args=2*self.dim)
+    def derive(self, **kwargs):
+        '''
+        Derive the current Lie polynomial.
+        
+        Parameters
+        ----------
+        order: int
+            The order by which we are going to derive the polynomial.
+            
+        Returns
+        -------
+        derive: object
+            A class of type njet.ad.derive with n_args=2*self.dim parameters.
+            Note that a function evaluation should be consistent with the fact that 
+            the last self.dim entries are the complex conjugate values of the 
+            first self.dim entries.
+        '''
+        dself = derive(self, n_args=2*self.dim, **kwargs)
         return dself
     
-    def compose(self, lps): # TODO: implement :f@g: = :f: :g: ...
+    def compose(self, lps):
         '''
         Let :x: represent the current Lie polynomial and [:y1:, :y2:, ...] a list
         of Lie operators of length x.dim.
@@ -568,9 +584,10 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
         mu.append(muj)
     H0 = liepoly(values=H0, dim=dim, max_power=max_power)
     
-    # for H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
+    # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
-    # to the original problem. By default, the user is getting informed if there is a non-zero gradient.
+    # to the original problem. By default, the user will be informed if there is a non-zero gradient 
+    # in 'first_order_nf_expansion' routine.
     H_values = {k: v for k, v in H0.values.items()}
     H_values.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     H = liepoly(values=H_values, dim=dim, max_power=max_power)

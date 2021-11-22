@@ -1,6 +1,13 @@
 import numpy as np
 import mpmath as mp
 
+
+def printdb(M, tol=1e-14):
+    # print a matrix (for debugging reasons)
+    M = mp.matrix(M)
+    mp.nprint(mp.chop(M, tol))
+    
+
 def twonorm(vector, code='numpy'):
     # Compute the 2-norm of a vector.
     # This seems to provide slightly faster results than np.linalg.norm
@@ -226,9 +233,9 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
 def anti_diagonalize_skew(M, code='numpy', **kwargs):
     '''Anti-diagonalize a real skew symmetric matrix A so that it will have the block-form
     
-        /  0  X \
-    A = |       |
-        \ -X  0 /
+             /  0   X  \
+        A =  |         |
+             \ -X   0  /
     
     where X is a diagonal matrix with positive entries.
     
@@ -353,7 +360,7 @@ def williamson(V, code='numpy', **kwargs):
     skewmat = V12i*J*V12i
     A = anti_diagonalize_skew(skewmat, code=code, **kwargs)    
     K = A.transpose()*skewmat*A # the sought anti-diagonal matrix
-    
+
     # obtain D as described in the reference above
     Di_values = [K[i, i + dim] for i in range(dim)]*2
     D = [1/e for e in Di_values]
@@ -430,7 +437,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         
     # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
-        H2_matrix = T*H2*T.transpose() 
+        H2 = T*H2*T.transpose() 
     S, D = williamson(V=H2, code=code, **kwargs)
     
     # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
@@ -458,6 +465,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         Sinv = T.transpose()*Sinv*T
         D = T.transpose()*D*T
         J = T.transpose()*J*T
+        H2 = T.transpose()*H2*T
         
         K = T.transpose()*K
         Kinv = Kinv*T

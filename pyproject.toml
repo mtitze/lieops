@@ -1,8 +1,12 @@
 [tool.poetry]
 name = "bnf"
 version = "0.1.0"
-description = ""
-authors = ["Malte Titze <mtitze@users.noreply.github.com>"]
+description = "Lightweight automatic differentiation package for higher-order differentiation."
+authors = [ "Malte Titze <mtitze@users.noreply.github.com>",]
+license = "GPL-3.0-or-later"
+homepage = "https://bnf.readthedocs.io/en/latest/index.html"
+repository = "https://github.com/mtitze/bnf"
+keywords = [ "Birkhoff", "normal", "form",]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
