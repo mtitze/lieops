@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "bnf"
 version = "0.1.0"
-description = "Lightweight automatic differentiation package for higher-order differentiation."
+description = "Compute the Birkhoff normal form of a Hamiltonian."
 authors = [ "Malte Titze <mtitze@users.noreply.github.com>",]
 license = "GPL-3.0-or-later"
 homepage = "https://bnf.readthedocs.io/en/latest/index.html"

@@ -4,8 +4,9 @@ Compute the Birkhoff normal form of a Hamiltonian up to a specific order.
 
 ## Features
 
-- Arbitrary order and phase space dimension.
-- Custom ordering of canonical coordinates possible.
+- Computation of higher-order normal form.
+- Arbitrary phase space dimension.
+- Custom ordering of canonical coordinates.
 
 ## Installation
 
@@ -28,17 +29,17 @@ https://bnf.readthedocs.io/en/latest/index.html
 
 ## License
 
-This file is part of bnf.
+Copyright (C) 2021  Malte Titze
 
-bnf is free software: you can redistribute it and/or modify
+This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+any later version.
 
-bnf is distributed in the hope that it will be useful,
+This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with bnf. If not, see <https://www.gnu.org/licenses/>.
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
