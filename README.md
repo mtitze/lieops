@@ -1,12 +1,15 @@
 # bnf: Birkhoff normal form
 
-Compute the Birkhoff normal form of a Hamiltonian up to a specific order.
+Compute the Birkhoff normal form of a given Hamiltonian, up to a specific order.
 
 ## Features
 
-- Computation of higher-order normal form.
+- Calculation of higher-order normal form.
 - Arbitrary phase space dimension.
-- Custom ordering of canonical coordinates.
+- All Hamiltonians expressed in form of polynomials and njet.functions are supported.
+- Custom ordering of canonical coordinates possible.
+- Contains a linear algebra package with symplectic diagonalization 
+  and orthogonal anti-diagonalization routine, as well as (linear) first-order normal form.
 
 ## Installation
 

@@ -76,7 +76,7 @@ def create_J(dim: int):
     for k in range(dim):
         J1.append([0 if i != k + dim else -1 for i in range(dim2)])
         J2.append([0 if i != k else 1 for i in range(dim2)])
-    return J1 + J2  
+    return J1 + J2 
 
 
 def matrix_from_dict(M, symmetry: int=0, **kwargs):

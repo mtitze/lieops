@@ -1,9 +1,10 @@
 import time
 from bnf import __version__, bnf
-from bnf.dalie import first_order_nf_expansion, liepoly, homological_eq, exp_ad, derive
+from bnf.dalie import first_order_nf_expansion, liepoly, homological_eq, exp_ad, exp_ad_par, derive, create_xieta
 import numpy as np
 import mpmath as mp
 from njet.functions import cos, sin
+from sympy import Symbol
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
@@ -260,7 +261,6 @@ def test_jacobi():
     # check Jacobi-Identity
     assert {} == (p1@(p2@p3) - (p1@p2)@p3 - p2@(p1@p3)).values
     
-    
 def test_shift():
     # Test if the derivative of a given Hamiltonian at a specific point equals the derivative of the shifted Hamiltonian at zero.
     
@@ -299,6 +299,82 @@ def test_fonfe(tol=1e-14, code='numpy'):
     assert he == heT
     
     
+def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
+    # Test the exponential operator on Lie maps for the case of a 2nd order Hamiltonian (rotation) and
+    # the linear map K to (first-order) normal form.
+    
+    H2 = lambda x, px: 0.5*(x**2 + px**2)
+    expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy')
+    HLie = liepoly(values=expansion)
+    K = nfdict['K']
+    xieta = create_xieta(1)
+
+    # first apply K, then exp_ad:
+    xy_mapped = K@np.array([xieta]).transpose()
+    xy_fin_series_mapped = [exp_ad(HLie, xy_mapped[k, 0], power) for k in range(len(xy_mapped))]
+    xy_final_mapped = [sum(exp_ad_par(e, mu)) for e in xy_fin_series_mapped] # (x, y) final in terms of xi and eta 
+    
+    # first apply exp_ad, then K:
+    xy_fin_series = [exp_ad(HLie, xieta[k], power) for k in range(len(xy_mapped))]
+    xy_fin = [sum(exp_ad_par(e, mu)) for e in xy_fin_series]
+    xy_final = K@np.array([xy_fin]).transpose() # (x, y) final in terms of xi and eta
+    
+    # Both results must be equal.
+    for k in range(len(xy_final)):
+        d1 = xy_final[k][0].values
+        d2 = xy_final_mapped[k].values
+        for key, v1 in d1.items():
+            v2 = d2[key]
+            assert abs(v1 - v2) < tol
+            
+    # check if the result also agrees with the analytical expectation
+    Kinv = nfdict['Kinv'] # (x, y) = K*(xi, eta)
+    zz = [Symbol('x'), Symbol('px')]
+    xf = np.cos(mu)*zz[0] - np.sin(mu)*zz[1]
+    pxf = np.cos(mu)*zz[1] + np.sin(mu)*zz[0]
+    expectation = [xf, pxf]
+    for k in range(len(xy_final_mapped)):
+        lie_k = xy_final_mapped[k]
+        diff = expectation[k] - (lie_k( sum([Kinv[:, l]*zz[l] for l in range(len(zz))]) ) ).expand()
+        assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
+    
+def test_exp_ad2(mu=0.6491, power=20, tol=1e-20, max_power=20, code='mpmath', **kwargs):
+    # Test the exponential operator on Lie maps for the case of a 5th order Hamiltonian and
+    # the linear map K to (first-order) normal form.
+    
+    # Attention: This test appears to be suceptible against round-off errors for higher powers (power and max_power),
+    # and therefore requires mpmath to have sufficient precision.
+    
+    H2 = lambda x, px: mu*0.5*(x**2 + px**2) + x**3 + x*px**4
+    expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, **kwargs)
+    HLie = liepoly(values=expansion, max_power=max_power)
+    K = nfdict['K']
+    xieta = create_xieta(1, max_power=max_power)
+
+    # first apply K, then exp_ad:
+    if code == 'numpy':
+        xy_mapped = (K@np.array([xieta]).transpose()).tolist()
+    elif code == 'mpmath':
+        xy_mapped = [[sum([K[j, k]*xieta[k] for k in range(len(xieta))])] for j in range(len(K))]
+    xy_fin_series_mapped = [exp_ad(HLie, xy_mapped[k][0], power) for k in range(len(xy_mapped))]    
+    xy_final_mapped = [sum(e) for e in xy_fin_series_mapped]
+    
+    # first apply exp_ad, then K:
+    xy_fin_series = [exp_ad(HLie, xieta[k], power) for k in range(len(xy_mapped))]
+    xy_fin = [sum(e) for e in xy_fin_series]
+    if code == 'numpy':
+        xy_final = (K@np.array([xy_fin]).transpose()).tolist()
+    elif code == 'mpmath':
+        xy_final = [[sum([K[j, k]*xy_fin[k] for k in range(len(xieta))])] for j in range(len(K))]
+    
+    # Both results must be equal.
+    for k in range(len(xy_final)):
+        d1 = xy_final[k][0].values
+        d2 = xy_final_mapped[k].values
+        for key, v1 in d1.items():
+            v2 = d2[key]
+            assert abs(v1 - v2) < tol
+    
 def test_bnf_performance(threshold=1.1):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).
     
@@ -327,5 +403,7 @@ if __name__ == '__main__':
     test_shift()
     test_fonfe(code='numpy')
     test_fonfe(code='mpmath')
+    test_exp_ad1()
+    test_exp_ad2()
     test_bnf_performance()
     
