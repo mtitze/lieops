@@ -12,6 +12,7 @@ keywords = [ "Birkhoff", "normal", "form",]
 python = ">=3.8,<3.11"
 mpmath = "^1.2.1"
 sympy = "^1.9"
+njet = "^0.2.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

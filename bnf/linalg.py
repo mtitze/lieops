@@ -47,13 +47,13 @@ def almosteq(a, b, tol=1e-14, **kwargs):
 def column_matrix_2_code(M, code='numpy', **kwargs):
     # translate a list of column vectors to a numpy or mpmath matrix
     if code == 'numpy':
-        return np.matrix(M).transpose()
+        return np.array(M).transpose()
     if code == 'mpmath':
         return mp.matrix(M).transpose()
     
 
 def create_J(dim: int):
-    '''
+    r'''
     Create a 2*dim-square matrix J, represented in form of a list of column vectors,
     corresponding to the standard symplectic block-matrix
     
@@ -147,7 +147,7 @@ def complex_gram_schmidt(vectors, **kwargs):
     -------
     list
         list of length len(vectors) which are mutually unitary. I.e.
-        with O := np.matrix(list).T it holds O^H*O = 1, where ^H means transposition and complex conjugation.
+        with O := np.array(list).T it holds O^H@O = 1, where ^H means transposition and complex conjugation.
     '''
     k = len(vectors)
     dim = len(vectors[0])
@@ -231,7 +231,7 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
 
 
 def anti_diagonalize_skew(M, code='numpy', **kwargs):
-    '''Anti-diagonalize a real skew symmetric matrix A so that it will have the block-form
+    r'''Anti-diagonalize a real skew symmetric matrix A so that it will have the block-form
     
              /  0   X  \
         A =  |         |
@@ -299,12 +299,12 @@ def anti_diagonalize_skew(M, code='numpy', **kwargs):
 
 
 def williamson(V, code='numpy', **kwargs):
-    '''Compute Williamson's decomposition of a symmetric positive definite real matrix,
+    r'''Compute Williamson's decomposition of a symmetric positive definite real matrix,
     according to 'R. Simon, S. Chaturvedi, and V. Srinivasan: Congruences and Canonical Forms 
     for a Positive Matrix: Application to the Schweinler-Wigner Extremum Principle'.
     
     The output matrix S and the diagonal D are satisfying the relation:
-    S.transpose()*D*S = V
+    S.transpose()@D@S = V
     
     Attention: No extensive checks if V is actually symmetric positive definite real.
     
@@ -329,7 +329,7 @@ def williamson(V, code='numpy', **kwargs):
         
         Note that results for a different J' can be obtained by applying a matrix congruence operation T.transpose()*S*T to the
         result S, where S is obtained by an input matrix V' by the respective inverse congruence operation on V.
-        Here T denotes the transformation satisfying J' = T.transpose()*J*T. 
+        Here T denotes the transformation satisfying J' = T.transpose()@J@T. 
         
     D: matrix
         The diagonal matrix as described above.    
@@ -339,7 +339,7 @@ def williamson(V, code='numpy', **kwargs):
         sqrtev = np.sqrt(evalues)
         diag = np.diag(sqrtev)
         diagi = np.diag(1/sqrtev)
-        evectors = np.matrix(evectors)
+        evectors = np.array(evectors)
     if code == 'mpmath':
         mp.mp.dps = kwargs.get('dps', 32)
         V = mp.matrix(V)
@@ -349,33 +349,33 @@ def williamson(V, code='numpy', **kwargs):
 
     assert all([e > 0 for e in evalues]), f'Input matrix eigenvalues of matrix\n{V}\nnot all positive.'
     
-    V12 = evectors*diag*evectors.transpose() # V12 means V^(1/2), the square root of V.
-    V12i = evectors*diagi*evectors.transpose()
+    V12 = evectors@diag@evectors.transpose() # V12 means V^(1/2), the square root of V.
+    V12i = evectors@diagi@evectors.transpose()
     
     dim2 = len(V12)
     assert dim2%2 == 0
     dim = dim2//2
     
     J = column_matrix_2_code(create_J(dim), code=code)    
-    skewmat = V12i*J*V12i
+    skewmat = V12i@J@V12i
     A = anti_diagonalize_skew(skewmat, code=code, **kwargs)    
-    K = A.transpose()*skewmat*A # the sought anti-diagonal matrix
+    K = A.transpose()@skewmat@A # the sought anti-diagonal matrix
 
     # obtain D as described in the reference above
     Di_values = [K[i, i + dim] for i in range(dim)]*2
     D = [1/e for e in Di_values]
     if code == 'numpy':
-        D12i = np.matrix(np.diag([np.sqrt(e) for e in Di_values]))
-        D = np.matrix(np.diag(D))
+        D12i = np.array(np.diag([np.sqrt(e) for e in Di_values]))
+        D = np.array(np.diag(D))
     if code == 'mpmath':
         D12i = mp.matrix(mp.diag([mp.sqrt(e) for e in Di_values]))
         D = mp.matrix(mp.diag(D))
-    S = D12i*A.transpose()*V12
+    S = D12i@A.transpose()@V12
     return S, D
 
     
 def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
-    '''
+    r'''
     Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
     complex normal form coordinates xi, eta. Along the way, the symplectic linear map to
@@ -397,7 +397,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         J =  |         |
              \ -1   0  /
              
-        into a matrix J' by matrix congruence: J' = T.transpose()*J*T.
+        into a matrix J' by matrix congruence: J' = T.transpose()@J@T.
         
     code: str, optional
         The code in which the matrix calculations should be performed. Supported codes: 'numpy', 'mpmath'.
@@ -409,11 +409,11 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     dict
         Dictionary containing various linear maps. The entries of this dictionary are described in the following.
         
-        S: The symplectic map diagonalizing H2 via S.transpose()*D*S = H2, where D is a diagonal matrix.
+        S: The symplectic map diagonalizing H2 via S.transpose()@D@S = H2, where D is a diagonal matrix.
         Sinv: The inverse of S, i.e. the symplectic map to (real) normal form.
         H2: The input in matrix form.
         T: The (optional) matrix T described above.
-        J: The (original) symplectic structure J' = J.transpose()*J*T, where J is the block-matrix given above.
+        J: The (original) symplectic structure J' = J.transpose()@J@T, where J is the block-matrix given above.
         J2: The new symplectic structure for the (xi, eta)-coordinates.
         U: The unitary map from the S(p, q) = (u, v)-block coordinates to the (xi, eta)-coordinates.
         Uinv: The inverse of U.
@@ -437,7 +437,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         
     # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
-        H2 = T*H2*T.transpose() 
+        H2 = T@H2@T.transpose() 
     S, D = williamson(V=H2, code=code, **kwargs)
     
     # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
@@ -455,20 +455,20 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
 
     J = column_matrix_2_code(create_J(dim_half), code=code)
     # N.B. (p, Jq) -> (u, JSv) = (Sp, JSq) = (p, Jq) -> (Uu, JUv) = (xi, J eta). Thus:
-    J2 = Uinv.transpose()*J*Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
-    Sinv = - J*S.transpose()*J
-    K = Sinv*Uinv  # this map will transform to the new (xi, eta)-coordinates via K.transpose()*H2*K
-    Kinv = U*S
+    J2 = Uinv.transpose()@J@Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
+    Sinv = - J@S.transpose()@J
+    K = Sinv@Uinv  # this map will transform to the new (xi, eta)-coordinates via K.transpose()*H2*K
+    Kinv = U@S
 
     if len(T) != 0: # transform results back to the requested (q, p)-ordering
-        S = T.transpose()*S*T
-        Sinv = T.transpose()*Sinv*T
-        D = T.transpose()*D*T
-        J = T.transpose()*J*T
-        H2 = T.transpose()*H2*T
+        S = T.transpose()@S@T
+        Sinv = T.transpose()@Sinv@T
+        D = T.transpose()@D@T
+        J = T.transpose()@J@T
+        H2 = T.transpose()@H2@T
         
-        K = T.transpose()*K
-        Kinv = Kinv*T
+        K = T.transpose()@K
+        Kinv = Kinv@T
     
     # assemble output
     out = {}
@@ -485,7 +485,7 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     out['Uinv'] = Uinv
     out['K'] = K
     out['Kinv'] = Kinv
-    out['cnf'] = K.transpose()*H2*K # the representation of H2 in (xi, eta)-coordinates
+    out['cnf'] = K.transpose()@H2@K # the representation of H2 in (xi, eta)-coordinates
     
     return out
     

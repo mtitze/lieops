@@ -166,7 +166,7 @@ def williamson_check(A, S, J, code='numpy', tol=1e-14):
         symplecticity = np.linalg.norm(S.transpose()*J*S - J)
         issymplectic = symplecticity < tol
         
-        diag = J*S*J*A*J*S.transpose()*J
+        diag = J@S@J@A@J@S.transpose()@J
         offdiag = np.array([[diag[k, l] if k != l else 0 for k in range(len(diag))] for l in range(len(diag))])
         isdiagonal = np.all(np.abs(offdiag) < tol)
 
@@ -175,10 +175,10 @@ def williamson_check(A, S, J, code='numpy', tol=1e-14):
         isposdef = is_pos_def(A, code=code)
         issymmetric = all([[(A - A.transpose())[i, j] == 0 for i in range(len(A))] for j in range(len(A))])
         isevendim = len(A)%2 == 0
-        symplecticity = mp.norm(S.transpose()*J*S - J)
+        symplecticity = mp.norm(S.transpose()@J@S - J)
         issymplectic = symplecticity < tol
         
-        diag = J*S*J*A*J*S.transpose()*J
+        diag = J@S@J@A@J@S.transpose()@J
         absoffdiag = np.array([[abs(complex(diag[k, l])) if k != l else 0 for k in range(len(diag))] for l in range(len(diag))])
         isdiagonal = np.all(absoffdiag < tol)
         
@@ -186,8 +186,8 @@ def williamson_check(A, S, J, code='numpy', tol=1e-14):
     assert isposdef, 'Input matrix A not positive definite.'
     assert issymmetric,  'Input matrix A not symmetric.'
     assert isevendim, 'Dimension not even.'
-    assert issymplectic, f'Symplecticity not ensured: |S^(tr)*J*S - J| = {symplecticity} >= {tol} (tol)'
-    assert isdiagonal, f'Matrix D = S^(-tr)*M*S^(-1) =\n{diag}\nappears not to be diagonal (one entry having abs > {tol} (tol)).'
+    assert issymplectic, f'Symplecticity not ensured: |S^(tr)@J@S - J| = {symplecticity} >= {tol} (tol)'
+    assert isdiagonal, f'Matrix D = S^(-tr)@M@S^(-1) =\n{diag}\nappears not to be diagonal (one entry having abs > {tol} (tol)).'
 
 
 def check_2nd_orders(hdict, dim, tol=1e-14): 
@@ -237,8 +237,8 @@ def qpqp2qp(n):
         column_kpn[2*(k + 1) - 1] = 1
         columns_p.append(column_kpn)
         
-    q = np.matrix(columns_q).transpose()
-    p = np.matrix(columns_p).transpose()
+    q = np.array(columns_q).transpose()
+    p = np.array(columns_p).transpose()
     return np.bmat([[q, p]])
 
     
