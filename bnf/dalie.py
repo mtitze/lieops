@@ -113,15 +113,14 @@ class liepoly:
     def __add__(self, other):
         add_values = {k: v for k, v in self.values.items()}
         if self.__class__.__name__ != other.__class__.__name__:
+            # Treat other object as constant.
             if other != 0:
-                zero_tpl = tuple([0]*self.dim*2)
+                zero_tpl = (0,)*self.dim*2
                 new_value = add_values.get(zero_tpl, 0) + other
                 if new_value != 0:
                     add_values[zero_tpl] = new_value
-                elif zero_tpl in add_values:
-                    _ = add_values.pop(zero_tpl)
                 else:
-                    pass
+                    _ = add_values.pop(zero_tpl, None)
             max_power = self.max_power
         else:
             assert other.dim == self.dim
@@ -130,8 +129,7 @@ class liepoly:
                 if new_v != 0:
                     add_values[k] = new_v
                 else:
-                    _ = add_values.pop(k)
-
+                    _ = add_values.pop(k, None)
             max_power = min([self.max_power, other.max_power])
         return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
     
@@ -146,10 +144,16 @@ class liepoly:
         return self + -other
 
     def __matmul__(self, other):
+        return self.poisson(other)
+        
+    def poisson(self, other):
+        '''
+        Compute the Poisson-bracket {self, other}
+        '''
         assert self.__class__.__name__ == other.__class__.__name__
         assert other.dim == self.dim
         max_power = min([self.max_power, other.max_power])
-        mult = {}
+        poisson_values = {}
         for t1, v1 in self.values.items():
             power1 = sum(t1)
             for t2, v2 in other.values.items():
@@ -164,22 +168,54 @@ class liepoly:
                         continue
                     new_power = tuple([a[j] + c[j] if j != k else a[j] + c[j] - 1 for j in range(self.dim)] + \
                                 [b[j] + d[j] if j != k else b[j] + d[j] - 1 for j in range(self.dim)])
-                    new_value = mult.get(new_power, 0) - 1j*det*v1*v2
+                    new_value = poisson_values.get(new_power, 0) - 1j*det*v1*v2
                     if new_value != 0:
-                        mult[new_power] = new_value
+                        poisson_values[new_power] = new_value
                     else:
-                        if new_power in mult.keys():
-                            _ = mult.pop(new_power)
-        return self.__class__(values=mult, dim=self.dim, max_power=max_power)
+                        _ = poisson_values.pop(new_power, None)
+        return self.__class__(values=poisson_values, dim=self.dim, max_power=max_power)
     
     def __mul__(self, other):
-        return self.__class__(values={k: v*other for k, v in self.values.items()}, 
-                                  dim=self.dim, max_power=self.max_power)
+        if self.__class__.__name__ == other.__class__.__name__:
+            assert self.dim == other.dim
+            dim2 = 2*self.dim
+            max_power = min([self.max_power, other.max_power])
+            mult_values = {}
+            for t1, v1 in self.values.items():
+                power1 = sum(t1)
+                for t2, v2 in other.values.items():
+                    power2 = sum(t2)
+                    if power1 + power2 > max_power:
+                        continue
+                    prod_tpl = tuple([t1[k] + t2[k] for k in range(dim2)])
+                    prod_val = mult_values.get(prod_tpl, 0) + v1*v2 # it is assumed that v1 and v2 are both not zero, hence prod_val != 0.
+                    if prod_val != 0:
+                        mult_values[prod_tpl] = prod_val
+                    else:
+                        _ = mult_values.pop(prod_tpl, None)
+            return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)            
+        else:
+            return self.__class__(values={k: v*other for k, v in self.values.items()}, 
+                                          dim=self.dim, max_power=self.max_power)
         
     def __rmul__(self, other):
         return self.__mul__(other)
+    
+    def __pow__(self, other):
+        assert type(other) == int 
+        assert other >= 0
+        if other == 0:
+            return self.__class__(values={(0,)*self.dim*2: 1}, 
+                                  dim=self.dim, max_power=self.max_power) # N.B. 0**0 := 1
+
+        remainder = other%2
+        half = self**(other//2)
+        if remainder == 1:
+            return self*half*half
+        else:
+            return half*half
         
-    def power(self, power: int, y):
+    def ad(self, y, power: int=1):
         '''
         Compute repeated Poisson-brackets.
         E.g. let x = self. Then {x, {x, {x, {x, {x, {x, y}}}}}} =: x**6(y)
@@ -196,11 +232,13 @@ class liepoly:
         
         Parameters
         ----------
-        power: int
-            Number of repeated brackets
         y: self.__class___
             Class which we want to evaluate on
-            
+
+        power: int, optional
+            Number of repeated brackets (default: 1).
+
+
         Returns
         -------
         list
@@ -249,8 +287,7 @@ class liepoly:
             the last self.dim entries are the complex conjugate values of the 
             first self.dim entries.
         '''
-        dself = derive(self, n_args=2*self.dim, **kwargs)
-        return dself
+        return derive(self, n_args=2*self.dim, **kwargs)
     
     def compose(self, lps):
         '''
@@ -328,7 +365,7 @@ def exp_ad(x, y, power: int):
     '''
     facts = factorials(power)
     all_results = []
-    powers = x.power(power, y)
+    powers = x.ad(y, power)
     for k in range(len(powers)): # powers[0] corresponds to {x, y}, i.e. order 1
         powers[k] = 1/facts[k + 1]*powers[k]
     return [y] + powers

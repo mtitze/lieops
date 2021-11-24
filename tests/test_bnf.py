@@ -338,38 +338,41 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
         diff = expectation[k] - (lie_k( sum([Kinv[:, l]*zz[l] for l in range(len(zz))]) ) ).expand()
         assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
     
-def test_exp_ad2(mu=0.6491, power=20, tol=1e-20, max_power=20, code='mpmath', **kwargs):
+def test_exp_ad2(mu=0.6491, power=40, tol=5e-13, max_power=10, code='mpmath', **kwargs):
     # Test the exponential operator on Lie maps for the case of a 5th order Hamiltonian and
-    # the linear map K to (first-order) normal form.
+    # a non-linear map, making use of K, the linear map to (first-order) normal form.
     
     # Attention: This test appears to be suceptible against round-off errors for higher powers (power and max_power),
-    # and therefore requires mpmath to have sufficient precision.
+    # and therefore requires mpmath to have sufficient precision (and sufficiently high power in exp).
     
     H2 = lambda x, px: mu*0.5*(x**2 + px**2) + x**3 + x*px**4
     expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, **kwargs)
     HLie = liepoly(values=expansion, max_power=max_power)
     K = nfdict['K']
     xieta = create_xieta(1, max_power=max_power)
-
-    # first apply K, then exp_ad:
+    
+    # first apply function, then exp_ad:
     if code == 'numpy':
         xy_mapped = (K@np.array([xieta]).transpose()).tolist()
     elif code == 'mpmath':
         xy_mapped = [[sum([K[j, k]*xieta[k] for k in range(len(xieta))])] for j in range(len(K))]
-    xy_fin_series_mapped = [exp_ad(HLie, xy_mapped[k][0], power) for k in range(len(xy_mapped))]    
+    xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
+    
+    xy_fin_series_mapped = [exp_ad(HLie, xy_mapped[k], power) for k in range(len(xy_mapped))]    
     xy_final_mapped = [sum(e) for e in xy_fin_series_mapped]
     
-    # first apply exp_ad, then K:
+    # first apply exp_ad, then function:
     xy_fin_series = [exp_ad(HLie, xieta[k], power) for k in range(len(xy_mapped))]
     xy_fin = [sum(e) for e in xy_fin_series]
     if code == 'numpy':
         xy_final = (K@np.array([xy_fin]).transpose()).tolist()
     elif code == 'mpmath':
         xy_final = [[sum([K[j, k]*xy_fin[k] for k in range(len(xieta))])] for j in range(len(K))]
+    xy_final = [xy_final[k][0]**3 + 0.753 for k in range(len(xy_final))] # apply an additional non-linear operation
     
     # Both results must be equal.
     for k in range(len(xy_final)):
-        d1 = xy_final[k][0].values
+        d1 = xy_final[k].values
         d2 = xy_final_mapped[k].values
         for key, v1 in d1.items():
             v2 = d2[key]
