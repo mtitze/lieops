@@ -102,10 +102,10 @@ class liepoly:
         assert len(z) == 2*self.dim
         result = 0
         for k, v in self.values.items():
-            prod = v
+            prod = 1
             for j in range(self.dim):
                 prod *= z[j]**k[j]*z[j + self.dim]**k[j + self.dim]
-            result += prod
+            result += v*prod
         return result
         
     def __add__(self, other):
@@ -299,7 +299,7 @@ class liepoly:
         Parameters
         ----------
         power: int
-            The degree up to which exp(:x:) should be evaluated.
+            The maximal power up to which exp(:x:) should be evaluated.
         
         t: float, optional
             An additional parameter to compute exp(t*:x:) instead.
@@ -412,7 +412,10 @@ def exp_ad_par(e, t):
     list
         The summands of exp(t:x:)y.
     '''
-    return [t**k*e[k] for k in range(len(e))]
+    # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array, then
+    # numpy would put the liepoly classes into its array, something we do not want. Instead, we want to
+    # put the numpy arrays into our liepoly class.
+    return [e[k]*t**k for k in range(len(e))]
 
     
 class liemap:
@@ -434,7 +437,7 @@ class liemap:
         Parameters
         ----------
         power: int
-            The degree up to which exp(:x:) should be evaluated.
+            The maximal power up to which exp(:x:) should be evaluated.
         
         components: list, optional
             List of integers denoting the components to be computed (i.e. the k-indices described above). 
