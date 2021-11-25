@@ -1,9 +1,11 @@
 import time
-from bnf import __version__, bnf
-from bnf.dalie import first_order_nf_expansion, liepoly, homological_eq, exp_ad, exp_ad_par, derive, create_xieta
+from bnf import __version__
+from bnf.lie import liepoly, exp_ad, exp_ad_par, create_xieta
+from bnf.nf import first_order_nf_expansion, homological_eq, bnf
 import numpy as np
 import mpmath as mp
 from njet.functions import cos, sin
+from njet import derive
 from sympy import Symbol
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
@@ -437,6 +439,7 @@ def test_bnf_performance(threshold=1.1, tol=1e-15):
 if __name__ == '__main__':
     test_version()
     test_jacobi()
+    test_poisson()
     test_shift()
     test_fonfe(code='numpy')
     test_fonfe(code='mpmath')

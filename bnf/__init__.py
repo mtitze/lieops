@@ -19,4 +19,4 @@
 
 __version__ = '0.1.0'
 
-from .dalie import bnf
+from .nf import bnf
