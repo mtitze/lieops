@@ -250,6 +250,7 @@ def qpqp2qp(n):
 def test_version():
     assert __version__ == '0.1.0'
     
+    
 def test_jacobi():
     # Test the Jacobi-identity for the liepoly class
     
@@ -260,6 +261,32 @@ def test_jacobi():
     assert {} == (p3@p3).values
     # check Jacobi-Identity
     assert {} == (p1@(p2@p3) - (p1@p2)@p3 - p2@(p1@p3)).values
+    
+    
+def test_poisson(tol=1e-15):
+    # Test the property {f, gh} = {f, g}h + {f, h}g
+    
+    xieta = create_xieta(2)
+    p = (xieta[0] + 0.31*xieta[1])**2
+    q = (0.7*xieta[0] - 8.61052*xieta[2] + 2.32321*xieta[1] - 0.93343*xieta[3]**3)**2
+    h = -0.24*xieta[2]**5 + 7.321*xieta[3]
+    
+    # check 1
+    p1 = p@(q*h)
+    p2 = (p@q)*h + (p@h)*q
+    assert p1.values.keys() == p2.values.keys()
+    for key in p1.values.keys():
+        v1, v2 = p1.values[key], p2.values[key]
+        assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
+    
+    # check 2
+    p1 = (q**3)@p
+    p2 = 3*q**2*(q@p)
+    assert p1.values.keys() == p2.values.keys()
+    for key in p1.values.keys():
+        v1, v2 = p1.values[key], p2.values[key]
+        assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
+        
     
 def test_shift():
     # Test if the derivative of a given Hamiltonian at a specific point equals the derivative of the shifted Hamiltonian at zero.
@@ -338,7 +365,8 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
         diff = expectation[k] - (lie_k( sum([Kinv[:, l]*zz[l] for l in range(len(zz))]) ) ).expand()
         assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
     
-def test_exp_ad2(mu=0.6491, power=40, tol=5e-13, max_power=10, code='mpmath', **kwargs):
+    
+def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **kwargs):
     # Test the exponential operator on Lie maps for the case of a 5th order Hamiltonian and
     # a non-linear map, making use of K, the linear map to (first-order) normal form.
     
@@ -370,15 +398,16 @@ def test_exp_ad2(mu=0.6491, power=40, tol=5e-13, max_power=10, code='mpmath', **
         xy_final = [[sum([K[j, k]*xy_fin[k] for k in range(len(xieta))])] for j in range(len(K))]
     xy_final = [xy_final[k][0]**3 + 0.753 for k in range(len(xy_final))] # apply an additional non-linear operation
     
-    # Both results must be equal.
+    # Both results must be relatively close (and every entry non-zero).
     for k in range(len(xy_final)):
         d1 = xy_final[k].values
         d2 = xy_final_mapped[k].values
         for key, v1 in d1.items():
             v2 = d2[key]
-            assert abs(v1 - v2) < tol
+            assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
+            
     
-def test_bnf_performance(threshold=1.1):
+def test_bnf_performance(threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).
     
     H = lambda x, y, z, px, py, pz: 0.24*(x**2 + px**2) + 0.86*(y**2 + py**2) + x**3 + y**3 + z**2 + pz**2 + 0.4*pz*y
@@ -397,7 +426,12 @@ def test_bnf_performance(threshold=1.1):
     assert time_bnf*threshold >= time_ref, 'Error: new time*threshold = {} < {} (reference time)'.format(time_bnf*threshold, time_ref)
 
     # check on equality
-    
+    chifinal_ref = tcref['chi'][-1]
+    chifinal = tc['chi'][-1]
+    assert chifinal_ref.values.keys() == chifinal.values.keys()
+    for key in chifinal_ref.values.keys():
+        v1, v2 = chifinal_ref.values[key], chifinal.values[key]
+        assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
 
     
 if __name__ == '__main__':
