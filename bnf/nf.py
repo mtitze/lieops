@@ -1,6 +1,6 @@
 from njet.ad import standardize_function
 from njet import derive
-from .lie import liepoly, exp_ad
+from .lie import liepoly, lieoperator, exp_ad
 from .linalg import first_order_normal_form, matrix_from_dict
 
 def Omega(mu, a, b):
@@ -231,8 +231,9 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
         if len(chi.values) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        Hk = sum(exp_ad(-chi, Hk, power=exp_power))
-        # Hk = sum(exp_ad(-chi, Hk, power=k + 1)) # faster but likely inaccurate; need tests
+        Hk_op = exp_ad(-chi, Hk, power=exp_power)
+        Hk = Hk_op.flow[0]
+        # Hk = exp_ad(-chi, Hk, power=k + 1) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)
         Zk += Q 
         

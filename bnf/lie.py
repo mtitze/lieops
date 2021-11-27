@@ -1,5 +1,9 @@
 from njet.jet import factorials, check_zero
 from njet import derive
+from .genfunc import genexp
+
+# Note: The notation in these scripts (e.g. xi, eta), as well as parts of the background material, can 
+# be found in my Thesis: Malte Titze -- Space Charge Modeling at the Integer Resonance for the CERN PS and SPS, on p.33 onwards.
 
 class liepoly:
     '''
@@ -219,7 +223,7 @@ class liepoly:
         E.g. let x = self. Then {x, {x, {x, {x, {x, {x, y}}}}}} =: x**6(y)
         Special case: x**0(y) := y
         
-        Let z be a homogeneous Lie polynomials and deg(z) the degree of z. Then it holds
+        Let z be a homogeneous Lie polynomial and deg(z) the degree of z. Then it holds
         deg(x**m(y)) = deg(y) + m*(deg(x) - 2).
         This also holds for the maximal degrees and minimal degrees in case that x, and y
         are inhomogeneous.
@@ -230,8 +234,8 @@ class liepoly:
         
         Parameters
         ----------
-        y: self.__class___
-            Class which we want to evaluate on
+        y: liepoly
+            Lie polynomial which we want to evaluate on
 
         power: int, optional
             Number of repeated brackets (default: 1).
@@ -254,9 +258,8 @@ class liepoly:
             
         result = self.__class__(values={k: v for k, v in y.values.items()}, 
                                 dim=y.dim, max_power=max_power)
+        all_results = [result]
         # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values is changing.
-        
-        all_results = []
         for k in range(power):
             result = self@result
             all_results.append(result)
@@ -287,7 +290,7 @@ class liepoly:
         '''
         return derive(self, n_args=2*self.dim, **kwargs)
     
-    def pullback(self, power: int, t=1, **kwargs):
+    def flow(self, power: int, t=1, **kwargs):
         '''
         Let f: R^n -> R be a differentiable function and :x: the current polynomial Lie map. 
         Then this routine will compute the components of M: R^n -> R^n,
@@ -309,42 +312,21 @@ class liepoly:
 
         Returns
         -------
-        liemap
-            class of type liemap containing the map belonging to the current Lie polynomial.
+        lieoperator
+            class of type lieoperator containing the map belonging to the current Lie polynomial.
         '''
-        return liemap(self, power=power, t=t, **kwargs)
+        return lieoperator(self, gen=genexp(power), t=t, **kwargs)
         
-    def compose(self, lps):
+    def compose(self, f):
         '''
-        Let :x: represent the current Lie polynomial and [:y1:, :y2:, ...] a list
-        of Lie operators of length x.dim.
-        Then this routine will compute the Lie polynomial :x(yk):, where x(yk) is
-        the polynomial in which yk has been applied to the elementary element zk of x.
+        This routine will return the Lie map (z -> :f(x):_z).
         '''
-        dim2 = self.dim*2
-        assert len(lps) == dim2
-
-        # A list of elementary Lie polynomials
-        z = [liepoly(values={tuple([0 if j != k else 1 for j in range(dim2)]):1} , dim=self.dim, max_power=self.max_power) for k in range(dim2)]
-        yz = [lps[k]*z[k] for k in range(dim2)]
-        
-        for tpl, value in self.values.items():
-            power1 = sum(tpl)
-            for k in range(dim2):
-                if tpl[k] == 0:
-                    continue
-                    
-                for tpl2, value2 in yz[k].values.items():
-                    if sum(tpl2) + power1 > self.max_power:
-                        continue
-                        
-                    tuple([tpl2[l] + tpl[l] for l in range(dim2)])
-            # now construct new lie polynomial based on the powers
+        return compose([self], f)
             
     
-def create_xieta(dim, **kwargs):
+def create_coords(dim, **kwargs):
     '''
-    Create a set of (xi, eta)-Lie polynomials for a given dimension.
+    Create a set of complex (xi, eta)-Lie polynomials for a given dimension.
     
     Parameters
     ----------
@@ -368,104 +350,108 @@ def create_xieta(dim, **kwargs):
         resultx.append(xi_k)
         resulty.append(eta_k)
     return resultx + resulty
+
+
+def compose(lps, f):
+    '''
+    Let z = [z1, ..., zk] be Lie polynomials and f an analytical function, taking k values.
+    Then this routine will return the Lie map :f(z1, ..., zk):
     
+    Background: Using multivariate Taylor-expansion, we can show that
+    :f(z1, ..., zk):g = sum_j (\partial f/\partial z_j)(z1, ..., zk) {z_j, g}
+    holds -- for every (differentiable) function g.
+    '''
+    assert len(lps) == f.__code__.co_argcount
+    n_args = len(lps)
+    df = derive(f, order=1)
+    return lambda z: sum([lps[k]*df.grad(z)[(k,)] for k in range(n_args)])
     
-def exp_ad(x, y, power: int):
+
+def exp_ad(x, y, power):
     '''
     Compute the exponential Lie operator exp(:x:)y up to a given power.
-    
+
     Parameters
     ----------
-    x: liepoly
-        The polynomial defining the Lie operator :x:
-    y: liepoly
-        The polynomial of which we want to apply the exponential Lie operator on.
     power: int
         Integer defining the maximal power up to which we want to compute the expression.
-        
+    y: liepoly
+        The polynomial of which we want to apply the exponential Lie operator on.
+
     Returns
     ------- 
     list
         List containing the terms 1/k!*(:x:**k)y in the exponential expansion up to the given power.
     '''
-    facts = factorials(power)
-    powers = x.ad(y, power)
-    for k in range(len(powers)): # powers[0] corresponds to {x, y}, i.e. order 1
-        powers[k] = 1/facts[k + 1]*powers[k]
-    return [y] + powers
-            
-    
-def exp_ad_par(e, t):
-    '''
-    If exp(:x:)y is given, this function computes exp(t:x:)y for any complex number t.
-    
-    Parameters
-    ----------
-    e: list
-        The output of exp_ad routine
-        
-    t: float
-        A parameter. Can also be of type complex.
-        
-    Returns
-    -------
-    list
-        The summands of exp(t:x:)y.
-    '''
-    # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array, then
-    # numpy would put the liepoly classes into its array, something we do not want. Instead, we want to
-    # put the numpy arrays into our liepoly class.
-    return [e[k]*t**k for k in range(len(e))]
+    return lieoperator(x, gen=genexp(power), components=[y])
 
-    
-class liemap:
+
+class lieoperator:
     '''
-    Class to conveniently manage a collection of Lie polynomials which correspond to a map
-    M: R^n -> R^m.
+    Class to construct and work with a Lie operator of the form g(:x:).
     '''
-    def __init__(self, lp, **kwargs):
-        self.exponent = lp
+    def __init__(self, x, **kwargs):
+        self.exponent = x
         self.n_args = 2*self.exponent.dim
-        if 'power' in kwargs.keys():
-            self.build(**kwargs)
+        if 'gen' in kwargs.keys():
+            self.generate(**kwargs)
         
-    def build(self, power, **kwargs):
+    def _determine_generator(self, gen, **kwargs):
+        if 'components' in kwargs.keys():
+            self.components = kwargs['components']
+        else:
+            self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
+        self.n_values = len(self.components)
+        
+        if hasattr(gen, '__iter__'):
+            # assume that g is in the form of a series, e.g. given by a generator function.
+            return gen
+        elif hasattr(gen, '__call__') and 'power' in kwargs.keys():
+            # assume that g is a function of one variable which needs to be derived n-times at zero.
+            assert gen.__code__.co_argcount == 1
+            dgen = derive(gen, order=power)
+            # TODO
+            # need pure Taylor coefficients of g around zero...
+        else:
+            raise NotImplementedError('Input function not recognized.')
+        
+    def generate(self, **kwargs):
         '''
-        Compute the summands in the series of the exponential Lie operator exp(:x:)z_k,
-        for every requested k.
+        Compute summands in the series of the Lie operator f(:x:)z_k,
+        for every requested k, up to a specific power.
         
         Parameters
         ----------
         power: int
-            The maximal power up to which exp(:x:) should be evaluated.
+            The maximal power up to which f(:x:) should be evaluated.
         
         components: list, optional
             List of integers denoting the components to be computed (i.e. the k-indices described above). 
             If nothing specified, all components are calculated.
         '''
-        # N.B. exp(:x:)eta required if x has complex entries (TODO: perhaps find a trick to avoid the calculation...)
-        self.power = power
-        components = kwargs.get('components', range(self.n_args))
-        self.n_values = len(components)
-        xieta = create_xieta(dim=self.exponent.dim, **kwargs)
-        self.series = []
-        for k in components:
-            self.series.append(exp_ad(self.exponent, xieta[k], power=power))
-        self.exponent_parameter = kwargs.get('t', 1)
+        self.generator = self._determine_generator(**kwargs)
+        self.power = len(self.generator) - 1
+        self.actions = []
+        for y in self.components:
+            k_action = self.exponent.ad(y, power=self.power) # k_action = [xieta[k] + :x: xieta[k] + :x:**2 xieta[k] + ...]
+            self.actions.append([k_action[j]*self.generator[j] for j in range(len(k_action))])
         self.eval(**kwargs)
         
     def eval(self, t=1, **kwargs):
         '''
-        Compute the exponential Lie operators exp(t:x:)z_k for k in range(self.n_values).
+        Compute the Lie operators [g(t:x:)]z_k for k in range(self.n_values).
         '''
-        if not hasattr(self, 'series'):
-            raise RuntimeError("Map needs to be build before evaluation with 'self.build'.")
-        if not check_zero(t - self.exponent_parameter) or not hasattr(self, 'exp'):
-            self.exp = [sum(exp_ad_par(self.series[k], t=t)) for k in range(self.n_values)]
-            self.exponent_parameter = t
+        if not hasattr(self, 'actions'):
+            raise RuntimeError("Map needs to be generated before evaluation with 'self.generate'.")
+        # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array, then
+        # numpy would put the liepoly classes into its array, something we do not want. Instead, we want to
+        # put the numpy arrays into our liepoly class.
+        self.flow = [sum([self.actions[k][j]*t**j for j in range(len(self.actions[k]))]) for k in range(self.n_values)]
+        self.flow_parameter = t
     
     def __call__(self, z, **kwargs):
-        self.eval(**kwargs) # This does nothing if self.exp already exists and t has not been changed.
-        return [self.exp[k](z) for k in range(self.n_values)]
+        if 't' in kwargs.keys(): # re-evaluate the flow at the requested t.
+            self.eval(**kwargs)
+        return [self.flow[k](z) for k in range(self.n_values)]
     
 

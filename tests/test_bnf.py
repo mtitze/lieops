@@ -1,6 +1,6 @@
 import time
 from bnf import __version__
-from bnf.lie import liepoly, exp_ad, exp_ad_par, create_xieta
+from bnf.lie import liepoly, exp_ad, exp_ad_par, create_coordinates
 from bnf.nf import first_order_nf_expansion, homological_eq, bnf
 import numpy as np
 import mpmath as mp
@@ -268,7 +268,7 @@ def test_jacobi():
 def test_poisson(tol=1e-15):
     # Test the property {f, gh} = {f, g}h + {f, h}g
     
-    xieta = create_xieta(2)
+    xieta = create_coordinates(2)
     p = (xieta[0] + 0.31*xieta[1])**2
     q = (0.7*xieta[0] - 8.61052*xieta[2] + 2.32321*xieta[1] - 0.93343*xieta[3]**3)**2
     h = -0.24*xieta[2]**5 + 7.321*xieta[3]
@@ -336,7 +336,7 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
     expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy')
     HLie = liepoly(values=expansion)
     K = nfdict['K']
-    xieta = create_xieta(1)
+    xieta = create_coordinates(1)
 
     # first apply K, then exp_ad:
     xy_mapped = K@np.array([xieta]).transpose()
