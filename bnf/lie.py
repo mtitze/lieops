@@ -403,12 +403,14 @@ def exp_ad(x, y, power, **kwargs):
 
     Returns
     ------- 
-    lieoperator
-        Class of type lieopeartor, representing the exponential Lie operator up to the requested power.
+    liepoly or list of liepoly objects
+        Class of type liepoly, representing the result of the exponential Lie operator exp(:x:)y,
+        up to the requested power.
     '''
     if y.__class__.__name__ == 'liepoly':
-        y = [y]
-    return lieoperator(x, generator=genexp(power), components=y, **kwargs)
+        return lieoperator(x, generator=genexp(power), components=[y], **kwargs).flow[0]
+    else:
+        return lieoperator(x, generator=genexp(power), components=y, **kwargs).flow
 
 
 class lieoperator:

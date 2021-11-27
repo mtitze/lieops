@@ -87,9 +87,8 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
         if len(chi.values) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        Hk_operator = exp_ad(-chi, Hk, power=exp_power)
-        # Hk_operator = exp_ad(-chi, Hk, power=k + 1) # faster but likely inaccurate; need tests
-        Hk = Hk_operator.flow[0]
+        Hk = exp_ad(-chi, Hk, power=exp_power)
+        # Hk = exp_ad(-chi, Hk, power=k + 1) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)
         Zk += Q 
         
@@ -341,12 +340,10 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
 
     # first apply K, then exp_ad:
     xy_mapped = K@np.array([xieta]).transpose()
-    xy_fin_ops_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu)
-    xy_final_mapped = xy_fin_ops_mapped.flow # (x, y) final in terms of xi and eta 
+    xy_final_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu) # (x, y) final in terms of xi and eta 
     
     # first apply exp_ad, then K:
-    xy_fin_ops = exp_ad(HLie, xieta, power=power, t=mu)
-    xy_fin = xy_fin_ops.flow
+    xy_fin = exp_ad(HLie, xieta, power=power, t=mu)
     xy_final = K@np.array([xy_fin]).transpose() # (x, y) final in terms of xi and eta
     
     # Both results must be equal.
@@ -388,13 +385,10 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
     elif code == 'mpmath':
         xy_mapped = [[sum([K[j, k]*xieta[k] for k in range(len(xieta))])] for j in range(len(K))]
     xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
-    
-    xy_fin_ops_mapped = exp_ad(HLie, xy_mapped, power)    
-    xy_final_mapped = xy_fin_ops_mapped.flow
+    xy_final_mapped = exp_ad(HLie, xy_mapped, power)    
     
     # first apply exp_ad, then function:
-    xy_fin_ops = exp_ad(HLie, xieta, power)
-    xy_fin = xy_fin_ops.flow
+    xy_fin = exp_ad(HLie, xieta, power)
     if code == 'numpy':
         xy_final = (K@np.array([xy_fin]).transpose()).tolist()
     elif code == 'mpmath':
