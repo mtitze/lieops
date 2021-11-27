@@ -371,14 +371,15 @@ def compose(lps, f):
         
     f: callable
         A function on which we want to apply the list of liepoly objects.
+        It needs to be supported by the njet module.
         
     Returns
     -------
     callable
         A map, mapping a vector u to the Lie operator :f(z1, ..., zk):_u
     '''
-    assert len(lps) == f.__code__.co_argcount
     n_args = len(lps)
+    assert n_args == f.__code__.co_argcount
     df = derive(f, order=1)
     return lambda z: sum([lps[k]*df.grad(z)[(k,)] for k in range(n_args)])
     
@@ -421,18 +422,25 @@ class lieoperator:
         self.exponent = x
         self.n_args = 2*self.exponent.dim
         if 'generator' in kwargs.keys():
+            self.set_generator(**kwargs)
             self.generate(**kwargs)
+            self.eval(**kwargs)
         
     def set_generator(self, generator, **kwargs):
+        '''
+        Define the generating series for the function g.
+        '''
         if hasattr(generator, '__iter__'):
             # assume that g is in the form of a series, e.g. given by a generator function.
             self.generator = generator
-        elif hasattr(generator, '__call__') and 'power' in kwargs.keys():
+        elif hasattr(generator, '__call__'):
+            if not 'power' in kwargs.keys():
+                raise RuntimeError("Generation with callable object requires 'power' argument to be set.")
             # assume that g is a function of one variable which needs to be derived n-times at zero.
-            assert generator.__code__.co_argcount == 1
-            dg = derive(generator, order=power)
-            # TODO
-            # need pure Taylor coefficients of g around zero...
+            assert generator.__code__.co_argcount == 1, 'Function needs to depend on a single variable.'
+            dg = derive(generator, order=kwargs['power'])
+            taylor_coeffs = dg.get_taylor_coefficients(dg.eval([0]*dg.n_args))
+            self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
         else:
             raise NotImplementedError('Input function not recognized.')
         
@@ -455,11 +463,7 @@ class lieoperator:
         **kwargs
             Optional arguments passed to 'set_generator', 'create_coords' and 'self.eval'.
         '''
-        if not hasattr(self, 'generator'):
-            if 'generator' in kwargs.keys():
-                self.set_generator(**kwargs)
-            else:
-                raise RuntimeError('Error: No generator specified.')
+        assert hasattr(self, 'generator'), 'No generator set (check self.set_generator).'
         self.power = len(self.generator) - 1
         
         if 'components' in kwargs.keys():
@@ -472,7 +476,6 @@ class lieoperator:
         for y in self.components:
             k_action = self.exponent.ad(y, power=self.power) # k_action = [xieta[k] + :x: xieta[k] + :x:**2 xieta[k] + ...]
             self.actions.append([k_action[j]*self.generator[j] for j in range(len(k_action))])
-        self.eval(**kwargs)
         
     def eval(self, t=1, **kwargs):
         '''
@@ -484,7 +487,7 @@ class lieoperator:
             Parameter in the exponent at which the Lie operator should be evaluated.
         '''
         if not hasattr(self, 'actions'):
-            raise RuntimeError("Map needs to be generated before evaluation with 'self.generate'.")
+            raise RuntimeError("Operator needs to be generated before evaluation (check self.generate).")
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array, then
         # numpy would put the liepoly classes into its array, something we do not want. Instead, we want to
         # put the numpy arrays into our liepoly class.
@@ -506,8 +509,8 @@ class lieoperator:
             A list of length self.n_values, representing the individual components of the Lie operator
             g(:x:) y, for every requested y.
         '''
+        assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.eval)."
         if 't' in kwargs.keys(): # re-evaluate the flow at the requested t.
             self.eval(**kwargs)
         return [self.flow[k](z) for k in range(self.n_values)]
     
-

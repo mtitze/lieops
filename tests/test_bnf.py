@@ -405,6 +405,7 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
             
             
 def test_flow(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, max_power=12, tol=1e-15, **kwargs):
+    # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
     mu0 = 0.43
     coeff = 1j*mu0/np.sqrt(2)**3
     H_accu = liepoly(values={(1, 1): -mu0,
@@ -456,5 +457,6 @@ if __name__ == '__main__':
     test_fonfe(code='mpmath')
     test_exp_ad1()
     test_exp_ad2()
+    test_flow()
     test_bnf_performance()
     
