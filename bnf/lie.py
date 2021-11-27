@@ -2,7 +2,7 @@ from njet.jet import factorials, check_zero
 from njet import derive
 from .genfunc import genexp
 
-# Note: The notation in these scripts (e.g. xi, eta), as well as parts of the background material, can 
+# Note: The notation in this script (e.g. xi, eta), as well as parts of the background material, can 
 # be found in my Thesis: Malte Titze -- Space Charge Modeling at the Integer Resonance for the CERN PS and SPS, on p.33 onwards.
 
 class liepoly:
@@ -12,8 +12,6 @@ class liepoly:
     
     self.max_power > 0 means that any calculations beyond this degree are discarded.
     For binary operations this means that the minimum of both fields are computed.
-    
-    A liepoly class should be initialized with non-zero values.
     '''
     def __init__(self, max_power=float('inf'), **kwargs):
         # self.dim denotes the number of xi (or eta)-factors.
@@ -47,15 +45,19 @@ class liepoly:
         '''
         Obtain the maximal degree of the current Lie polynomial. 
         '''
-        # It is assumed that the values of the Lie polynomial are non-zero.
-        return max([sum(k) for k, v in self.values.items()])
+        if len(self.values) == 0:
+            return 0
+        else:
+            return max([sum(k) for k, v in self.values.items()])
     
     def mindeg(self):
         '''
         Obtain the minimal degree of the current Lie polynomial. 
         '''
-        # It is assumed that the values of the Lie polynomial are non-zero.
-        return min([sum(k) for k, v in self.values.items()])
+        if len(self.values) == 0:
+            return 0
+        else:
+            return min([sum(k) for k, v in self.values.items()])
         
     def copy(self):
         return self.__class__(values={k: v for k, v in self.values.items()}, dim=self.dim, max_power=self.max_power)
@@ -244,7 +246,7 @@ class liepoly:
         Returns
         -------
         list
-            List [x**k(y) for k in range(n)], if n is the power requested.
+            List [x**k(y) for k in range(n + 1)], if n is the power requested.
         '''
         assert self.__class__.__name__ == y.__class__.__name__
         assert power >= 0
@@ -282,7 +284,7 @@ class liepoly:
             
         Returns
         -------
-        derive: object
+        derive
             A class of type njet.ad.derive with n_args=2*self.dim parameters.
             Note that a function evaluation should be consistent with the fact that 
             the last self.dim entries are the complex conjugate values of the 
@@ -305,17 +307,18 @@ class liepoly:
             The maximal power up to which exp(:x:) should be evaluated.
         
         t: float, optional
-            An additional parameter to compute exp(t*:x:) instead.
+            An additional parameter to model exp(t*:x:) (default: 1). Note that
+            this parameter can also be changed in the lieoperator class later.
             
         **kwargs
-            Additional arguments are passed to the liemap class.
+            Additional arguments are passed to the lieoperator class.
 
         Returns
         -------
         lieoperator
-            class of type lieoperator containing the map belonging to the current Lie polynomial.
+            Class of type lieoperator, modeling the flow of the current Lie polynomial.
         '''
-        return lieoperator(self, gen=genexp(power), t=t, **kwargs)
+        return lieoperator(self, generator=genexp(power), t=t, **kwargs)
         
     def compose(self, f):
         '''
@@ -353,13 +356,26 @@ def create_coords(dim, **kwargs):
 
 
 def compose(lps, f):
-    '''
+    r'''
     Let z = [z1, ..., zk] be Lie polynomials and f an analytical function, taking k values.
     Then this routine will return the Lie map :f(z1, ..., zk):
     
     Background: Using multivariate Taylor-expansion, we can show that
     :f(z1, ..., zk):g = sum_j (\partial f/\partial z_j)(z1, ..., zk) {z_j, g}
     holds -- for every (differentiable) function g.
+    
+    Parameters
+    ----------
+    lps: list
+        A list of liepoly objects.
+        
+    f: callable
+        A function on which we want to apply the list of liepoly objects.
+        
+    Returns
+    -------
+    callable
+        A map, mapping a vector u to the Lie operator :f(z1, ..., zk):_u
     '''
     assert len(lps) == f.__code__.co_argcount
     n_args = len(lps)
@@ -367,23 +383,32 @@ def compose(lps, f):
     return lambda z: sum([lps[k]*df.grad(z)[(k,)] for k in range(n_args)])
     
 
-def exp_ad(x, y, power):
+def exp_ad(x, y, power, **kwargs):
     '''
     Compute the exponential Lie operator exp(:x:)y up to a given power.
 
     Parameters
     ----------
+    x: liepoly
+        The Lie polynomial in the exponent of exp.
+    
+    y: liepoly or list of liepoly objects
+        The Lie polynomial(s) on which we want to apply the exponential Lie operator.
+        
     power: int
-        Integer defining the maximal power up to which we want to compute the expression.
-    y: liepoly
-        The polynomial of which we want to apply the exponential Lie operator on.
+        Integer defining the maximal power up to which we want to compute the result.
+        
+    **kwargs
+        Additional arguments passed to the lieoperator class.
 
     Returns
     ------- 
-    list
-        List containing the terms 1/k!*(:x:**k)y in the exponential expansion up to the given power.
+    lieoperator
+        Class of type lieopeartor, representing the exponential Lie operator up to the requested power.
     '''
-    return lieoperator(x, gen=genexp(power), components=[y])
+    if y.__class__.__name__ == 'liepoly':
+        y = [y]
+    return lieoperator(x, generator=genexp(power), components=y, **kwargs)
 
 
 class lieoperator:
@@ -393,23 +418,17 @@ class lieoperator:
     def __init__(self, x, **kwargs):
         self.exponent = x
         self.n_args = 2*self.exponent.dim
-        if 'gen' in kwargs.keys():
+        if 'generator' in kwargs.keys():
             self.generate(**kwargs)
         
-    def _determine_generator(self, gen, **kwargs):
-        if 'components' in kwargs.keys():
-            self.components = kwargs['components']
-        else:
-            self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
-        self.n_values = len(self.components)
-        
-        if hasattr(gen, '__iter__'):
+    def set_generator(self, generator, **kwargs):
+        if hasattr(generator, '__iter__'):
             # assume that g is in the form of a series, e.g. given by a generator function.
-            return gen
-        elif hasattr(gen, '__call__') and 'power' in kwargs.keys():
+            self.generator = generator
+        elif hasattr(generator, '__call__') and 'power' in kwargs.keys():
             # assume that g is a function of one variable which needs to be derived n-times at zero.
-            assert gen.__code__.co_argcount == 1
-            dgen = derive(gen, order=power)
+            assert generator.__code__.co_argcount == 1
+            dg = derive(generator, order=power)
             # TODO
             # need pure Taylor coefficients of g around zero...
         else:
@@ -417,8 +436,10 @@ class lieoperator:
         
     def generate(self, **kwargs):
         '''
-        Compute summands in the series of the Lie operator f(:x:)z_k,
+        Compute summands in the series of the Lie operator g(:x:)z_k,
         for every requested k, up to a specific power.
+        
+        Furthermore, compute the sums of these series.
         
         Parameters
         ----------
@@ -426,11 +447,25 @@ class lieoperator:
             The maximal power up to which f(:x:) should be evaluated.
         
         components: list, optional
-            List of integers denoting the components to be computed (i.e. the k-indices described above). 
-            If nothing specified, all components are calculated.
+            List of liepoly objects on which the Lie operator g(:x:) should be applied.
+            If nothing specified, then the canonical coordinates are used.
+            
+        **kwargs
+            Optional arguments passed to 'set_generator', 'create_coords' and 'self.eval'.
         '''
-        self.generator = self._determine_generator(**kwargs)
+        if not hasattr(self, 'generator'):
+            if 'generator' in kwargs.keys():
+                self.set_generator(**kwargs)
+            else:
+                raise RuntimeError('Error: No generator specified.')
         self.power = len(self.generator) - 1
+        
+        if 'components' in kwargs.keys():
+            self.components = kwargs['components']
+        else:
+            self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
+        self.n_values = len(self.components)
+        
         self.actions = []
         for y in self.components:
             k_action = self.exponent.ad(y, power=self.power) # k_action = [xieta[k] + :x: xieta[k] + :x:**2 xieta[k] + ...]
@@ -440,6 +475,11 @@ class lieoperator:
     def eval(self, t=1, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]z_k for k in range(self.n_values).
+        
+        Parameters
+        ----------
+        t: float (or other, e.g. numpy.complex128 array)
+            Parameter in the exponent at which the Lie operator should be evaluated.
         '''
         if not hasattr(self, 'actions'):
             raise RuntimeError("Map needs to be generated before evaluation with 'self.generate'.")
@@ -450,6 +490,20 @@ class lieoperator:
         self.flow_parameter = t
     
     def __call__(self, z, **kwargs):
+        '''
+        Compute the result of the Lie operator applied at a specific point.
+        
+        Parameters
+        ----------
+        z: subscriptable
+            The point of interest.
+            
+        Returns
+        -------
+        list
+            A list of length self.n_values, representing the individual components of the Lie operator
+            g(:x:) y, for every requested y.
+        '''
         if 't' in kwargs.keys(): # re-evaluate the flow at the requested t.
             self.eval(**kwargs)
         return [self.flow[k](z) for k in range(self.n_values)]

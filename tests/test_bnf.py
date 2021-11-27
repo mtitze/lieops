@@ -1,6 +1,6 @@
 import time
 from bnf import __version__
-from bnf.lie import liepoly, exp_ad, exp_ad_par, create_coordinates
+from bnf.lie import liepoly, exp_ad, create_coords
 from bnf.nf import first_order_nf_expansion, homological_eq, bnf
 import numpy as np
 import mpmath as mp
@@ -87,8 +87,9 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
         if len(chi.values) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        Hk = sum(exp_ad(-chi, Hk, power=exp_power))
-        # Hk = sum(exp_ad(-chi, Hk, power=k + 1)) # faster but likely inaccurate; need tests
+        Hk_operator = exp_ad(-chi, Hk, power=exp_power)
+        # Hk_operator = exp_ad(-chi, Hk, power=k + 1) # faster but likely inaccurate; need tests
+        Hk = Hk_operator.flow[0]
         Pk = Hk.homogeneous_part(k + 1)
         Zk += Q 
         
@@ -268,7 +269,7 @@ def test_jacobi():
 def test_poisson(tol=1e-15):
     # Test the property {f, gh} = {f, g}h + {f, h}g
     
-    xieta = create_coordinates(2)
+    xieta = create_coords(2)
     p = (xieta[0] + 0.31*xieta[1])**2
     q = (0.7*xieta[0] - 8.61052*xieta[2] + 2.32321*xieta[1] - 0.93343*xieta[3]**3)**2
     h = -0.24*xieta[2]**5 + 7.321*xieta[3]
@@ -336,16 +337,16 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
     expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy')
     HLie = liepoly(values=expansion)
     K = nfdict['K']
-    xieta = create_coordinates(1)
+    xieta = create_coords(1)
 
     # first apply K, then exp_ad:
     xy_mapped = K@np.array([xieta]).transpose()
-    xy_fin_series_mapped = [exp_ad(HLie, xy_mapped[k, 0], power) for k in range(len(xy_mapped))]
-    xy_final_mapped = [sum(exp_ad_par(e, mu)) for e in xy_fin_series_mapped] # (x, y) final in terms of xi and eta 
+    xy_fin_ops_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu)
+    xy_final_mapped = xy_fin_ops_mapped.flow # (x, y) final in terms of xi and eta 
     
     # first apply exp_ad, then K:
-    xy_fin_series = [exp_ad(HLie, xieta[k], power) for k in range(len(xy_mapped))]
-    xy_fin = [sum(exp_ad_par(e, mu)) for e in xy_fin_series]
+    xy_fin_ops = exp_ad(HLie, xieta, power=power, t=mu)
+    xy_fin = xy_fin_ops.flow
     xy_final = K@np.array([xy_fin]).transpose() # (x, y) final in terms of xi and eta
     
     # Both results must be equal.
@@ -379,7 +380,7 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
     expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, **kwargs)
     HLie = liepoly(values=expansion, max_power=max_power)
     K = nfdict['K']
-    xieta = create_xieta(1, max_power=max_power)
+    xieta = create_coords(1, max_power=max_power)
     
     # first apply function, then exp_ad:
     if code == 'numpy':
@@ -388,12 +389,12 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
         xy_mapped = [[sum([K[j, k]*xieta[k] for k in range(len(xieta))])] for j in range(len(K))]
     xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
     
-    xy_fin_series_mapped = [exp_ad(HLie, xy_mapped[k], power) for k in range(len(xy_mapped))]    
-    xy_final_mapped = [sum(e) for e in xy_fin_series_mapped]
+    xy_fin_ops_mapped = exp_ad(HLie, xy_mapped, power)    
+    xy_final_mapped = xy_fin_ops_mapped.flow
     
     # first apply exp_ad, then function:
-    xy_fin_series = [exp_ad(HLie, xieta[k], power) for k in range(len(xy_mapped))]
-    xy_fin = [sum(e) for e in xy_fin_series]
+    xy_fin_ops = exp_ad(HLie, xieta, power)
+    xy_fin = xy_fin_ops.flow
     if code == 'numpy':
         xy_final = (K@np.array([xy_fin]).transpose()).tolist()
     elif code == 'mpmath':
