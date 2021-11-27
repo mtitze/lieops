@@ -403,6 +403,22 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
             v2 = d2[key]
             assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
             
+            
+def test_flow(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, max_power=12, tol=1e-15, **kwargs):
+    mu0 = 0.43
+    coeff = 1j*mu0/np.sqrt(2)**3
+    H_accu = liepoly(values={(1, 1): -mu0,
+                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))}, **kwargs)
+    
+    Hflow = H_accu.flow(power, **kwargs)
+
+    v1 = Hflow(Hflow(z, t=a), t=b)
+    v2 = Hflow(z, t=a + b)
+    assert all([abs(v1[k] - v2[k])/(min([abs(v1[k]), abs(v2[k])])) < tol for k in range(2)])
+            
     
 def test_bnf_performance(threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).

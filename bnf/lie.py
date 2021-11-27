@@ -407,7 +407,7 @@ def exp_ad(x, y, power, **kwargs):
         Class of type liepoly, representing the result of the exponential Lie operator exp(:x:)y,
         up to the requested power.
     '''
-    if y.__class__.__name__ == 'liepoly':
+    if y.__class__.__name__ == 'liepoly': # if input is not a list, also do not return a list
         return lieoperator(x, generator=genexp(power), components=[y], **kwargs).flow[0]
     else:
         return lieoperator(x, generator=genexp(power), components=y, **kwargs).flow
