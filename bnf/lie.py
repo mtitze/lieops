@@ -199,7 +199,7 @@ class liepoly:
                         _ = mult_values.pop(prod_tpl, None)
             return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)            
         else:
-            return self.__class__(values={k: v*other for k, v in self.values.items()}, 
+            return self.__class__(values={k: v*other for k, v in self.values.items() if not check_zero(other)}, 
                                           dim=self.dim, max_power=self.max_power)
         
     def __rmul__(self, other):
@@ -218,6 +218,9 @@ class liepoly:
             return self*half*half
         else:
             return half*half
+        
+    def __len__(self):
+        return len(self.values)
         
     def ad(self, y, power: int=1):
         '''
@@ -264,6 +267,8 @@ class liepoly:
         # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values is changing.
         for k in range(power):
             result = self@result
+            if len(result) == 0:
+                break
             all_results.append(result)
         return all_results
     
@@ -409,9 +414,9 @@ def exp_ad(x, y, power, **kwargs):
         up to the requested power.
     '''
     if y.__class__.__name__ == 'liepoly': # if input is not a list, also do not return a list
-        return lieoperator(x, generator=genexp(power), components=[y], **kwargs).flow[0]
+        return lieoperator(x, generator=genexp(power), components=[y], **kwargs).current_flow[0]
     else:
-        return lieoperator(x, generator=genexp(power), components=y, **kwargs).flow
+        return lieoperator(x, generator=genexp(power), components=y, **kwargs).current_flow
 
 
 class lieoperator:
@@ -424,11 +429,24 @@ class lieoperator:
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
             self.generate(**kwargs)
-            self.eval(**kwargs)
+            self.flow(**kwargs)
         
     def set_generator(self, generator, **kwargs):
         '''
         Define the generating series for the function g.
+        
+        Parameters
+        ----------
+        generator: subscriptable or callable
+            If subscriptable, generator[k] =: a_k defines the generating series for the function
+            g so that the Lie operator corresponds to g(:x:).
+            
+            g(z) = sum_k a_k*z**k.
+            
+            If g is a callable object, then the a_k's are determined from the Taylor coefficients of
+            g. Hereby g must depend on only one parameter and it has to be supported by the njet
+            module. Furthermore, the additional (integer) parameter 'power' is required to define the 
+            maximal order up to which the Taylor coefficients will be determined.
         '''
         if hasattr(generator, '__iter__'):
             # assume that g is in the form of a series, e.g. given by a generator function.
@@ -439,7 +457,7 @@ class lieoperator:
             # assume that g is a function of one variable which needs to be derived n-times at zero.
             assert generator.__code__.co_argcount == 1, 'Function needs to depend on a single variable.'
             dg = derive(generator, order=kwargs['power'])
-            taylor_coeffs = dg.get_taylor_coefficients(dg.eval([0]*dg.n_args))
+            taylor_coeffs = dg.get_taylor_coefficients(dg.eval([0]))
             self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
         else:
             raise NotImplementedError('Input function not recognized.')
@@ -461,29 +479,34 @@ class lieoperator:
             If nothing specified, then the canonical coordinates are used.
             
         **kwargs
-            Optional arguments passed to 'set_generator', 'create_coords' and 'self.eval'.
+            Optional arguments passed to 'set_generator', 'create_coords' and 'self.flow'.
         '''
         assert hasattr(self, 'generator'), 'No generator set (check self.set_generator).'
         self.power = len(self.generator) - 1
         
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
-        else:
+        elif not hasattr(self, 'components'):
             self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
         self.n_values = len(self.components)
         
         self.actions = []
         for y in self.components:
             k_action = self.exponent.ad(y, power=self.power) # k_action = [xieta[k] + :x: xieta[k] + :x:**2 xieta[k] + ...]
-            self.actions.append([k_action[j]*self.generator[j] for j in range(len(k_action))])
+            assert len(k_action) > 0
+            # N.B. if self.generator[j] = 0, then k_action[j]*self.generator[j] = {}. It will remain in the list below (because 
+            # it always holds len(k_action) > 0 by construction).
+            # This is important when calculating the flow later on. In order to check for this consistency, we have added 
+            # the above assert statement.
+            self.actions.append([k_action[j]*self.generator[j] for j in range(len(k_action))]) 
         
-    def eval(self, t=1, **kwargs):
+    def flow(self, t=1, **kwargs):
         '''
-        Compute the Lie operators [g(t:x:)]z_k for k in range(self.n_values).
+        Compute the Lie operators [g(t:x:)]y for every y in self.components.
         
         Parameters
         ----------
-        t: float (or other, e.g. numpy.complex128 array)
+        t: float (or e.g. numpy.complex128 array)
             Parameter in the exponent at which the Lie operator should be evaluated.
         '''
         if not hasattr(self, 'actions'):
@@ -491,8 +514,8 @@ class lieoperator:
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array, then
         # numpy would put the liepoly classes into its array, something we do not want. Instead, we want to
         # put the numpy arrays into our liepoly class.
-        self.flow = [sum([self.actions[k][j]*t**j for j in range(len(self.actions[k]))]) for k in range(self.n_values)]
-        self.flow_parameter = t
+        self.current_flow = [sum([self.actions[k][j]*t**j for j in range(len(self.actions[k]))]) for k in range(self.n_values)]
+        self.current_flow_parameter = t
     
     def __call__(self, z, **kwargs):
         '''
@@ -509,8 +532,8 @@ class lieoperator:
             A list of length self.n_values, representing the individual components of the Lie operator
             g(:x:) y, for every requested y.
         '''
-        assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.eval)."
-        if 't' in kwargs.keys(): # re-evaluate the flow at the requested t.
-            self.eval(**kwargs)
-        return [self.flow[k](z) for k in range(self.n_values)]
+        assert hasattr(self, 'current_flow'), "Flow needs to be calculated first (check self.flow)."
+        if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
+            self.flow(**kwargs)
+        return [self.current_flow[k](z) for k in range(self.n_values)]
     
