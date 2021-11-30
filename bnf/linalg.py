@@ -109,15 +109,16 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
     dict_shape = max(M.keys())
     n_rows = kwargs.get('n_rows', dict_shape[0] + 1)
     n_cols = kwargs.get('n_cols', dict_shape[1] + 1)
-        
+    
     # create a column-matrix
-    mat = [[0]*n_rows for k in range(n_cols)]
     if symmetry == 0:
+        mat = [[0]*n_rows for k in range(n_cols)]
         for i in range(n_rows):
             for j in range(n_cols):
                 mat[j][i] = M.get((i, j), 0)
     else:
         dim = max([n_rows, n_cols])
+        mat = [[0]*dim for k in range(dim)]
         for i in range(dim):
             for j in range(i + 1):
                 hij = M.get((i, j), 0)
