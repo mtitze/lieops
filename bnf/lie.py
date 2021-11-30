@@ -364,7 +364,7 @@ class liepoly:
             then the function f(x) is returned.
         '''
         if not 'power' in kwargs.keys():
-            power = self.max_power
+            kwargs['power'] = self.max_power
         return compose([self], f, **kwargs)
             
     
