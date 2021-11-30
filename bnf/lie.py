@@ -205,6 +205,16 @@ class liepoly:
     def __rmul__(self, other):
         return self.__mul__(other)
     
+    def __truediv__(self, other):
+        # implement '/' operator
+        if self.__class__.__name__ != other.__class__.__name__:
+            # Attention: If other is a NumPy array, there is no check if one of the entries is zero.
+            return self.__class__(values={k: v/other for k, v in self.values.items() if not check_zero(other)}, 
+                                          dim=self.dim, max_power=self.max_power)
+        else:
+            raise NotImplementedError('Division by Lie polynomial not (yet) implemented.')
+        
+    
     def __pow__(self, other):
         assert type(other) == int 
         assert other >= 0
@@ -221,6 +231,9 @@ class liepoly:
         
     def __len__(self):
         return len(self.values)
+    
+    def __eq__(self, other):
+        return self.values == other.values
         
     def ad(self, y, power: int=1):
         '''
@@ -360,33 +373,47 @@ def create_coords(dim, **kwargs):
     return resultx + resulty
 
 
-def compose(lps, f):
+def compose(lps, f, power=float('inf')):
     r'''
     Let z = [z1, ..., zk] be Lie polynomials and f an analytical function, taking k values.
-    Then this routine will return the Lie map :f(z1, ..., zk):
-    
-    Background: Using multivariate Taylor-expansion, we can show that
-    :f(z1, ..., zk):g = sum_j (\partial f/\partial z_j)(z1, ..., zk) {z_j, g}
-    holds -- for every (differentiable) function g.
+    Depending on the input, this routine will either return the Lie map :f(z1, ..., zk): or
+    the map f(z1, ..., zk).
     
     Parameters
     ----------
-    lps: list
-        A list of liepoly objects.
+    lps: liepoly or list of liepoly objects
+        The Lie polynomial(s) to be composed.
         
     f: callable
         A function on which we want to apply the list of liepoly objects.
         It needs to be supported by the njet module.
         
+    power: int, optional
+        The maximal power of the resulting Lie polynomial (default: float('inf')).
+        If a value is provided, the routine will return a class of type liepoly, representing
+        a Lie polynomial. If nothing is provided, the routine will return the function
+        f(z1, ..., zk)
+        
     Returns
     -------
     callable
-        A map, mapping a vector u to the Lie operator :f(z1, ..., zk):_u
+        A map, mapping a Lie polynomial g to :f(z1, ..., zk):g
     '''
-    n_args = len(lps)
-    assert n_args == f.__code__.co_argcount
-    df = derive(f, order=1)
-    return lambda z: sum([lps[k]*df.grad(z)[(k,)] for k in range(n_args)])
+    if lps.__class__.__name__ == 'liepoly':
+        lps = [lps]
+    n_args_f = len(lps)
+    dim_poly = lps[0].dim
+    
+    assert n_args_f == f.__code__.co_argcount, 'Input function depends on a different number of arguments.'
+    assert all([lp.dim == dim_poly for lp in lps]), 'Input polynomials not all having the same dimensions.'
+
+    composition = lambda z: f(*[lps[k](z) for k in range(n_args_f)])   
+    if power == float('inf'):
+        return composition
+    else:
+        dcomp = derive(composition, order=power, n_args=2*dim_poly)
+        taylor_coeffs = dcomp([0]*2*dim_poly, mult=False)
+        return liepoly(values=taylor_coeffs, dim=dim_poly, max_power=power)
     
 
 def exp_ad(x, y, power, **kwargs):
@@ -413,10 +440,10 @@ def exp_ad(x, y, power, **kwargs):
         Class of type liepoly, representing the result of the exponential Lie operator exp(:x:)y,
         up to the requested power.
     '''
-    if y.__class__.__name__ == 'liepoly': # if input is not a list, also do not return a list
-        return lieoperator(x, generator=genexp(power), components=[y], **kwargs).current_flow[0]
+    if y.__class__.__name__ == 'liepoly': # if the input is a Lie polynomial, also return a Lie polynomial
+        return lieoperator(x, generator=genexp(power), components=[y], **kwargs).flow[0]
     else:
-        return lieoperator(x, generator=genexp(power), components=y, **kwargs).current_flow
+        return lieoperator(x, generator=genexp(power), components=y, **kwargs).flow
 
 
 class lieoperator:
@@ -428,8 +455,9 @@ class lieoperator:
         self.n_args = 2*self.exponent.dim
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
-            self.generate(**kwargs)
-            self.flow(**kwargs)
+        if 'components' in kwargs.keys() or 't' in kwargs.keys():
+            self.calcOrbits(**kwargs)
+            self.calcFlow(**kwargs)
         
     def set_generator(self, generator, **kwargs):
         '''
@@ -457,50 +485,47 @@ class lieoperator:
             # assume that g is a function of one variable which needs to be derived n-times at zero.
             assert generator.__code__.co_argcount == 1, 'Function needs to depend on a single variable.'
             dg = derive(generator, order=kwargs['power'])
-            taylor_coeffs = dg.get_taylor_coefficients(dg.eval([0]))
+            taylor_coeffs = dg([0], mult=False)
             self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
         else:
             raise NotImplementedError('Input function not recognized.')
-        
-    def generate(self, **kwargs):
+        self.power = len(self.generator) - 1
+            
+    def action(self, y, **kwargs):
         '''
-        Compute summands in the series of the Lie operator g(:x:)z_k,
-        for every requested k, up to a specific power.
+        Apply the Lie operator g(:x:) to a given lie polynomial y to return the elements
+        in the series of g(:x:)y.
+        '''
+        assert hasattr(self, 'generator'), 'No generator set (check self.set_generator).'
+        ad_action = self.exponent.ad(y, power=self.power)
+        assert len(ad_action) > 0
+        # N.B. if self.generator[j] = 0, then k_action[j]*self.generator[j] = {}. It will remain in the list below (because 
+        # it always holds len(k_action) > 0 by construction).
+        # This is important when calculating the flow later on. In order to check for this consistency, we have added 
+        # the above assert statement.
+        return [ad_action[j]*self.generator[j] for j in range(len(ad_action))]
         
-        Furthermore, compute the sums of these series.
+    def calcOrbits(self, **kwargs):
+        '''
+        Compute the summands in the series of the Lie operator g(:x:)y,
+        for every requested y.
         
         Parameters
         ----------
-        power: int
-            The maximal power up to which f(:x:) should be evaluated.
-        
         components: list, optional
             List of liepoly objects on which the Lie operator g(:x:) should be applied.
             If nothing specified, then the canonical coordinates are used.
             
         **kwargs
-            Optional arguments passed to 'set_generator', 'create_coords' and 'self.flow'.
-        '''
-        assert hasattr(self, 'generator'), 'No generator set (check self.set_generator).'
-        self.power = len(self.generator) - 1
-        
+            Optional arguments passed to 'create_coords'.
+        '''        
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
-        elif not hasattr(self, 'components'):
-            self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
-        self.n_values = len(self.components)
+        else:
+            self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.      
+        self.orbits = [self.action(y) for y in self.components]
         
-        self.actions = []
-        for y in self.components:
-            k_action = self.exponent.ad(y, power=self.power) # k_action = [xieta[k] + :x: xieta[k] + :x:**2 xieta[k] + ...]
-            assert len(k_action) > 0
-            # N.B. if self.generator[j] = 0, then k_action[j]*self.generator[j] = {}. It will remain in the list below (because 
-            # it always holds len(k_action) > 0 by construction).
-            # This is important when calculating the flow later on. In order to check for this consistency, we have added 
-            # the above assert statement.
-            self.actions.append([k_action[j]*self.generator[j] for j in range(len(k_action))]) 
-        
-    def flow(self, t=1, **kwargs):
+    def calcFlow(self, t=1, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for every y in self.components.
         
@@ -509,31 +534,46 @@ class lieoperator:
         t: float (or e.g. numpy.complex128 array)
             Parameter in the exponent at which the Lie operator should be evaluated.
         '''
-        if not hasattr(self, 'actions'):
-            raise RuntimeError("Operator needs to be generated before evaluation (check self.generate).")
+        if not hasattr(self, 'orbits'):
+            raise RuntimeError("No orbits found. Flow calculation requires at least one Lie polynomial to be transported (check self.calcOrbits).")
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array, then
         # numpy would put the liepoly classes into its array, something we do not want. Instead, we want to
         # put the numpy arrays into our liepoly class.
-        self.current_flow = [sum([self.actions[k][j]*t**j for j in range(len(self.actions[k]))]) for k in range(self.n_values)]
-        self.current_flow_parameter = t
+        self.flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+        self.flow_parameter = t
     
     def __call__(self, z, **kwargs):
         '''
-        Compute the result of the Lie operator applied at a specific point.
+        Compute the result of the current Lie operator g(:x:), applied to either a Lie polynomial
+        or evaluated at a specific point.
         
         Parameters
         ----------
-        z: subscriptable
-            The point of interest.
+        z: subscriptable or liepoly
+            The Lie polynomial or point of interest. 
+            If z is a Lie polynomial, then the orbit of g(:x:)z will be computed and the flow returned as liepoly class.
+            
+            If z is a list, then the values (g(:x:)y)(z) for the given y in self.components
+            are returned.
+            
+            Note that if an additional parameter t is passed, then the result of applying g(t*:x:) is calculated.
+            
+        **kwargs
+            Optional arguments passed to self.calcFlow.
             
         Returns
         -------
-        list
-            A list of length self.n_values, representing the individual components of the Lie operator
-            g(:x:) y, for every requested y.
+        list or liepoly
+            A list of length len(self.flow), representing the individual components of the Lie operator
+            (g(:x:)y)(z), for every y in self.components, or the Lie polynomial g(:x:)z, depending on the input.
         '''
-        assert hasattr(self, 'current_flow'), "Flow needs to be calculated first (check self.flow)."
-        if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
-            self.flow(**kwargs)
-        return [self.current_flow[k](z) for k in range(self.n_values)]
+        if z.__class__.__name__ == 'liepoly':
+            self.calcOrbits(components=[z], **kwargs)
+            self.calcFlow(**kwargs)
+            return self.flow[0]
+        else:       
+            assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
+            if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
+                self.calcFlow(**kwargs)
+            return [self.flow[k](z) for k in range(len(self.flow))]
     

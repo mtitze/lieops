@@ -136,7 +136,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     K = nfdict['K'] # K.transpose()*Hesse_matrix*K is in cnf
     
     # Step 4: Obtain the expansion of the Hamiltonian up to the requested order.
-    Kmap = lambda zz: [sum([K[j, k]*zz[k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class 
+    Kmap = lambda zz: [sum([zz[k]*K[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: K[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
     HK = lambda zz: H(Kmap(zz))
     dHK = derive(HK, order=order, n_args=dim)
     results = dHK(z0, mult=False) # mult=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)

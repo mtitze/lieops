@@ -1,10 +1,10 @@
 import time
 from bnf import __version__
-from bnf.lie import liepoly, exp_ad, create_coords
+from bnf.lie import liepoly, exp_ad, create_coords, compose
 from bnf.nf import first_order_nf_expansion, homological_eq, bnf
 import numpy as np
 import mpmath as mp
-from njet.functions import cos, sin
+from njet.functions import cos, sin, exp
 from njet import derive
 from sympy import Symbol
 
@@ -362,7 +362,7 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
     expectation = [xf, pxf]
     for k in range(len(xy_final_mapped)):
         lie_k = xy_final_mapped[k]
-        diff = expectation[k] - (lie_k( sum([Kinv[:, l]*zz[l] for l in range(len(zz))]) ) ).expand()
+        diff = expectation[k] - (lie_k( sum([zz[l]*Kinv[:, l] for l in range(len(zz))]) ) ).expand()
         assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
     
     
@@ -383,7 +383,7 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
     if code == 'numpy':
         xy_mapped = (K@np.array([xieta]).transpose()).tolist()
     elif code == 'mpmath':
-        xy_mapped = [[sum([K[j, k]*xieta[k] for k in range(len(xieta))])] for j in range(len(K))]
+        xy_mapped = [[sum([xieta[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
     xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
     xy_final_mapped = exp_ad(HLie, xy_mapped, power)    
     
@@ -392,7 +392,7 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
     if code == 'numpy':
         xy_final = (K@np.array([xy_fin]).transpose()).tolist()
     elif code == 'mpmath':
-        xy_final = [[sum([K[j, k]*xy_fin[k] for k in range(len(xieta))])] for j in range(len(K))]
+        xy_final = [[sum([xy_fin[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
     xy_final = [xy_final[k][0]**3 + 0.753 for k in range(len(xy_final))] # apply an additional non-linear operation
     
     # Both results must be relatively close (and every entry non-zero).
@@ -404,7 +404,7 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
             assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
             
             
-def test_flow(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, max_power=12, tol=1e-15, **kwargs):
+def test_flow1(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
     # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
     mu0 = 0.43
     coeff = 1j*mu0/np.sqrt(2)**3
@@ -414,11 +414,64 @@ def test_flow(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, max_power=12
                              (1, 2): coeff/(1 - np.exp(-1j*mu0)),
                              (0, 3): coeff/(1 - np.exp(-3*1j*mu0))}, **kwargs)
     
-    Hflow = H_accu.flow(power, **kwargs)
+    Hflow = H_accu.flow(power=power, **kwargs)
 
     v1 = Hflow(Hflow(z, t=a), t=b)
     v2 = Hflow(z, t=a + b)
     assert all([abs(v1[k] - v2[k])/(min([abs(v1[k]), abs(v2[k])])) < tol for k in range(2)])
+    
+    
+def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
+    # Test if the flow of two Lie polynomials is a symplectic map, i.e. test if
+    # exp(:H:){x, y} = {exp(:H:)x, exp(:H:)y}
+    # holds.
+    mu0 = 0.43
+    coeff = 1j*mu0/np.sqrt(2)**3
+    H_accu = liepoly(values={(1, 1): -mu0,
+                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))}, max_power=max_power, **kwargs)
+    
+    xi, eta = create_coords(1)
+    lp1 = 0.24*xi**2 + 0.824*eta
+    lp2 = -0.66*eta**2
+    
+    term1 = exp_ad(H_accu, lp1@lp2, power=power) 
+    term2 = exp_ad(H_accu, lp1, power=power)@exp_ad(H_accu, lp2, power=power)
+    
+    sk1 = set(term1.values.keys())
+    sk2 = set(term2.values.keys())
+
+    k1m2 = list(sk1.difference(sk2))
+    k2m1 = list(sk2.difference(sk1))
+    for key in k1m2:
+        assert abs(term1.values[key]) < tol
+    for key in k2m1:
+        assert abs(term2.values[key]) < tol
+        
+    common_keys = list(sk1.intersection(sk2))
+    assert all([abs(term1.values[k] - term2.values[k]) < tol for k in common_keys])
+    
+    
+def test_compose(a: int=3, b: int=5, k: int=7):
+    # test if :sin(xi*eta):, :cos(xi*eta):, :exp(xi*eta): applied to xi**a*eta**b gives
+    # values as expected.
+    
+    xi, eta = create_coords(1)
+    eps = xi*eta
+    eps_ab = xi**a*eta**b
+    
+    assert eps@eps_ab == -1j*(b - a)*eps_ab
+    assert eps**k@eps_ab == -1j*k*eps**(k - 1)*(b - a)*eps_ab
+    
+    sin_eps = compose(eps, sin, power=20)
+    cos_eps = compose(eps, cos, power=20)
+    assert sin_eps@eps_ab == -1j*cos_eps*(b - a)*eps_ab
+    
+    exp_eps = compose(1j*eps/(b - a), exp, power=10)
+    assert exp_eps@eps_ab == exp_eps*eps_ab
+    assert exp_eps**k@eps_ab == k*exp_eps**k*eps_ab
             
     
 def test_bnf_performance(threshold=1.1, tol=1e-15):
@@ -457,6 +510,8 @@ if __name__ == '__main__':
     test_fonfe(code='mpmath')
     test_exp_ad1()
     test_exp_ad2()
-    test_flow()
+    test_flow1()
+    test_flow2()
+    test_compose()
     test_bnf_performance()
     
