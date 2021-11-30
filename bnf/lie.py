@@ -212,7 +212,7 @@ class liepoly:
             return self.__class__(values={k: v/other for k, v in self.values.items() if not check_zero(other)}, 
                                           dim=self.dim, max_power=self.max_power)
         else:
-            raise NotImplementedError('Division by Lie polynomial not (yet) implemented.')
+            raise NotImplementedError('Division by Lie polynomial not supported.')
         
     
     def __pow__(self, other):
@@ -338,11 +338,34 @@ class liepoly:
         '''
         return lieoperator(self, generator=genexp(power), t=t, **kwargs)
         
-    def compose(self, f):
+    def compose(self, f, **kwargs):
         '''
-        This routine will return the Lie map (z -> :f(x):_z).
+        Let :x: represent the current Lie polynomial. Depending on the input,
+        this routine will either return the map f(x) or the Lie polynomial :f(x):.
+        
+        Parameters
+        ----------
+        f: callable
+            A function depending on a single parameter. It needs to be supported by the njet module.
+            
+        **kwargs
+            Additional parameters passed to lie.compose routine.
+            
+        Returns
+        -------
+        callable or liepoly
+            The output depends on the optional argument 'power'.
+            
+            If no argument 'power' has been passed, then it will
+            be taken from the current value self.max_power.
+            
+            If power < float('inf'), then the Lie polynomial :f(x): is returned,
+            where f has been expanded up to the specified power. If power == float('inf'),
+            then the function f(x) is returned.
         '''
-        return compose([self], f)
+        if not 'power' in kwargs.keys():
+            power = self.max_power
+        return compose([self], f, **kwargs)
             
     
 def create_coords(dim, **kwargs):
@@ -376,7 +399,7 @@ def create_coords(dim, **kwargs):
 def compose(lps, f, power=float('inf')):
     r'''
     Let z = [z1, ..., zk] be Lie polynomials and f an analytical function, taking k values.
-    Depending on the input, this routine will either return the Lie map :f(z1, ..., zk): or
+    Depending on the input, this routine will either return the Lie polynomial :f(z1, ..., zk): or
     the map f(z1, ..., zk).
     
     Parameters
@@ -396,8 +419,9 @@ def compose(lps, f, power=float('inf')):
         
     Returns
     -------
-    callable
-        A map, mapping a Lie polynomial g to :f(z1, ..., zk):g
+    callable or liepoly
+        As described above, depending on the 'power' input parameter, either the map f(z1, ..., zk) or
+        the Lie polynomial :f(z1, ..., zk): is returned.
     '''
     if lps.__class__.__name__ == 'liepoly':
         lps = [lps]
@@ -517,7 +541,7 @@ class lieoperator:
             If nothing specified, then the canonical coordinates are used.
             
         **kwargs
-            Optional arguments passed to 'create_coords'.
+            Optional arguments passed to lie.create_coords.
         '''        
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
