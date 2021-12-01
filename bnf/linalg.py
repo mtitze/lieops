@@ -418,8 +418,8 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         J2: The new symplectic structure for the (xi, eta)-coordinates.
         U: The unitary map from the S(p, q) = (u, v)-block coordinates to the (xi, eta)-coordinates.
         Uinv: The inverse of U.
-        K: The linear map transforming H2 to complex normal form via K.transpose()*H2*K. 
-            K is given by T.transpose()*Sinv*Uinv.
+        K: The linear map transforming (q, p) to (xi, eta)-coordinates. Hence, it will transform
+           H2 to complex normal form via Kinv.transpose()*H2*Kinv. K is given by U*S*T.
         Kinv: The inverse of K.
         rnf: The 'real' normal form, by which we understand the diagonalization of H2 relative to its 
             real normalizing coordinates (the matrix D described above).
@@ -455,11 +455,11 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     Uinv = U.transpose().conjugate()
 
     J = column_matrix_2_code(create_J(dim_half), code=code)
-    # N.B. (p, Jq) -> (u, JSv) = (Sp, JSq) = (p, Jq) -> (Uu, JUv) = (xi, J eta). Thus:
+    # N.B. (p, J*q) = (Sp, J*S*q) = (u, J*v) = (Uinv*U*u, J*Uinv*U*v) = (Uinv*xi, J*Uinv*eta). Thus:
     J2 = Uinv.transpose()@J@Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
     Sinv = - J@S.transpose()@J
-    K = Sinv@Uinv  # this map will transform to the new (xi, eta)-coordinates via K.transpose()*H2*K
-    Kinv = U@S
+    K = U@S # K(p, q) = (xi, eta)
+    Kinv = Sinv@Uinv  # this map will transform to the new (xi, eta)-coordinates via Kinv.transpose()*H2*Kinv
 
     if len(T) != 0: # transform results back to the requested (q, p)-ordering
         S = T.transpose()@S@T
@@ -468,8 +468,8 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
         J = T.transpose()@J@T
         H2 = T.transpose()@H2@T
         
-        K = T.transpose()@K
-        Kinv = Kinv@T
+        K = K@T
+        Kinv = T.transpose()@Kinv
     
     # assemble output
     out = {}
@@ -484,9 +484,9 @@ def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
     out['J2'] = J2 # the new symplectic structure
     out['U'] = U # the unitary map from the S(p, q)=(u, v)-block coordinates to the (xi, eta)-coordinates
     out['Uinv'] = Uinv
-    out['K'] = K
+    out['K'] = K # K(q, p) = (xi, eta)
     out['Kinv'] = Kinv
-    out['cnf'] = K.transpose()@H2@K # the representation of H2 in (xi, eta)-coordinates
+    out['cnf'] = Kinv.transpose()@H2@Kinv # the representation of H2 in (xi, eta)-coordinates
     
     return out
     

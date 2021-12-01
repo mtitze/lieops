@@ -475,13 +475,21 @@ class lieoperator:
     Class to construct and work with a Lie operator of the form g(:x:).
     '''
     def __init__(self, x, **kwargs):
-        self.exponent = x
-        self.n_args = 2*self.exponent.dim
+        self.set_exponent(x, **kwargs)
+        if not 'generator' in kwargs.keys() and 'power' in kwargs.keys(): 
+            # if only a power argument is given, and no generator specified, 
+            # the default Lie operator will be given by the exponential.
+            kwargs['generator'] = genexp(kwargs['power'])    
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
         if 'components' in kwargs.keys() or 't' in kwargs.keys():
             self.calcOrbits(**kwargs)
             self.calcFlow(**kwargs)
+            
+    def set_exponent(self, x, **kwargs):
+        assert x.__class__.__name__ == 'liepoly'
+        self.exponent = x
+        self.n_args = 2*self.exponent.dim        
         
     def set_generator(self, generator, **kwargs):
         '''
@@ -521,6 +529,7 @@ class lieoperator:
         in the series of g(:x:)y.
         '''
         assert hasattr(self, 'generator'), 'No generator set (check self.set_generator).'
+        assert hasattr(self, 'exponent'), 'No Lie polynomial in exponent set (check self.set_exponent)'
         ad_action = self.exponent.ad(y, power=self.power)
         assert len(ad_action) > 0
         # N.B. if self.generator[j] = 0, then k_action[j]*self.generator[j] = {}. It will remain in the list below (because 

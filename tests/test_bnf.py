@@ -335,16 +335,16 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
     H2 = lambda x, px: 0.5*(x**2 + px**2)
     expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy')
     HLie = liepoly(values=expansion)
-    K = nfdict['K']
+    Kinv = nfdict['Kinv'] # K(p, q) = (xi, eta)
     xieta = create_coords(1)
 
     # first apply K, then exp_ad:
-    xy_mapped = K@np.array([xieta]).transpose()
+    xy_mapped = Kinv@np.array([xieta]).transpose()
     xy_final_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu) # (x, y) final in terms of xi and eta 
     
     # first apply exp_ad, then K:
     xy_fin = exp_ad(HLie, xieta, power=power, t=mu)
-    xy_final = K@np.array([xy_fin]).transpose() # (x, y) final in terms of xi and eta
+    xy_final = Kinv@np.array([xy_fin]).transpose() # (x, y) final in terms of xi and eta
     
     # Both results must be equal.
     for k in range(len(xy_final)):
@@ -355,14 +355,14 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
             assert abs(v1 - v2) < tol
             
     # check if the result also agrees with the analytical expectation
-    Kinv = nfdict['Kinv'] # (x, y) = K*(xi, eta)
+    K = nfdict['K']
     zz = [Symbol('x'), Symbol('px')]
     xf = np.cos(mu)*zz[0] - np.sin(mu)*zz[1]
     pxf = np.cos(mu)*zz[1] + np.sin(mu)*zz[0]
     expectation = [xf, pxf]
     for k in range(len(xy_final_mapped)):
-        lie_k = xy_final_mapped[k]
-        diff = expectation[k] - (lie_k( sum([zz[l]*Kinv[:, l] for l in range(len(zz))]) ) ).expand()
+        lie_k = xy_final_mapped[k] # lie_k = exp(:HLie:)((Kinv*xieta)[k])
+        diff = expectation[k] - (lie_k( sum([zz[l]*K[:, l] for l in range(len(zz))]) ) ).expand()
         assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
     
     

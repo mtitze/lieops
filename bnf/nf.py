@@ -1,7 +1,12 @@
 from njet.ad import standardize_function
+from njet.jet import check_zero
 from njet import derive
-from .lie import liepoly, lieoperator, exp_ad
+from .lie import liepoly, exp_ad, create_coords
+from .lie import lieoperator as _lieoperator
 from .linalg import first_order_normal_form, matrix_from_dict
+
+import numpy as np
+import mpmath as mp
 
 def Omega(mu, a, b):
     '''
@@ -75,7 +80,8 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
         The maximal order of expansion. Must be >= 2 (default: 2).
     
     z: subscriptable, optional
-        A point of interest around which we want to expand.
+        A point of interest around which we want to expand. If nothing specified,
+        then the expansion will take place around zero.
         
     n_args: int, optional
         If H takes a single subscriptable as argument, define the number of arguments with this parameter.
@@ -111,6 +117,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     if len(z) > 0:
         H = lambda x: Hst([x[k] + z[k] for k in range(len(z))])
     else:
+        z = dim*[0]
         H = Hst
     
     # Step 2: Obtain the Hesse-matrix of H.
@@ -133,10 +140,10 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
     nfdict = first_order_normal_form(Hesse_matrix, **kwargs)
-    K = nfdict['K'] # K.transpose()*Hesse_matrix*K is in cnf
+    Kinv = nfdict['Kinv'] # Kinv.transpose()@Hesse_matrix@Kinv is in cnf; K(q, p) = (xi, eta)
     
     # Step 4: Obtain the expansion of the Hamiltonian up to the requested order.
-    Kmap = lambda zz: [sum([zz[k]*K[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: K[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
+    Kmap = lambda zz: [sum([zz[k]*Kinv[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: Kinv[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
     HK = lambda zz: H(Kmap(zz))
     dHK = derive(HK, order=order, n_args=dim)
     results = dHK(z0, mult=False) # mult=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
@@ -154,7 +161,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     return results, nfdict
 
 
-def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
+def bnf(H, order: int, tol=1e-14, **kwargs):
     '''
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
@@ -171,11 +178,6 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
     order: int
         The order up to which we build the normal form. Results up to this order will provide the exact
         derivatives.
-    
-    z: list, optional
-        List of length according to the signature of H. The point around which we are going to 
-        build the map to normal coordinates. H will be expanded around this point. If nothing specified,
-        then the expansion will take place around zero.
         
     tol: float, optional
         Tolerance below which we consider a value as zero and ignore it from calculations. This may
@@ -190,7 +192,7 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
     
     if type(H) != dict:
         # obtain an expansion of H in terms of complex first-order normal form coordinates
-        taylor_coeffs, nfdict = first_order_nf_expansion(H, z=z, order=order, **kwargs)
+        taylor_coeffs, nfdict = first_order_nf_expansion(H, order=order, **kwargs)
     else:
         taylor_coeffs = H
         nfdict = {}
@@ -254,3 +256,101 @@ def bnf(H, order: int, z=[], tol=1e-14, **kwargs):
         
     return out
 
+
+
+class lieoperator(_lieoperator):
+    
+    def __init__(self, *args, **kwargs):
+        _lieoperator.__init__(self, *args, **kwargs)
+        self._inp = lambda z: z # optional transformation before self.__call__ is executed.
+        self._out = lambda z: z # optional transformation after self.__call__ is executed.
+            
+    def set_exponent(self, H, **kwargs):
+        if not H.__class__.__name__ == 'liepoly':
+            assert 'order' in kwargs.keys(), "Lie operator with callable as exponent requires 'order' argument to be set." 
+            # obtain an expansion of H in terms of complex first-order normal form coordinates
+            taylor_coeffs, nfdict = first_order_nf_expansion(H, **kwargs)
+            _lieoperator.set_exponent(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
+            self.nfdict = nfdict
+            self.order = kwargs['order']
+        else:
+            _lieoperator.set_exponent(self, x=H, **kwargs)
+        self.code = kwargs.get('code', 'numpy')
+            
+            
+    def transform(self, label='', inp=True, out=True, **kwargs):
+        '''
+        Transform the input and output of self.__call__ into a different coordinate system.
+        
+        Pre-defined coordinate systems require self.nfdict to be set, given by the
+        output of the linalg.first_order_normal_form routine.
+        '''
+        if label in ['cnf', 'default', 'complex_normal_form']:
+            _inp = lambda z: z
+            _out = lambda z: z
+            
+        elif label in ['ops', 'ordinary_phase_space']:
+            assert hasattr(self, 'nfdict')
+            _inp = lambda z: self.nfdict['K']@z # z = (p, q) => U*S*z = (xi, eta) ; K = U*S (see notation in linalg.first_order_normal_form)
+            _out = lambda z: self.nfdict['Kinv']@z
+            
+        elif label in ['rnf', 'real_normal_form']:
+            assert hasattr(self, 'nfdict')
+            _inp = lambda z: self.nfdict['U']@z # z = (u, v) => U*z = (xi, eta) (see notation in linalg.first_order_normal_form)
+            _out = lambda z: self.nfdict['Uinv']@z
+        
+        elif label in ['aa', 'angle_action']:
+            # assume that the first dim parameters are angles, and the last dim parameters are actions.
+            dim = kwargs.get('dim', self.n_args//2)
+            code = kwargs.get('code', self.code)
+            if code == 'mpmath':
+                sqrt = mp.sqrt
+                exp = mp.exp
+                log = mp.log
+            else:
+                sqrt = np.sqrt
+                exp = np.exp
+                log = np.log
+                
+            def _inp(z):
+                angle, action = z[:dim], z[dim:]
+                xi, eta = []
+                for k in range(dim):
+                    xi.append(sqrt(action[k])*exp(-1j*angle[k]))
+                    eta.append(sqrt(action[k])*exp(1j*angle[k]))
+                return xi + eta
+            
+            def _out(z):
+                xi, eta = z[:dim], z[dim:]
+                angle, action = [], []
+                for k in range(dim):          
+                    action.append(xi[k]*eta[k])
+                    if not check_zero(xi[k]):
+                        angle.append(-1j*log(eta[k]/xi[k])/2)
+                    elif not check_zero(eta[k]): 
+                        angle.append(1j*log(xi[k]/eta[k])/2) 
+                    else:
+                        angle.append(0) # default value for 0-actions
+                return angle + action
+            
+        else:
+            # User-defined transformation
+            assert 'T' in kwargs.keys() and 'Tinv' in kwargs.keys(), f"Custom transformation requires 'T' and 'Tinv' parameters to be set."
+            assert hasattr(T, '__call__') and hasattr(Tinv, '__call__'), 'T or Tinv not callable.'
+            _inp = T
+            _out = Tinv
+            
+        if inp:
+            self._inp = _inp
+        if out:
+            self._out = _out
+                
+                
+    def __call__(self, z, **kwargs):
+        if not z.__class__.__name__ == 'liepoly':
+            z = self._inp(z)
+            return self._out(_lieoperator.__call__(self, z=z, **kwargs))
+        else:
+            return _lieoperator.__call__(self, z=z, **kwargs)
+
+        
