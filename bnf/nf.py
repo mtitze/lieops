@@ -3,7 +3,7 @@ from njet.jet import check_zero
 from njet import derive
 from .lie import liepoly, exp_ad, create_coords
 from .lie import lieoperator as _lieoperator
-from .linalg import first_order_normal_form, matrix_from_dict
+from .linalg import normal_form, matrix_from_dict
 
 import numpy as np
 import mpmath as mp
@@ -96,7 +96,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
         An optional tolerance for checks. Default: 1e-14.
         
     **kwargs
-        Arguments passed to linalg.first_order_normal_form
+        Arguments passed to linalg.normal_form
         
     Returns
     -------
@@ -105,7 +105,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
         entries denote powers of xi, while the last n entries denote powers of eta.
         
     dict
-        The output of 'first_order_normal_form' routine, providing the linear map information at the requested point.
+        The output of linalg.normal_form routine, providing the linear map information at the requested point.
     '''
     assert order >= 2
     
@@ -139,7 +139,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
             print ([gradient[k] for k in sorted(gradient.keys())])
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
-    nfdict = first_order_normal_form(Hesse_matrix, **kwargs)
+    nfdict = normal_form(Hesse_matrix, **kwargs)
     Kinv = nfdict['Kinv'] # Kinv.transpose()@Hesse_matrix@Kinv is in cnf; K(q, p) = (xi, eta)
     
     # Step 4: Obtain the expansion of the Hamiltonian up to the requested order.
@@ -283,7 +283,7 @@ class lieoperator(_lieoperator):
         Transform the input and output of self.__call__ into a different coordinate system.
         
         Pre-defined coordinate systems require self.nfdict to be set, given by the
-        output of the linalg.first_order_normal_form routine.
+        output of the linalg.normal_form routine.
         '''
         if label in ['cnf', 'default', 'complex_normal_form']:
             _inp = lambda z: z
@@ -291,12 +291,12 @@ class lieoperator(_lieoperator):
             
         elif label in ['ops', 'ordinary_phase_space']:
             assert hasattr(self, 'nfdict')
-            _inp = lambda z: self.nfdict['K']@z # z = (p, q) => U*S*z = (xi, eta) ; K = U*S (see notation in linalg.first_order_normal_form)
+            _inp = lambda z: self.nfdict['K']@z # z = (p, q) => U*S*z = (xi, eta) ; K = U*S (see notation in linalg.normal_form)
             _out = lambda z: self.nfdict['Kinv']@z
             
-        elif label in ['rnf', 'real_normal_form']:
+        elif label in ['rnf', 'real_normal_form', 'floquet']:
             assert hasattr(self, 'nfdict')
-            _inp = lambda z: self.nfdict['U']@z # z = (u, v) => U*z = (xi, eta) (see notation in linalg.first_order_normal_form)
+            _inp = lambda z: self.nfdict['U']@z # z = (u, v) => U*z = (xi, eta) (see notation in linalg.normal_form)
             _out = lambda z: self.nfdict['Uinv']@z
         
         elif label in ['aa', 'angle_action']:
@@ -314,7 +314,7 @@ class lieoperator(_lieoperator):
                 
             def _inp(z):
                 angle, action = z[:dim], z[dim:]
-                xi, eta = []
+                xi, eta = [], []
                 for k in range(dim):
                     xi.append(sqrt(action[k])*exp(-1j*angle[k]))
                     eta.append(sqrt(action[k])*exp(1j*angle[k]))

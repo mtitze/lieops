@@ -375,7 +375,7 @@ def williamson(V, code='numpy', **kwargs):
     return S, D
 
     
-def first_order_normal_form(H2, T=[], code='numpy', **kwargs):
+def normal_form(H2, T=[], code='numpy', **kwargs):
     r'''
     Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
