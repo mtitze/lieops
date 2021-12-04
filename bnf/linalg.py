@@ -142,7 +142,7 @@ def complex_gram_schmidt(vectors, **kwargs):
     vectors: list
         list of vectors to be orthogonalized.
         
-    **kwargs are passed to townorm
+    **kwargs are passed to linalg.twonorm
     
     Returns
     -------
@@ -166,10 +166,71 @@ def complex_gram_schmidt(vectors, **kwargs):
     return [[ortho[(m, i)] for m in range(dim)] for i in range(k)]
 
 
+def rref(M, augment=None):
+    '''
+    Compute the reduced row echelon form of M. M can be a real or complex matrix.
+    '''
+    # reduced row echelon form of M
+    n, m = M.shape
+    if augment == None:
+        augment = np.eye(n)
+    assert augment.shape[1] == n
+    Mone = np.bmat([M, augment])
+    
+    # transform Mone = (M | 1)
+    pivot_row_index = 0
+    next_pivot_row_index = 1
+    pivot_indices = [] # to record the pivot indices
+    for j in range(m):
+        column_j_has_pivot = False
+        for k in range(pivot_row_index, n):
+            # skip 0-entries
+            if Mone[k, j] == 0:
+                continue
+            Mone[k, :] = Mone[k, :]/Mone[k, j]        
+            # exchange the first non-zero entry with those at the top (if it is not already the top)
+            if not column_j_has_pivot:
+                if k > pivot_row_index:
+                    pivot_row = np.copy(Mone[pivot_row_index, :])
+                    Mone[pivot_row_index, :] = np.copy(Mone[k, :])
+                    Mone[k, :] = pivot_row
+                pivot_indices.append((pivot_row_index, j)) # also record the pivot indices for output
+                next_pivot_row_index = pivot_row_index + 1
+                column_j_has_pivot = True
+                continue
+            # eliminate k-th row
+            Mone[k, :] = Mone[k, :] - Mone[pivot_row_index, :]
+            
+        # for the reduced form, we also need to remove entries from the rows < pivot:
+        if not column_j_has_pivot:
+            continue
+        for k in range(pivot_row_index):
+            # skip 0-entries
+            if Mone[k, j] == 0:
+                continue
+            Mone[k, :] = Mone[k, :] - Mone[k, j]*Mone[pivot_row_index, :]
+        
+        pivot_row_index = next_pivot_row_index
+        
+    return Mone[:,:m], Mone[:,m:], pivot_indices
+
+
+def imker(M):
+    '''
+    Obtain a basis for the image and the kernel of M.
+    M can be a real or complex matrix.
+    '''
+    ImT, KerT, pivots = rref(M.transpose())
+    zero_row_indices = pivots[-1][0] + 1
+    kernel = KerT[zero_row_indices:, :].transpose()
+    image = ImT[:zero_row_indices, :].transpose()
+    return image, kernel
+
+
 def eigenspaces(M, code='numpy', flatten=False, **kwargs):
     '''
-    Let M be a complex diagonalizable matrix. Then this routine will determine a basis of pairwise unitary
-    (or orthogonal) eigenvectors.
+    Let M be a square matrix. Then this routine will determine a basis of normalized eigenvectors. Hereby
+    eigenvectors belonging to the same eigenvalues are (complex) orthogonalized.
     
     Parameters
     ----------
@@ -178,11 +239,10 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
         
     code: str, optional
         Code to be used to determine the eigenvalues and eigenvectors. 
-        Currently supported: 'numpy', 'mpmath'.
-        Default: 'numpy'
+        Currently supported: 'numpy' (default), 'mpmath'.
         
     flatten: boolean, optional
-        If True, flatten the respective results (Default: False)
+        If True, flatten the respective results (default: False).
         
     Returns
     -------
@@ -216,7 +276,7 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
         if j == len(eigenspaces):
             eigenspaces.append([i])
                 
-    # orthogonalize
+    # orthogonalize vectors within the individual eigenspaces
     eigenvalues_result, eigenvectors_result = [], []
     for indices in eigenspaces:
         vectors = [eigenvectors[k] for k in indices]
@@ -240,7 +300,7 @@ def anti_diagonalize_skew(M, code='numpy', **kwargs):
     
     where X is a diagonal matrix with positive entries.
     
-    Attention: No check is made if the given matrix has real coefficients.
+    Attention: No check is made if the given matrix has real coefficients or is skew symmetric.
     
     Parameters
     ----------
@@ -254,11 +314,10 @@ def anti_diagonalize_skew(M, code='numpy', **kwargs):
     Returns
     -------
     matrix
-        Matrix correspond to an orthogonal real matrix R so that R^(-1)*M*R has 
-        skew-symmetric antidiagonal form, either with respect to (2 x 2) block matrices
-        or with respect to (n x n) block matrices (Hereby M denotes the input matrix).
+        Orthogonal real matrix R so that R.transpose()@M@R has skew-symmetric antidiagonal form with respect 
+        to (n x n) block matrices (Hereby M denotes the input matrix).
     '''
-    evalues, evectors = eigenspaces(M , flatten=True, code=code, **kwargs)
+    evalues, evectors = eigenspaces(M, flatten=True, code=code, **kwargs)
     n = len(evalues)
     
     if code == 'numpy':
@@ -285,7 +344,7 @@ def anti_diagonalize_skew(M, code='numpy', **kwargs):
             processed_indices.append(j)
             
             # Select the index belonging to the eigenvalue with positive imaginary part
-            # Attention: This sets the signature of the matrix Omega in Eq. (6) in williamson decomposition.
+            # Attention: This sets the signature of the matrix Omega in Eq. (6) in Williamson decomposition.
             # We want that the top right entry is positive and the bottom left entry is negative. Therefore:
             if evalues[i].imag >= 0: # the imaginary part of the eigenvalue of aj + 1j*bi (see below) will be positive
                 pos_index = i
