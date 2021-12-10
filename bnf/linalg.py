@@ -1,6 +1,7 @@
 import numpy as np
 import mpmath as mp
 import cmath
+from scipy.linalg import sqrtm
 
 
 def printdb(M, tol=1e-14):
@@ -9,7 +10,7 @@ def printdb(M, tol=1e-14):
     mp.nprint(mp.chop(M, tol))
     
 
-def twonorm(vector, code='numpy', mode='complex'):
+def twonorm(vector, code='numpy', mode='complex', **kwargs):
     # Compute the 2-norm of a vector.
     # This seems to provide slightly faster results than np.linalg.norm
     if mode == 'complex':
@@ -586,18 +587,34 @@ def cortho_diagonalize_symmetric(M, tol=1e-14, **kwargs):
     return Y
 
 
-def unitary_williamson(M, code='numpy', **kwargs):
-    r'''Transform a symmetric invertible diagonalizable matrix M to a complex diagonal form by means of a matrix S: 
-    S.transpose()@M@S = D,
+def unitary_williamson(M, tol=1e-14, **kwargs):
+    r'''
+    Transform a symmetric invertible diagonalizable matrix M (which may be complex) 
+    to a complex diagonal form, by means of a 
+    complex matrix S: 
+       S.transpose()@M@S = D,
     where S satisfies the following property:
-    S.transpose()@J@S = O.transpose()@J@O =: J_M.
-    and O is a complex orthogonal matrix, i.e. a complex matrix satisfying O.transpose()@O = 1.
+       S.transpose()@J@S = O.transpose()@J@O =: J_M. 
+    and O is a complex orthogonal matrix, i.e. a complex matrix satisfying 
+       O.transpose()@O = 1. 
     Hence, J_M is a new symplectic structure.
     
     This routine can be understood as a 'generalization' of Williamson's Theorem to the case 
-    of arbitrary symmetric invertible diagonalizable matrices.
+    of arbitrary symmetric invertible diagonalizable matrices. However, the complex symplectic matrix S
+    no longer keeps J invariant, but provides a map to a new symplectic structure given by J_M. 
+    One can show that if
+       z' = J dH
+    denote the orignal Hamilton-Equations and H_M := H o S, then these equations are equivalent to:
+       z' = J_M dH_M .
+    By construction, the new Hamiltonian H_M will admit a diagonal Hesse-matrix.
+    
+    Parameters
+    ----------
+    M
+        A compl
     '''
-    if code == 'numpy':
+    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
+    '''if code == 'numpy':
         evalues, evectors = np.linalg.eigh(M)
         sqrtev = np.sqrt(evalues, dtype=complex)
         diag = np.diag(sqrtev)
@@ -612,34 +629,28 @@ def unitary_williamson(M, code='numpy', **kwargs):
     
     V12 = evectors@diag@evectors.transpose() # V12 means V^(1/2), the square root of V.
     V12i = evectors@diagi@evectors.transpose()
+    '''
+    M12 = sqrtm(M) # TODO: Maybe implement own code to use mpmath as well
+    M12i = np.linalg.inv(M12)
     
-    dim2 = len(V12)
+    dim2 = len(M12)
     assert dim2%2 == 0
     dim = dim2//2
     
-    J = column_matrix_2_code(create_J(dim), code=code)    
-    skewmat = V12i@J@V12i
-    U = unitary_anti_diagonalize_skew(skewmat, code=code, **kwargs)
-    
-    # U.transpose()@skewmat@U is in 2x2-block form. Therefore U needs to be modified to transform LJL in n//2 x n//2 block form.
+    J = column_matrix_2_code(create_J(dim), code='numpy')    
+    skewmat = M12i@J@M12i
+    U = unitary_anti_diagonalize_skew(skewmat, code='numpy', **kwargs)
+    # U.transpose()@skewmat@U is in 2x2-block form. Therefore U needs to be modified to transform LJL in n//2 x n//2 block form:
     T = qpqp2qp(dim)
-    if code == 'mpmath':
-        T = mp.matrix(T)
     U = U@T
-    LJL = U.transpose()@skewmat@U
     
+    LJL = U.transpose()@skewmat@U
     # obtain D as described in the reference above
     Li_values = [1/LJL[i, i + dim] for i in range(dim)]*2
-    if code == 'numpy':
-        Li = np.array(np.diag([np.sqrt(e) for e in Li_values]))
-    if code == 'mpmath':
-        Li = mp.matrix(mp.diag([mp.sqrt(e) for e in Li_values]))
-        
-    # LiUULi_ev, LiUULi_es = eigenspaces(Li@U.transpose()@U@Li, flatten=True)
-    # O = np.array(LiUULi_es).transpose()
-        
-    #S = V12i@U@Li@O
-    return U, U.transpose()@skewmat@U, Li
+    Li = np.array(np.diag([np.sqrt(e) for e in Li_values]))
+    O = cortho_diagonalize_symmetric(Li@U.transpose()@U@Li) # O.transpose()@Li@U.transpose()@U@Li@O =: K will be diagonal with complex entries. Hereby O is a complex orthogonal matrix.
+    S = M12i@U@Li@O # S.transpose()@V@S = O.transpose()@Li@U.transpose()@V12i@V@V12i@U@Li@O = K
+    return S, O
     
 
 
