@@ -1,5 +1,6 @@
 import numpy as np
 import mpmath as mp
+import cmath
 
 
 def printdb(M, tol=1e-14):
@@ -8,10 +9,13 @@ def printdb(M, tol=1e-14):
     mp.nprint(mp.chop(M, tol))
     
 
-def twonorm(vector, code='numpy'):
+def twonorm(vector, code='numpy', mode='complex'):
     # Compute the 2-norm of a vector.
     # This seems to provide slightly faster results than np.linalg.norm
-    sum2 = sum([vector[k].conjugate()*vector[k] for k in range(len(vector))])
+    if mode == 'complex':
+        sum2 = sum([vector[k].conjugate()*vector[k] for k in range(len(vector))])
+    else:
+        sum2 = sum([vector[k]*vector[k] for k in range(len(vector))])
     if code == 'numpy':
         return np.sqrt(sum2)
     if code == 'mpmath':
@@ -79,6 +83,43 @@ def create_J(dim: int):
     return J1 + J2 
 
 
+def qpqp2qp(n):
+    '''Compute a transformation matrix T by which we can transform a given
+    (2n)x(2n) matrix M, represented in (q1, p1, q2, p2, ..., qn, pn)-coordinates, into
+    a (q1, q2, ..., qn, p1, p2, ..., pn)-representation via
+    M' = T^(-1)*M*T. T will be orthogonal, i.e. T^(-1) = T.transpose().
+    
+    Parameters
+    ----------
+    n: int
+        number of involved coordinates (i.e. 2*n dimension of phase space)
+        
+    Returns
+    -------
+    np.matrix
+        Numpy matrix T defining the aforementioned transformation.
+    '''
+    columns_q, columns_p = [], []
+    for k in range(n):
+        # The qk are mapped to the positions zj via k->j as follows
+        # 1 -> 1, 2 -> 3, 3 -> 5, ..., k -> 2*k - 1. The pk are mapped to the 
+        # positions zj via k->j as follows
+        # 1 -> 2, 2 -> 4, 3 -> 6, ..., k -> 2*k. The additional "-1" is because
+        # in Python the indices are one less than the mathematical notation.
+        column_k = np.zeros(2*n)
+        column_k[2*(k + 1) - 1 - 1] = 1
+        columns_q.append(column_k)
+
+        column_kpn = np.zeros(2*n)
+        column_kpn[2*(k + 1) - 1] = 1
+        columns_p.append(column_kpn)
+        
+    q = np.array(columns_q).transpose()
+    p = np.array(columns_p).transpose()
+    return np.bmat([[q, p]])
+
+
+
 def matrix_from_dict(M, symmetry: int=0, **kwargs):
     
     '''
@@ -133,7 +174,7 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
     return column_matrix_2_code(mat, **kwargs)
     
 
-def complex_gram_schmidt(vectors, **kwargs):
+def gram_schmidt(vectors, mode='complex', **kwargs):
     '''Gram-Schmidt orthogonalization procedure of linarly independent vectors with complex entries, i.e.
     'unitarization'.
     
@@ -142,7 +183,11 @@ def complex_gram_schmidt(vectors, **kwargs):
     vectors: list
         list of vectors to be orthogonalized.
         
-    **kwargs are passed to linalg.twonorm
+    mode: str, optional
+        If mode == 'complex' (default), then all norms and scalar products are computed using conjugation.
+        
+    **kwargs 
+        Additional arguments passed to linalg.twonorm
     
     Returns
     -------
@@ -152,15 +197,19 @@ def complex_gram_schmidt(vectors, **kwargs):
     '''
     k = len(vectors)
     dim = len(vectors[0])
-    norm_0 = twonorm(vectors[0], **kwargs)
+    norm_0 = twonorm(vectors[0], mode=mode, **kwargs)
     ortho = {(m, 0): vectors[0][m]/norm_0 for m in range(dim)} # ortho[(m, j)] denotes the m-th component of the j-th (new) vector
     for i in range(1, k):
         sum1 = {(m, i): vectors[i][m] for m in range(dim)}
         for j in range(i):
-            scalar_product_ij = sum([ortho[(r, j)].conjugate()*vectors[i][r] for r in range(dim)])
+            if mode == 'complex':
+                scalar_product_ij = sum([ortho[(r, j)].conjugate()*vectors[i][r] for r in range(dim)])
+            else:
+                scalar_product_ij = sum([ortho[(r, j)]*vectors[i][r] for r in range(dim)])
+                
             for m in range(dim):
                 sum1[(m, i)] -= scalar_product_ij*ortho[(m, j)]  
-        norm_i = twonorm([sum1[(m, i)] for m in range(dim)], **kwargs)
+        norm_i = twonorm([sum1[(m, i)] for m in range(dim)], mode=mode, **kwargs)
         for m in range(dim):
             ortho[(m, i)] = sum1[(m, i)]/norm_i
     return [[ortho[(m, i)] for m in range(dim)] for i in range(k)]
@@ -168,7 +217,7 @@ def complex_gram_schmidt(vectors, **kwargs):
 
 def rref(M, augment=None):
     '''
-    Compute the reduced row echelon form of M. M can be a real or complex matrix.
+    Compute the reduced row echelon form of M (M can be a real or complex matrix).
     '''
     # reduced row echelon form of M
     n, m = M.shape
@@ -220,11 +269,26 @@ def imker(M):
     Obtain a basis for the image and the kernel of M.
     M can be a real or complex matrix.
     '''
+    # Idea taken from
+    # https://math.stackexchange.com/questions/1612616/how-to-find-null-space-basis-directly-by-matrix-calculation
     ImT, KerT, pivots = rref(M.transpose())
     zero_row_indices = pivots[-1][0] + 1
     kernel = KerT[zero_row_indices:, :].transpose()
     image = ImT[:zero_row_indices, :].transpose()
     return image, kernel
+
+
+def basis_extension(*vects, gs=False, **kwargs):
+    '''
+    Provide an extension of a given set of vectors
+    to span the full space. The vectors can have real or
+    complex coefficients.
+    '''
+    _, ext = imker(np.array(vects).conjugate())
+    n, m = ext.shape
+    if gs and n > 0 and m > 0:
+        ext = np.array(gram_schmidt([[ext[k, j] for k in range(n)] for j in range(m)], **kwargs)).transpose()
+    return ext
 
 
 def eigenspaces(M, code='numpy', flatten=False, **kwargs):
@@ -280,7 +344,7 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
     eigenvalues_result, eigenvectors_result = [], []
     for indices in eigenspaces:
         vectors = [eigenvectors[k] for k in indices]
-        on_vectors = complex_gram_schmidt(vectors, code=code)
+        on_vectors = gram_schmidt(vectors, code=code, **kwargs)
         on_eigenvalues = [eigenvalues[k] for k in indices]
         if flatten:
             eigenvectors_result += on_vectors
@@ -291,7 +355,295 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
     return eigenvalues_result, eigenvectors_result
 
 
-def anti_diagonalize_skew(M, code='numpy', **kwargs):
+def _check_linear_independence(a, b, tol=1e-14):
+    '''
+    A quick routine to check if two vectors a and b are linearly independent.
+    It is assumed that a and b are both non-zero.
+    
+    Parameters
+    ----------
+    a: subscriptable
+        The first vector to be checked.
+        
+    b: subscriptable
+        The second vector to be checked.
+        
+    tol: float, optional
+        A tolerance below which we consider values to be equal to zero.
+        
+    Returns
+    -------
+    boolean
+        If True, then both vectors appear to be linearly independent.
+    '''
+    assert len(a) == len(b)
+    dim = len(a)
+    q = 0
+    for k in range(dim):
+        if (abs(a[k]) < tol and abs(b[k]) > tol) or (abs(a[k]) > tol and abs(b[k]) < tol):
+            return True 
+        elif abs(a[k]) < tol and abs(b[k]) < tol:
+            continue
+        else: # both a[k] and b[k] != 0
+            qk = a[k]/b[k]
+            if abs(q) > tol and abs(q - qk) > tol:
+                return True
+            q = qk
+    return False
+
+
+def youla_normal_form(M, tol=1e-14, **kwargs):
+    '''
+    Transform a matrix into Youla normal form according to Ref. [2]:
+    "Some observations on the Youla form and conjugate-normal matrices" from
+    H. Faßbender and Kh. D. Ikramov (2006).
+    
+    Statement of the theorem (see Ref. [2] for the definitions of the names):
+    Any complex square matrix M can be brought by a unitary congruence transformation to a block triangular 
+    form with the diagonal blocks of orders 1 and 2. The 1×1 blocks correspond to real 
+    nonnegative coneigenvalues of M, while each 2×2 block corresponds to a pair of complex 
+    conjugate coneigenvalues.
+    
+    Parameters
+    ----------
+    M
+        Matrix to be transformed.
+        
+    Returns
+    -------
+    U
+        Unitary matrix so that U.transpose()@M@U is in Youla normal form.
+    '''
+    dim = len(M)
+    if dim == 0:
+        return np.zeros([0, 0])
+    elif dim == 1:
+        return np.eye(1)
+    
+    # Get an eigenvector. TODO: Perhaps there is a faster way (similar to QR-algorithm for the Schur decomposition).
+    
+    # 1. option: this step seems to be not repeatable; always a different value is returned.
+    #from scipy.sparse.linalg import eigs
+    #ev, x1 = eigs(M.conjugate()@M, k=1)
+    #x1 = np.array(x1.transpose().tolist()[0])
+    #print ('check:', M.conjugate()@M@x1 - ev*x1, 'ev:', ev)
+    
+    # 2. option use np.linalg.eig:
+    eigenvalues, eigenvectors = np.linalg.eig(M.conjugate()@M)
+    x1 = np.array(eigenvectors[:, 0]).flatten()
+    #print ('check:', M.conjugate()@M@x1 - eigenvalues[0]*x1, 'ev:', eigenvalues)
+    
+    x2 = np.array(M@x1).flatten().conjugate()
+    U = np.zeros([dim, dim], dtype=complex)
+    if _check_linear_independence(x1, x2, tol=tol):
+        u1 = x1/twonorm(x1)
+        u2 = x2 - (u1.transpose().conjugate()@x2)*u1
+        u2 = u2/twonorm(u2)
+        ext = basis_extension(u1.tolist(), u2.tolist(), gs=True)
+        U[:, 0] = u1
+        U[:, 1] = u2
+        k = 2
+    else:
+        u1 = x1/twonorm(x1)
+        ext = basis_extension(u1.tolist(), gs=True)
+        U[:, 0] = u1
+        k = 1
+    U[:, k:] = ext
+    
+    M_youla = U.transpose()@M@U
+    
+    U_submatrix = np.zeros([dim, dim], dtype=complex)
+    U_submatrix[:k, :k] = np.eye(k)
+    U_submatrix[k:, k:] = youla_normal_form(M_youla[k:, k:], tol=tol, **kwargs)
+    return U@U_submatrix
+
+
+def _rotate_2block(x):
+    r'''
+    Helper function to "rotate" a 2x2-matrix M of the form
+    
+        / 0    x \
+    M = |        |
+        \ -x   0 /
+        
+    by means of a unitary matrix U so that U.transpose()@M@U has the same form as M, but
+    where which x has no imaginary part and is >= 0.
+    
+    Parameters
+    ----------
+    x
+        The entry in the top right corner of M.
+    
+    Returns
+    -------
+    U
+        Unitary 2x2 matrix with the property as described above.
+    '''
+    phi = -cmath.phase(x)
+    return np.array([[np.exp(1j*phi/2), 0], [0, np.exp(1j*phi/2)]])
+
+
+def _skew_post_youla(M):
+    r'''
+    A skew-symmetric complex matrix M in Youla normal form will admit 2x2 blocks of the form
+    
+          / 0    x \
+      B = |        |
+          \ -x   0 /
+          
+    This routine will determine an additional unitary matrix U so that U.transpose()@M@U will be in
+    the same block form, but the entries x will be real and non-negative.
+    
+    Parameters
+    ----------
+    M
+        Complex skew-symmetric matrix in Youla normal form.
+        
+    Returns
+    -------
+    U
+        Complex unitary matrix as described above.
+    '''
+    dim = len(M)
+    assert dim%2 == 0
+    U = np.eye(dim, dtype=complex)
+    for k in range(dim//2):
+        k2 = 2*k
+        x = M[k2, k2 + 1]
+        U[k2: k2 + 2, k2: k2 + 2] = _rotate_2block(x)
+    return U
+
+
+def unitary_anti_diagonalize_skew(M, tol=1e-14, **kwargs):
+    r'''Anti-diagonalize a complex skew symmetric matrix M so that it will have the block-form
+    
+             /  0   X  \
+        M =  |         |
+             \ -X   0  /
+    
+    where X is a diagonal matrix with positive entries. This is accomplished by Youla-decomposition.
+    
+    Parameters
+    ----------
+    M:
+        list of vectors defining a real skew symmetric (n x n)-matrix.
+    
+    Returns
+    -------
+    U:
+        Unitary complex matrix so that U.transpose()@M@U is skew-symmetric anti-diagonal with respect 
+        to (n//2 x n//2) block matrices (Hereby M denotes the input matrix).
+    '''
+    assert all([abs((M.transpose() + M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not anti-diagonal within given tolerance {tol}.'
+    U = youla_normal_form(M, **kwargs)
+    My = U.transpose()@M@U
+    U1 = _skew_post_youla(My)
+    return U@U1
+
+
+def unitary_diagonalize_symmetric(M, tol=1e-14, **kwargs):
+    '''
+    Compute a unitary matrix U so that U.transpose()@M@U =: D is diagonal with real non-zero entries (Autonne & Takagi).
+    '''
+    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
+    U = youla_normal_form(M, **kwargs)
+    D1 = U.transpose()@M@U
+    # now turn the complex diagonal values of D1 into real values
+    U1 = np.diag([np.exp(-1j*cmath.phase(D1[k, k])/2) for k in range(len(M))])
+    return U@U1
+
+
+def cortho_diagonalize_symmetric(M, tol=1e-14, **kwargs):
+    '''
+    Complex orthogonalize a complex symmetric matrix according to Thm. 4.4.27 in Horn & Johnson: Matrix Analysis 2nd Ed.
+    This routine will compute a complex orthogonal matrix Y so that Y.transpose()@M@Y
+    is diagonal with complex entries (where M denotes the complex symmetric input matrix). This means that
+    that Y.transpose()@Y = 1 holds.
+    
+    Parameters
+    ----------
+    M
+        Complex symmetric matrix M to be diagonalized.
+    
+    Returns
+    -------
+    Y
+        Complex orthogonal matrix so that Y.transpose()@M@Y is diagonal with complex entries.
+    '''
+    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
+    EV, ES = eigenspaces(M, tol=tol, **kwargs) # orthogonalization not required here, but we use it to get the eigenspaces for every eigenvalue
+    Y = np.zeros([len(M), len(M)], dtype=complex)
+    k = 0
+    for subspace in ES:
+        multiplicity = len(subspace)
+        # Obtain Y-matrix as described in Horn & Johnson: Matrix Analysis 2nd. Edition, Lemma 4.4.26.
+        X = np.array(subspace).transpose()
+        U_sc = unitary_diagonalize_symmetric(X.transpose()@X)
+        D = U_sc.transpose()@X.transpose()@X@U_sc
+        Ri = np.diag([1/np.sqrt(D[k, k]) for k in range(len(D))])
+        Y[:, k: k + multiplicity] = X@U_sc@Ri # this entry satisfies Y.transpose()@Y = 1
+        k += multiplicity
+    return Y
+
+
+def unitary_williamson(M, code='numpy', **kwargs):
+    r'''Transform a symmetric invertible diagonalizable matrix M to a complex diagonal form by means of a matrix S: 
+    S.transpose()@M@S = D,
+    where S satisfies the following property:
+    S.transpose()@J@S = O.transpose()@J@O =: J_M.
+    and O is a complex orthogonal matrix, i.e. a complex matrix satisfying O.transpose()@O = 1.
+    Hence, J_M is a new symplectic structure.
+    
+    This routine can be understood as a 'generalization' of Williamson's Theorem to the case 
+    of arbitrary symmetric invertible diagonalizable matrices.
+    '''
+    if code == 'numpy':
+        evalues, evectors = np.linalg.eigh(M)
+        sqrtev = np.sqrt(evalues, dtype=complex)
+        diag = np.diag(sqrtev)
+        diagi = np.diag(1/sqrtev)
+        evectors = np.array(evectors)
+    if code == 'mpmath':
+        mp.mp.dps = kwargs.get('dps', 32)
+        M = mp.matrix(M)
+        evalues, evectors = mp.eigh(M)
+        diag = mp.diag([mp.sqrt(e, dtype=complex) for e in evalues])
+        diagi = mp.diag([1/mp.sqrt(e, dtype=complex) for e in evalues])
+    
+    V12 = evectors@diag@evectors.transpose() # V12 means V^(1/2), the square root of V.
+    V12i = evectors@diagi@evectors.transpose()
+    
+    dim2 = len(V12)
+    assert dim2%2 == 0
+    dim = dim2//2
+    
+    J = column_matrix_2_code(create_J(dim), code=code)    
+    skewmat = V12i@J@V12i
+    U = unitary_anti_diagonalize_skew(skewmat, code=code, **kwargs)
+    
+    # U.transpose()@skewmat@U is in 2x2-block form. Therefore U needs to be modified to transform LJL in n//2 x n//2 block form.
+    T = qpqp2qp(dim)
+    if code == 'mpmath':
+        T = mp.matrix(T)
+    U = U@T
+    LJL = U.transpose()@skewmat@U
+    
+    # obtain D as described in the reference above
+    Li_values = [1/LJL[i, i + dim] for i in range(dim)]*2
+    if code == 'numpy':
+        Li = np.array(np.diag([np.sqrt(e) for e in Li_values]))
+    if code == 'mpmath':
+        Li = mp.matrix(mp.diag([mp.sqrt(e) for e in Li_values]))
+        
+    # LiUULi_ev, LiUULi_es = eigenspaces(Li@U.transpose()@U@Li, flatten=True)
+    # O = np.array(LiUULi_es).transpose()
+        
+    #S = V12i@U@Li@O
+    return U, U.transpose()@skewmat@U, Li
+    
+
+
+def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
     r'''Anti-diagonalize a real skew symmetric matrix A so that it will have the block-form
     
              /  0   X  \
@@ -315,7 +667,7 @@ def anti_diagonalize_skew(M, code='numpy', **kwargs):
     -------
     matrix
         Orthogonal real matrix R so that R.transpose()@M@R has skew-symmetric antidiagonal form with respect 
-        to (n x n) block matrices (Hereby M denotes the input matrix).
+        to (n//2 x n//2) block matrices (Hereby M denotes the input matrix).
     '''
     evalues, evectors = eigenspaces(M, flatten=True, code=code, **kwargs)
     n = len(evalues)
@@ -374,7 +726,7 @@ def williamson(V, code='numpy', **kwargs):
         List of vectors (subscriptables) defining the matrix.
         
     **kwargs
-        Additional arguments are passed to 'anti_diagonalize_skew' routine.
+        Additional arguments are passed to 'anti_diagonalize_real_skew' routine.
     
     Returns
     -------
@@ -418,7 +770,7 @@ def williamson(V, code='numpy', **kwargs):
     
     J = column_matrix_2_code(create_J(dim), code=code)    
     skewmat = V12i@J@V12i
-    A = anti_diagonalize_skew(skewmat, code=code, **kwargs)    
+    A = anti_diagonalize_real_skew(skewmat, code=code, **kwargs)    
     K = A.transpose()@skewmat@A # the sought anti-diagonal matrix
 
     # obtain D as described in the reference above

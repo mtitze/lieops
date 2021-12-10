@@ -2,6 +2,7 @@ import time
 from bnf import __version__
 from bnf.lie import liepoly, exp_ad, create_coords, compose
 from bnf.nf import first_order_nf_expansion, homological_eq, bnf
+from bnf.linalg import qpqp2qp
 import numpy as np
 import mpmath as mp
 from njet.functions import cos, sin, exp
@@ -207,42 +208,6 @@ def check_2nd_orders(hdict, dim, tol=1e-14):
             return False
     # the remaining values must be smaller than the given tolerance
     return all([abs(v) < tol for v in he2.values()])
-
-
-def qpqp2qp(n):
-    '''Compute a transformation matrix T by which we can transform a given
-    (2n)x(2n) matrix M, represented in (q1, p1, q2, p2, ..., qn, pn)-coordinates, into
-    a (q1, q2, ..., qn, p1, p2, ..., pn)-representation via
-    M' = T^(-1)*M*T. T will be orthogonal, i.e. T^(-1) = T.transpose().
-    
-    Parameters
-    ----------
-    n: int
-        number of involved coordinates (i.e. 2*n dimension of phase space)
-        
-    Returns
-    -------
-    np.matrix
-        Numpy matrix T defining the aforementioned transformation.
-    '''
-    columns_q, columns_p = [], []
-    for k in range(n):
-        # The qk are mapped to the positions zj via k->j as follows
-        # 1 -> 1, 2 -> 3, 3 -> 5, ..., k -> 2*k - 1. The pk are mapped to the 
-        # positions zj via k->j as follows
-        # 1 -> 2, 2 -> 4, 3 -> 6, ..., k -> 2*k. The additional "-1" is because
-        # in Python the indices are one less than the mathematical notation.
-        column_k = np.zeros(2*n)
-        column_k[2*(k + 1) - 1 - 1] = 1
-        columns_q.append(column_k)
-
-        column_kpn = np.zeros(2*n)
-        column_kpn[2*(k + 1) - 1] = 1
-        columns_p.append(column_kpn)
-        
-    q = np.array(columns_q).transpose()
-    p = np.array(columns_p).transpose()
-    return np.bmat([[q, p]])
 
     
 #########
