@@ -1,8 +1,6 @@
 import numpy as np
 import mpmath as mp
 import cmath
-from scipy.linalg import sqrtm
-
 
 def printdb(M, tol=1e-14):
     # print a matrix (for debugging reasons)
@@ -407,12 +405,12 @@ def youla_normal_form(M, tol=1e-14, **kwargs):
     
     Parameters
     ----------
-    M
+    M:
         Matrix to be transformed.
         
     Returns
     -------
-    U
+    U:
         Unitary matrix so that U.transpose()@M@U is in Youla normal form.
     '''
     dim = len(M)
@@ -472,12 +470,12 @@ def _rotate_2block(x):
     
     Parameters
     ----------
-    x
+    x:
         The entry in the top right corner of M.
     
     Returns
     -------
-    U
+    U:
         Unitary 2x2 matrix with the property as described above.
     '''
     phi = -cmath.phase(x)
@@ -497,12 +495,12 @@ def _skew_post_youla(M):
     
     Parameters
     ----------
-    M
+    M:
         Complex skew-symmetric matrix in Youla normal form.
         
     Returns
     -------
-    U
+    U:
         Complex unitary matrix as described above.
     '''
     dim = len(M)
@@ -563,12 +561,12 @@ def cortho_diagonalize_symmetric(M, tol=1e-14, **kwargs):
     
     Parameters
     ----------
-    M
+    M:
         Complex symmetric matrix M to be diagonalized.
     
     Returns
     -------
-    Y
+    Y:
         Complex orthogonal matrix so that Y.transpose()@M@Y is diagonal with complex entries.
     '''
     assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
@@ -599,8 +597,9 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
        O.transpose()@O = 1. 
     Hence, J_M is a new symplectic structure.
     
-    This routine can be understood as a 'generalization' of Williamson's Theorem to the case 
-    of arbitrary symmetric invertible diagonalizable matrices. However, the complex symplectic matrix S
+    Background: This routine can be understood as a 'generalization' of Williamson's Theorem to the case 
+    of arbitrary symmetric invertible diagonalizable matrices. I.e. matrices which are not necessarily
+    real or positive definite. However, the complex symplectic matrix S
     no longer keeps J invariant, but provides a map to a new symplectic structure given by J_M. 
     One can show that if
        z' = J dH
@@ -610,36 +609,33 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     
     Parameters
     ----------
-    M
-        A compl
+    M:
+        A complex symmetric diagonalizable and invertible matrix.
+        
+    Returns
+    -------
+    S:
+        A complex matrix which is symplectic relative to J and J_M, as described in the text above.
+        
+    O:
+        A complex orthogonal matrix defining the new symplectic structure J_M.
     '''
     assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
-    '''if code == 'numpy':
-        evalues, evectors = np.linalg.eigh(M)
-        sqrtev = np.sqrt(evalues, dtype=complex)
-        diag = np.diag(sqrtev)
-        diagi = np.diag(1/sqrtev)
-        evectors = np.array(evectors)
-    if code == 'mpmath':
-        mp.mp.dps = kwargs.get('dps', 32)
-        M = mp.matrix(M)
-        evalues, evectors = mp.eigh(M)
-        diag = mp.diag([mp.sqrt(e, dtype=complex) for e in evalues])
-        diagi = mp.diag([1/mp.sqrt(e, dtype=complex) for e in evalues])
-    
-    V12 = evectors@diag@evectors.transpose() # V12 means V^(1/2), the square root of V.
-    V12i = evectors@diagi@evectors.transpose()
-    '''
-    M12 = sqrtm(M) # TODO: Maybe implement own code to use mpmath as well
-    M12i = np.linalg.inv(M12)
-    
-    dim2 = len(M12)
+    dim2 = len(M)
     assert dim2%2 == 0
     dim = dim2//2
     
-    J = column_matrix_2_code(create_J(dim), code='numpy')    
+    Y = cortho_diagonalize_symmetric(M, tol=tol)
+    DM = Y.transpose()@M@Y
+    M12i = Y@np.diag([1/np.sqrt(DM[k, k]) for k in range(dim2)])@Y.transpose()
+    # alternative to compute the inverse square root of M using scipy:
+    # from scipy.linalg import sqrtm
+    #M12 = sqrtm(M)
+    #M12i = np.linalg.inv(M12)
+    
+    J = column_matrix_2_code(create_J(dim), code='numpy') # the default block symplectic structure 
     skewmat = M12i@J@M12i
-    U = unitary_anti_diagonalize_skew(skewmat, code='numpy', **kwargs)
+    U = unitary_anti_diagonalize_skew(skewmat, code='numpy', tol=tol, **kwargs)
     # U.transpose()@skewmat@U is in 2x2-block form. Therefore U needs to be modified to transform LJL in n//2 x n//2 block form:
     T = qpqp2qp(dim)
     U = U@T
@@ -647,12 +643,16 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     LJL = U.transpose()@skewmat@U
     # obtain D as described in the reference above
     Li_values = [1/LJL[i, i + dim] for i in range(dim)]*2
-    Li = np.array(np.diag([np.sqrt(e) for e in Li_values]))
-    O = cortho_diagonalize_symmetric(Li@U.transpose()@U@Li) # O.transpose()@Li@U.transpose()@U@Li@O =: K will be diagonal with complex entries. Hereby O is a complex orthogonal matrix.
-    S = M12i@U@Li@O # S.transpose()@V@S = O.transpose()@Li@U.transpose()@V12i@V@V12i@U@Li@O = K
+    Li = np.diag([np.sqrt(e) for e in Li_values])
+    O = cortho_diagonalize_symmetric(Li@U.transpose()@U@Li, tol=tol) # O.transpose()@Li@U.transpose()@U@Li@O = D will be diagonal with complex entries. Hereby O is a complex orthogonal matrix. 
+    # N.B. The eigenvectors of U.transpose()@U are real. This can be seen as follows: U is unitary and so is
+    # Q := U.transpose()@U =: X + iY. Hence 1 = Q*Q = X**2 + Y**2 + i[X, Y]. Therefore
+    # [X, Y] = 0 and so X and Y (and hence Q) can simultaneously be diagonalized by an orthogonal matrix. In our
+    # case, however, we need to orthogonalize Li@Q@Li in order to reach the new symplectic structure. 
+    # And this is done above by the complex orthogonal matrix O.
+    S = M12i@U@Li@O # S.transpose()@V@S = O.transpose()@Li@U.transpose()@V12i@V@V12i@U@Li@O = D
     return S, O
     
-
 
 def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
     r'''Anti-diagonalize a real skew symmetric matrix A so that it will have the block-form
@@ -757,6 +757,10 @@ def williamson(V, code='numpy', **kwargs):
     D: matrix
         The diagonal matrix as described above.    
     '''
+    dim2 = len(V)
+    assert dim2%2 == 0
+    dim = dim2//2
+
     if code == 'numpy':
         evalues, evectors = np.linalg.eigh(V)
         sqrtev = np.sqrt(evalues)
@@ -774,11 +778,7 @@ def williamson(V, code='numpy', **kwargs):
     
     V12 = evectors@diag@evectors.transpose() # V12 means V^(1/2), the square root of V.
     V12i = evectors@diagi@evectors.transpose()
-    
-    dim2 = len(V12)
-    assert dim2%2 == 0
-    dim = dim2//2
-    
+        
     J = column_matrix_2_code(create_J(dim), code=code)    
     skewmat = V12i@J@V12i
     A = anti_diagonalize_real_skew(skewmat, code=code, **kwargs)    
