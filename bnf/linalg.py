@@ -1,12 +1,14 @@
 import numpy as np
 import mpmath as mp
 import cmath
+from scipy.linalg import schur
+
+
 
 def printdb(M, tol=1e-14):
     # print a matrix (for debugging reasons)
     M = mp.matrix(M)
     mp.nprint(mp.chop(M, tol))
-    
 
 def twonorm(vector, code='numpy', mode='complex', **kwargs):
     # Compute the 2-norm of a vector.
@@ -354,6 +356,28 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
     return eigenvalues_result, eigenvectors_result
 
 
+def get_principal_sqrt(M, **kwargs):
+    '''
+    A numeric algorithm to obtain the principal square root of a matrix M (if it exists).
+    The principal square is the unique square root of a matrix so that -pi/2 < arg(l(X)) <= pi/2
+    holds, where
+    It can can be expressed in terms of a polynomial in M.
+    Refernce: Ake Björk: Numerical Methods in Matrix Computations (2014), sec. 3.8.1.
+    '''
+    T, Q = schur(M, **kwargs)
+    
+    dim = len(T)
+    S = np.diag([np.sqrt(T[k, k]) for k in range(dim)])
+    for diagonal in range(1, dim): # diagonal = 1: first off-diagonal S[0, 1], S[1, 2], ... etc.
+        for diagonal_index in range(dim - diagonal):
+            i = diagonal_index
+            j = diagonal + diagonal_index        
+            S[i, j] = (T[i, j] - sum([S[i, k]*S[k, j] for k in range(i + 1, j)]))/(S[i, i] + S[j, j]) # the j - 1 in the Eq. in the reference must be increased by 1 here due to Python convention.
+
+    # check: S@S - T must be zero.
+    return Q@S@Q.transpose().conjugate()
+
+
 def _check_linear_independence(a, b, tol=1e-14):
     '''
     A quick routine to check if two vectors a and b are linearly independent.
@@ -391,7 +415,7 @@ def _check_linear_independence(a, b, tol=1e-14):
     return False
 
 
-def youla_normal_form(M, tol=1e-14, **kwargs):
+def youla_normal_form(M, tol=1e-13, **kwargs):
     '''
     Transform a matrix into Youla normal form according to Ref. [2]:
     "Some observations on the Youla form and conjugate-normal matrices" from
@@ -403,10 +427,15 @@ def youla_normal_form(M, tol=1e-14, **kwargs):
     nonnegative coneigenvalues of M, while each 2×2 block corresponds to a pair of complex 
     conjugate coneigenvalues.
     
+    N.B. If it appears that the matrix U does not transform into the desired form, try a change in the tolerance parameter. 
+    
     Parameters
     ----------
     M:
         Matrix to be transformed.
+        
+    tol:
+        Tolerance passed to linalg._check_linear_independence routine.
         
     Returns
     -------
@@ -533,7 +562,7 @@ def unitary_anti_diagonalize_skew(M, tol=1e-14, **kwargs):
         Unitary complex matrix so that U.transpose()@M@U is skew-symmetric anti-diagonal with respect 
         to (n//2 x n//2) block matrices (Hereby M denotes the input matrix).
     '''
-    assert all([abs((M.transpose() + M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not anti-diagonal within given tolerance {tol}.'
+    assert all([abs((M.transpose() + M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not anti-symmetric within given tolerance {tol}.'
     U = youla_normal_form(M, **kwargs)
     My = U.transpose()@M@U
     U1 = _skew_post_youla(My)
@@ -544,7 +573,7 @@ def unitary_diagonalize_symmetric(M, tol=1e-14, **kwargs):
     '''
     Compute a unitary matrix U so that U.transpose()@M@U =: D is diagonal with real non-zero entries (Autonne & Takagi).
     '''
-    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
+    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not symmetric within given tolerance {tol}.'
     U = youla_normal_form(M, **kwargs)
     D1 = U.transpose()@M@U
     # now turn the complex diagonal values of D1 into real values
@@ -569,8 +598,8 @@ def cortho_diagonalize_symmetric(M, tol=1e-14, **kwargs):
     Y:
         Complex orthogonal matrix so that Y.transpose()@M@Y is diagonal with complex entries.
     '''
-    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
-    EV, ES = eigenspaces(M, tol=tol, **kwargs) # orthogonalization not required here, but we use it to get the eigenspaces for every eigenvalue
+    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not symmetric within given tolerance {tol}.'
+    EV, ES = eigenspaces(M, tol=tol, **kwargs) # orthogonalization not required here; we just use the routine to get the eigenspaces for every eigenvalue
     Y = np.zeros([len(M), len(M)], dtype=complex)
     k = 0
     for subspace in ES:
@@ -585,27 +614,34 @@ def cortho_diagonalize_symmetric(M, tol=1e-14, **kwargs):
     return Y
 
 
+def cortho_symmetric_decomposition(M):
+    '''
+    If M is a complex non-singular square matrix, this routine will attempt to determine a decomposition 
+        M = G@Q
+    so that G is complex symmetric and Q is complex orthogonal.
+    See Thm. 6.4.16 in Horn & Johnson: Topics in Matrix Analysis (1991).
+    '''
+    G = get_principal_sqrt(M@M.transpose())
+    Q = np.linalg.inv(G)@M
+    # checks:
+    # G - G.transpose() == 0
+    # Q.transpose()@Q = 1
+    # G@Q = M
+    return Q, G
+
+
 def unitary_williamson(M, tol=1e-14, **kwargs):
     r'''
     Transform a symmetric invertible diagonalizable matrix M (which may be complex) 
     to a complex diagonal form, by means of a 
     complex matrix S: 
        S.transpose()@M@S = D,
-    where S satisfies the following property:
-       S.transpose()@J@S = O.transpose()@J@O =: J_M. 
-    and O is a complex orthogonal matrix, i.e. a complex matrix satisfying 
-       O.transpose()@O = 1. 
-    Hence, J_M is a new symplectic structure.
+    where S is symplectic:
+       S.transpose()@J@S = J.
     
     Background: This routine can be understood as a 'generalization' of Williamson's Theorem to the case 
     of arbitrary symmetric invertible diagonalizable matrices. I.e. matrices which are not necessarily
-    real or positive definite. However, the complex symplectic matrix S
-    no longer keeps J invariant, but provides a map to a new symplectic structure given by J_M. 
-    One can show that if
-       z' = J dH
-    denote the orignal Hamilton-Equations and H_M := H o S, then these equations are equivalent to:
-       z' = J_M dH_M .
-    By construction, the new Hamiltonian H_M will admit a diagonal Hesse-matrix.
+    real or positive definite.
     
     Parameters
     ----------
@@ -615,16 +651,17 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     Returns
     -------
     S:
-        A complex matrix which is symplectic relative to J and J_M, as described in the text above.
+        A complex symplectic matrix as described in the text above.
         
-    O:
-        A complex orthogonal matrix defining the new symplectic structure J_M.
+    K:
+        The diagonal matrix K = S.transpose()@M@S.
     '''
-    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not diagonal within given tolerance {tol}.'
+    assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not symmetric within given tolerance {tol}.'
     dim2 = len(M)
     assert dim2%2 == 0
     dim = dim2//2
     
+    # Step 1: Determine a square root of M (Since M is orthogonal diagonalizable, this square root will be is symmetric).
     Y = cortho_diagonalize_symmetric(M, tol=tol)
     DM = Y.transpose()@M@Y
     M12i = Y@np.diag([1/np.sqrt(DM[k, k]) for k in range(dim2)])@Y.transpose()
@@ -633,25 +670,43 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     #M12 = sqrtm(M)
     #M12i = np.linalg.inv(M12)
     
+    # Step 2: As in the positive definite scenario, consider the anti-symmetric matrix A := M12i@J@M12i. This anti-symmetric matrix A
+    # is now complex and we will assume here that it can be diagonalized. 
+    # If b is an eigenvalue of A, then 0 = det(A - b) = det(A.transpose() - b) = det(-A - b) = (-1)^(2n) det(A + b),
+    # so -b is also an eigenvalue of A. Therefore the diagonalization of A will admit pairs (+/- b) of eigenvalues on its main diagonal.
     J = column_matrix_2_code(create_J(dim), code='numpy') # the default block symplectic structure 
-    skewmat = M12i@J@M12i
-    U = unitary_anti_diagonalize_skew(skewmat, code='numpy', tol=tol, **kwargs)
-    # U.transpose()@skewmat@U is in 2x2-block form. Therefore U needs to be modified to transform LJL in n//2 x n//2 block form:
-    T = qpqp2qp(dim)
-    U = U@T
+    A = M12i@J@M12i
     
-    LJL = U.transpose()@skewmat@U
-    # obtain D as described in the reference above
-    Li_values = [1/LJL[i, i + dim] for i in range(dim)]*2
-    Li = np.diag([np.sqrt(e) for e in Li_values])
-    O = cortho_diagonalize_symmetric(Li@U.transpose()@U@Li, tol=tol) # O.transpose()@Li@U.transpose()@U@Li@O = D will be diagonal with complex entries. Hereby O is a complex orthogonal matrix. 
-    # N.B. The eigenvectors of U.transpose()@U are real. This can be seen as follows: U is unitary and so is
-    # Q := U.transpose()@U =: X + iY. Hence 1 = Q*Q = X**2 + Y**2 + i[X, Y]. Therefore
-    # [X, Y] = 0 and so X and Y (and hence Q) can simultaneously be diagonalized by an orthogonal matrix. In our
-    # case, however, we need to orthogonalize Li@Q@Li in order to reach the new symplectic structure. 
-    # And this is done above by the complex orthogonal matrix O.
-    S = M12i@U@Li@O # S.transpose()@V@S = O.transpose()@Li@U.transpose()@V12i@V@V12i@U@Li@O = D
-    return S, O
+    EV, ES = eigenspaces(A, flatten=True)
+    ES = np.array(ES).transpose()
+    ESi = np.linalg.inv(ES) # ESi@A@ES will be diagonal with pairs on its main diagonal.
+    
+    U = _create_umat_xieta(dim2)
+    K = U.transpose().conjugate()@ESi@A@ES@U # we now map this double-diagonal ESi@A@ES to default block anti-diagonal form by means of the
+    # unitary transformation U. TODO: make this step robust against ordering!
+    # Since K is similar to A by means of ES@U, there must be a complex orthogonal transformation, mapping A to K (see Corollary 6.4.18 in
+    # Horn & Johnson: Topics in Matrix Analysis, (1991)). 
+    
+    # Step 3: Follow the procedure in the above reference to determine this complex orthogonal transformation.
+    SS = U.transpose().conjugate()@ESi
+    QQ, GG = cortho_symmetric_decomposition(SS)
+    # QQ is the sought complex orthogonal transformation.
+    
+    # Step 4: obtain L so that L@J@L = K
+    D = np.diag([K[i, i + dim] for i in range(len(K)//2)] + [K[i + dim, i] for i in range(len(K)//2)])
+    sqrt_upperD = np.sqrt(D.diagonal()[:len(D)//2])
+    L = np.diag(list(sqrt_upperD) + list(-sqrt_upperD))
+    Li = np.diag(1/L.diagonal())
+    # check L@J@L - K = 0
+    
+    # Step 5: Now we can construct a complex symplectic transformation S which will congruent-diagonalize the given M
+    S = M12i@QQ.transpose()@Li
+    # check
+    # S.transpose()@J@S = J
+    # S.transpose()@M@S = Li@Li
+    
+    # TODO: may also return U, since ... U.conjugate()@S.transpose()@G@S@U.transpose().conjugate()
+    return S, K
     
 
 def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
@@ -796,6 +851,28 @@ def williamson(V, code='numpy', **kwargs):
     S = D12i@A.transpose()@V12
     return S, D
 
+
+def _create_umat_xieta(dim, code='numpy', **kwargs):
+    '''
+    Create a unitary matrix, mapping (p, q)-coordinates to (xi, eta)-coordinates via
+    xi = (q + 1j*p)/sqrt(2)
+    eta = (q - 1j*p)/sqrt(2)
+    '''
+    if code == 'numpy':
+        sqrt2 = np.sqrt(2)
+    if code == 'mpmath':
+        mp.mp.dps = kwargs.get('dps', 32) 
+        sqrt2 = mp.sqrt(2)
+        
+    assert dim%2 == 0
+    U1, U2 = [], []
+    dim_half = dim//2
+    for k in range(dim_half):
+        k2 = k + dim_half
+        U1.append([0 if i != k and i != k2 else 1/sqrt2 for i in range(dim)])
+        U2.append([0 if i != k and i != k2 else 1j/sqrt2 if i == k else -1j/sqrt2 if i == k2 else 0 for i in range(dim)])
+    return column_matrix_2_code(U1 + U2, code=code)
+
     
 def normal_form(H2, T=[], code='numpy', **kwargs):
     r'''
@@ -848,13 +925,7 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
         cnf: The 'complex' normal form, which is given as the representation of H2 in terms of the complex
             normalizing (xi, eta)-coordinates.
         D: The real entries of rnf in form of a list.
-    '''
-    if code == 'numpy':
-        sqrt2 = np.sqrt(2)
-    if code == 'mpmath':
-        mp.mp.dps = kwargs.get('dps', 32) 
-        sqrt2 = mp.sqrt(2)
-        
+    ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
         
@@ -864,19 +935,13 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
     S, D = williamson(V=H2, code=code, **kwargs)
     
     # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
-    # denote (new) canonical momenta v. The block-matrix U transforming the block-vector (u, v) to
-    # (xi, eta) (as e.g. defined in my thesis) and has the form:
-    U1, U2 = [], []
-    dim_half = dim//2
-    for k in range(dim_half):
-        k2 = k + dim_half
-        U1.append([0 if i != k and i != k2 else 1/sqrt2 for i in range(dim)])
-        U2.append([0 if i != k and i != k2 else 1j/sqrt2 if i == k else -1j/sqrt2 if i == k2 else 0 for i in range(dim)])
-    U = column_matrix_2_code(U1 + U2, code=code)
+    # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
+    # (xi, eta) (as e.g. defined in my thesis):
+    U = _create_umat_xieta(dim=dim, code=code, **kwargs)
     # U is hermitian, therefore
     Uinv = U.transpose().conjugate()
 
-    J = column_matrix_2_code(create_J(dim_half), code=code)
+    J = column_matrix_2_code(create_J(dim//2), code=code)
     # N.B. (p, J*q) = (Sp, J*S*q) = (u, J*v) = (Uinv*U*u, J*Uinv*U*v) = (Uinv*xi, J*Uinv*eta). Thus:
     J2 = Uinv.transpose()@J@Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
     Sinv = - J@S.transpose()@J
