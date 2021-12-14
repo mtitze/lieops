@@ -4,7 +4,6 @@ import cmath
 from scipy.linalg import schur
 
 
-
 def printdb(M, tol=1e-14):
     # print a matrix (for debugging reasons)
     M = mp.matrix(M)
@@ -21,6 +20,37 @@ def twonorm(vector, code='numpy', mode='complex', **kwargs):
         return np.sqrt(sum2)
     if code == 'mpmath':
         return mp.sqrt(sum2)
+    
+    
+def is_positive_definite(A, code='numpy'):
+    '''Check if a given matrix A is positive definite.
+
+    Parameters
+    ----------
+    A: matrix
+        The matrix to be checked.
+        
+    code: str, optional
+        The code to be used for the check. Either 'mpmath' or 'numpy' (default).
+        
+    Returns
+    -------
+    boolean
+        True if matrix is positive definite.
+    '''
+    out = True
+    
+    if code == 'mpmath':
+        try:
+            _ = mp.cholesky(A)
+        except:
+            out = False
+    else:
+        try:
+            _ = np.linalg.cholesky(A)
+        except:
+            out = False
+    return out
     
     
 def almosteq(a, b, tol=1e-14, **kwargs):
@@ -573,6 +603,22 @@ def unitary_anti_diagonalize_skew(M, tol=1e-14, **kwargs):
 def unitary_diagonalize_symmetric(M, tol=1e-14, **kwargs):
     '''
     Compute a unitary matrix U so that U.transpose()@M@U =: D is diagonal with real non-zero entries (Autonne & Takagi).
+    
+    Parameters
+    ----------
+    M:
+        Matrix to be diagonalized.
+        
+    tol: float, optional
+        A tolerance parameter by which the given matrix is checked for symmetry
+        
+    **kwargs
+        Additional parameters passed to linalg.youla_normal_form
+        
+    Returns
+    -------
+    U:
+        Unitary matrix U with the above property.
     '''
     assert all([abs((M.transpose() - M)[j, k]) < tol for j in range(len(M)) for k in range(len(M))]), f'Matrix not symmetric within given tolerance {tol}.'
     U = youla_normal_form(M, **kwargs)
@@ -698,8 +744,7 @@ def _diagonal2block(D, tol=1e-13):
         T[k + dim, j] = 1
         k += 1
         
-    U = U@T
-    return U
+    return U@T
 
 
 def unitary_williamson(M, tol=1e-14, **kwargs):
@@ -779,6 +824,7 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     # check
     # S.transpose()@J@S = J
     # S.transpose()@M@S = Li@Li
+    # N.B. U.conjugate()@S.transpose()@M@S@U.conjugate().transpose() will be in normal form.
     return S, K, U
     
 
@@ -865,7 +911,7 @@ def williamson(V, code='numpy', **kwargs):
         List of vectors (subscriptables) defining the matrix.
         
     **kwargs
-        Additional arguments are passed to 'anti_diagonalize_real_skew' routine.
+        Additional arguments are passed to linalg.anti_diagonalize_real_skew routine.
     
     Returns
     -------
@@ -957,8 +1003,8 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
     
     Paramters
     ---------
-    H2: matrix
-        Real symmetric positive definite Matrix.
+    H2:
+        Symmetric matrix.
         
     T: matrix, optional
         Orthogonal matrix to change the ordering of canoncial
@@ -980,7 +1026,7 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
     Returns
     -------
     dict
-        Dictionary containing various linear maps. The entries of this dictionary are described in the following.
+        Dictionary containing various linear maps. The items of this dictionary are described in the following.
         
         S: The symplectic map diagonalizing H2 via S.transpose()@D@S = H2, where D is a diagonal matrix.
         Sinv: The inverse of S, i.e. the symplectic map to (real) normal form.
@@ -993,10 +1039,10 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
         K: The linear map transforming (q, p) to (xi, eta)-coordinates. Hence, it will transform
            H2 to complex normal form via Kinv.transpose()*H2*Kinv. K is given by U*S*T.
         Kinv: The inverse of K.
-        rnf: The 'real' normal form, by which we understand the diagonalization of H2 relative to its 
-            real normalizing coordinates (the matrix D described above).
+        rnf: The 'real' normal form, by which we understand the diagonalization of H2 relative to the 
+             symplectic matrix S. Note that S might be complex if the Hesse matrix of H2 is not positive definite.
         cnf: The 'complex' normal form, which is given as the representation of H2 in terms of the complex
-            normalizing (xi, eta)-coordinates.
+            normalizing (xi, eta)-coordinates (the 'new' complex symplectic structure).
         D: The real entries of rnf in form of a list.
     ''' 
     dim = len(H2)
@@ -1004,20 +1050,28 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
         
     # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
-        H2 = T@H2@T.transpose() 
-    S, D = williamson(V=H2, code=code, **kwargs)
-    
-    # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
-    # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
-    # (xi, eta) (as e.g. defined in my thesis):
-    U = _create_umat_xieta(dim=dim, code=code, **kwargs)
+        H2 = T@H2@T.transpose()
+        
+    J = column_matrix_2_code(create_J(dim//2), code=code)
+        
+    if is_positive_definite(H2, code=code):
+        S, D = williamson(V=H2, code=code, **kwargs)
+        # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
+        # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
+        # (xi, eta) (as e.g. defined in my thesis):
+        U = _create_umat_xieta(dim=dim, code=code, **kwargs)
+        Sinv = -J@S.transpose()@J
+    else:
+        assert code == 'numpy' # TODO: mpmath
+        # apply general routine in case H2 is not positive definite
+        Sinv, D, U = unitary_williamson(M=H2, **kwargs) # U.conjugate()@Sinv.transpose()@G@Sinv@U.conjugate().transpose() will be in (xi, eta)-canonical form.
+        S = -J@Sinv.transpose()@J
     # U is hermitian, therefore
     Uinv = U.transpose().conjugate()
 
-    J = column_matrix_2_code(create_J(dim//2), code=code)
     # N.B. (p, J*q) = (Sp, J*S*q) = (u, J*v) = (Uinv*U*u, J*Uinv*U*v) = (Uinv*xi, J*Uinv*eta). Thus:
     J2 = Uinv.transpose()@J@Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
-    Sinv = - J@S.transpose()@J
+
     K = U@S # K(p, q) = (xi, eta)
     Kinv = Sinv@Uinv  # this map will transform to the new (xi, eta)-coordinates via Kinv.transpose()*H2*Kinv
 

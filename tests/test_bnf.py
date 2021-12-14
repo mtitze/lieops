@@ -2,7 +2,7 @@ import time
 from bnf import __version__
 from bnf.lie import liepoly, exp_ad, create_coords, compose
 from bnf.nf import first_order_nf_expansion, homological_eq, bnf
-from bnf.linalg import qpqp2qp
+from bnf.linalg import qpqp2qp, is_positive_definite
 import numpy as np
 import mpmath as mp
 from njet.functions import cos, sin, exp
@@ -112,34 +112,6 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     return out
 
 
-def is_pos_def(A, code='mpmath'):
-    '''Check if a given matrix A is positive definite.
-    
-    For a real matrix $A$, we have $x^TAx = \frac{1}{2}(x^T(A+A^T)x)$, 
-    and $A + A^T$ is a symmetric real matrix. So $A$ is positive definite 
-    iff $A + A^T$ is positive definite, iff all the eigenvalues of $A + A^T$ are positive.
-    
-    Parameters
-    ----------
-    A: matrix
-        The matrix to be checked.
-        
-    code: str, optional
-        The code to be used for the check. Either 'mpmath' or 'numpy' (default).
-        
-    Returns
-    -------
-    boolean
-        True if matrix is positive definite.
-    '''
-    if code == 'mpmath':
-        result = np.all([mp.eig(A + A.transpose())[0][k] > 0 for k in range(len(A))])
-    elif code == 'numpy':
-        result = np.all(np.linalg.eigvals(A + A.transpose()) > 0)
-    
-    return result
-
-
 def williamson_check(A, S, J, code='numpy', tol=1e-14):
     '''
     Check if a given matrix A and the matrix S diagonalizting A according to the theorem of Williamson
@@ -164,7 +136,7 @@ def williamson_check(A, S, J, code='numpy', tol=1e-14):
 
     if code == 'numpy':
         isreal = np.isreal(A).all()
-        isposdef = is_pos_def(A, code=code)
+        isposdef = is_positive_definite(A, code=code)
         issymmetric = np.all(A - A.transpose()) == 0
         isevendim = len(A)%2 == 0
         symplecticity = np.linalg.norm(S.transpose()*J*S - J)
@@ -176,7 +148,7 @@ def williamson_check(A, S, J, code='numpy', tol=1e-14):
 
     elif code == 'mpmath':
         isreal = mp.norm(A - A.conjugate()) == 0
-        isposdef = is_pos_def(A, code=code)
+        isposdef = is_positive_definite(A, code=code)
         issymmetric = all([[(A - A.transpose())[i, j] == 0 for i in range(len(A))] for j in range(len(A))])
         isevendim = len(A)%2 == 0
         symplecticity = mp.norm(S.transpose()@J@S - J)
