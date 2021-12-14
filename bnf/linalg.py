@@ -364,17 +364,18 @@ def get_principal_sqrt(M, **kwargs):
     It can can be expressed in terms of a polynomial in M.
     Refernce: Ake Björk: Numerical Methods in Matrix Computations (2014), sec. 3.8.1.
     '''
-    T, Q = schur(M, **kwargs)
+    T, Q = schur(M, **kwargs) # Q@T@Q.transpose().conjugate() = M 
+    # N.B. Q is a unitary matrix
     
     dim = len(T)
-    S = np.diag([np.sqrt(T[k, k]) for k in range(dim)])
+    S = np.diag(np.sqrt(T.diagonal(), dtype=complex))
     for diagonal in range(1, dim): # diagonal = 1: first off-diagonal S[0, 1], S[1, 2], ... etc.
         for diagonal_index in range(dim - diagonal):
             i = diagonal_index
             j = diagonal + diagonal_index        
             S[i, j] = (T[i, j] - sum([S[i, k]*S[k, j] for k in range(i + 1, j)]))/(S[i, i] + S[j, j]) # the j - 1 in the Eq. in the reference must be increased by 1 here due to Python convention.
 
-    # check: S@S - T must be zero.
+    # check: S@S = T
     return Q@S@Q.transpose().conjugate()
 
 
@@ -630,6 +631,77 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
+def _diagonal2block(D, tol=1e-13):
+    r'''
+    Computes a unitary map U which will congruent-diagonalize a matrix D of the form
+    
+       D = diag(a, b, ..., -a, ..., -b, ...)
+       
+    to a block matrix B = U.transpose()@D@U of the form
+    
+        /  0   W  \
+    B = |         |
+        \ -W   0  /
+    
+    where W = diag(a, b, ...).
+    
+    Parameters
+    ----------
+    D:
+        A list of diagonal entries
+        
+    tol: float, optional
+        A small parameter to identify the pairs on the diagonal of D.
+    
+    Returns
+    -------
+    U:
+        The unitary matrix described above.
+    '''
+    dim2 = len(D)
+    assert dim2%2 == 0
+    dim = dim2//2
+
+    # Step 1: Determine the pairs on the diagonal which should be mapped.
+    ind1, ind2 = [], []
+    for i in range(len(D)):
+        if i in ind1:
+            continue
+        for j in range(len(D)):
+            if j in ind1 or j == i:
+                continue
+            if abs(D[i] + D[j]) < tol:
+                ind1.append(i)
+                ind2.append(j)
+                break # index i consumed
+            
+    assert len(ind1) == len(ind2) and len(ind1) == dim, 'Error identifying pairs. Check input matrix or tolerance.'
+    pairs = list(zip(ind1, ind2))    
+    
+    # Step 2: Construct U, assuming that it will transform a matrix with the order
+    U = np.zeros([dim2, dim2], dtype=complex)
+    U2by2 = _create_umat_xieta(2)
+    for i, j in pairs:
+        U[i, i] = U2by2[0, 0]
+        U[i, j] = U2by2[0, 1]
+        U[j, i] = U2by2[1, 0]
+        U[j, j] = U2by2[1, 1]
+        
+    # Step 3: Ensure that U maps to the desired block ordering.
+    # Pair k should be mapped to the indices (k, k + dim) and (k + dim, k). This can be done with a
+    # transformation T as follows.
+    T = np.zeros([dim2, dim2])
+    k = 0
+    for i, j in pairs:
+        # map ei to ek and ej to e(k + dim)
+        T[k, i] = 1
+        T[k + dim, j] = 1
+        k += 1
+        
+    U = U@T
+    return U
+
+
 def unitary_williamson(M, tol=1e-14, **kwargs):
     r'''
     Transform a symmetric invertible diagonalizable matrix M (which may be complex) 
@@ -648,6 +720,9 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     M:
         A complex symmetric diagonalizable and invertible matrix.
         
+    tol: float, optional
+        A tolerance parameter by which certain entries are compared for equality.
+        
     Returns
     -------
     S:
@@ -665,7 +740,7 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     Y = cortho_diagonalize_symmetric(M, tol=tol)
     DM = Y.transpose()@M@Y
     M12i = Y@np.diag([1/np.sqrt(DM[k, k]) for k in range(dim2)])@Y.transpose()
-    # alternative to compute the inverse square root of M using scipy:
+    # alternative code to compute the inverse square root of M using scipy:
     # from scipy.linalg import sqrtm
     #M12 = sqrtm(M)
     #M12i = np.linalg.inv(M12)
@@ -673,40 +748,38 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     # Step 2: As in the positive definite scenario, consider the anti-symmetric matrix A := M12i@J@M12i. This anti-symmetric matrix A
     # is now complex and we will assume here that it can be diagonalized. 
     # If b is an eigenvalue of A, then 0 = det(A - b) = det(A.transpose() - b) = det(-A - b) = (-1)^(2n) det(A + b),
-    # so -b is also an eigenvalue of A. Therefore the diagonalization of A will admit pairs (+/- b) of eigenvalues on its main diagonal.
+    # so -b must also be an eigenvalue of A. Therefore the diagonalization of A will admit pairs (+/- b) of eigenvalues on its main diagonal.
     J = column_matrix_2_code(create_J(dim), code='numpy') # the default block symplectic structure 
     A = M12i@J@M12i
     
-    EV, ES = eigenspaces(A, flatten=True)
-    ES = np.array(ES).transpose()
-    ESi = np.linalg.inv(ES) # ESi@A@ES will be diagonal with pairs on its main diagonal.
+    EV, ES = np.linalg.eig(A)
+    ESi = np.linalg.inv(ES)
+    DD = ESi@A@ES # DD will be diagonal with the Krein-pairs of eigenvalues described above on its main diagonal.
+    U = _diagonal2block(DD.diagonal(), tol=tol) # The unitary matrix U will transform DD into block-diagonal form with diagonal entries on the anti-diagonal via U.transpose()@DD@U.
     
-    U = _create_umat_xieta(dim2)
-    K = U.transpose().conjugate()@ESi@A@ES@U # we now map this double-diagonal ESi@A@ES to default block anti-diagonal form by means of the
-    # unitary transformation U. TODO: make this step robust against ordering!
-    # Since K is similar to A by means of ES@U, there must be a complex orthogonal transformation, mapping A to K (see Corollary 6.4.18 in
-    # Horn & Johnson: Topics in Matrix Analysis, (1991)). 
-    
-    # Step 3: Follow the procedure in the above reference to determine this complex orthogonal transformation.
-    SS = U.transpose().conjugate()@ESi
-    QQ, GG = cortho_symmetric_decomposition(SS)
-    # QQ is the sought complex orthogonal transformation.
-    
-    # Step 4: obtain L so that L@J@L = K
-    D = np.diag([K[i, i + dim] for i in range(len(K)//2)] + [K[i + dim, i] for i in range(len(K)//2)])
-    sqrt_upperD = np.sqrt(D.diagonal()[:len(D)//2])
-    L = np.diag(list(sqrt_upperD) + list(-sqrt_upperD))
-    Li = np.diag(1/L.diagonal())
+    # Step 3: The routine linalg._diagonal2block internally determines the ordering of the Krein pairs. Since we require one representant for each pair, we compute the block-anti-diagonal result:
+    K = U.transpose().conjugate()@DD@U # Note that the additional ".conjugate()" will transform DD into block-anti-diagonal form, which will then be matrix-similar to J.
+    assert all([abs((K.transpose() + K)[j, k]) < tol for j in range(len(K)) for k in range(len(K))]), f'Matrix expected to be anti-symmetric within given tolerance {tol}.'
+    Li = np.diag([1/np.sqrt(K[i, i + dim]) for i in range(dim)]*2)
+    # with L = np.linalg.inv(Li)
     # check L@J@L - K = 0
     
+    # Step 4: Since K is similar to A by means of ES@U, there must be a complex orthogonal transformation, mapping A to K (see Corollary 6.4.18 in
+    # Horn & Johnson: Topics in Matrix Analysis, 1991).
+    SS = U.transpose().conjugate()@ESi
+    QQ, GG = cortho_symmetric_decomposition(SS)
+    # QQ is the sought complex orthogonal transformation. Now it holds (check):
+    # GG@QQ = SS
+    # QQ.transpose()@QQ = 1
+    # GG.transpose() = GG
+    # QQ@A@QQ.transpose() = K
+
     # Step 5: Now we can construct a complex symplectic transformation S which will congruent-diagonalize the given M
     S = M12i@QQ.transpose()@Li
     # check
     # S.transpose()@J@S = J
     # S.transpose()@M@S = Li@Li
-    
-    # TODO: may also return U, since ... U.conjugate()@S.transpose()@G@S@U.transpose().conjugate()
-    return S, K
+    return S, K, U
     
 
 def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
@@ -834,7 +907,7 @@ def williamson(V, code='numpy', **kwargs):
     V12 = evectors@diag@evectors.transpose() # V12 means V^(1/2), the square root of V.
     V12i = evectors@diagi@evectors.transpose()
         
-    J = column_matrix_2_code(create_J(dim), code=code)    
+    J = column_matrix_2_code(create_J(dim), code=code)
     skewmat = V12i@J@V12i
     A = anti_diagonalize_real_skew(skewmat, code=code, **kwargs)    
     K = A.transpose()@skewmat@A # the sought anti-diagonal matrix
