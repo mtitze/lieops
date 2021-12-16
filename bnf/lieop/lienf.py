@@ -99,7 +99,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
         An optional tolerance for checks. Default: 1e-14.
         
     **kwargs
-        Arguments passed to linalg..normal_form
+        Arguments passed to linalg.normal_form routine.
         
     Returns
     -------
@@ -112,7 +112,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     '''
     assert order >= 2
     Hst, dim = standardize_function(H, n_args=n_args)
-    #assert dim%2 == 0, 'Dimension must be even; try passing n_args argument.'
+    assert dim%2 == 0, 'Dimension must be even; try passing n_args argument.'
     
     # Step 1 (optional): Construct H locally around z (N.B. shifts are symplectic, as they drop out from derivatives.)
     # This step is required, because later on (at point (+)) we want to extract the Taylor coefficients, and
@@ -187,7 +187,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
         improve performance.
         
     **kwargs
-        Keyword arguments are passed to 'first_order_nf_expansion' routine.
+        Keyword arguments are passed to .first_order_nf_expansion routine.
     '''
     
     max_power = order # !!! TMP; need to set this very carefully
@@ -267,8 +267,7 @@ class lieoperator(_lieoperator):
         # The following two internal routines are optional transformations before and after self.__call__ is executed.
         # they are used to conveniently switch the representation of a Lie operator between
         # certain coordinate systems.
-        self._inp = lambda z: z # optional transformation before self.__call__ is executed.
-        self._out = lambda z: z # optional transformation after self.__call__ is executed.
+        self.transform('default') # to set self._inp and self._out to be used in self.evaluate.
         _lieoperator.__init__(self, *args, **kwargs)
             
     def set_exponent(self, H, **kwargs):
@@ -311,7 +310,7 @@ class lieoperator(_lieoperator):
         if label in ['cnf', 'default', 'complex_normal_form']:
             _inp = lambda z: z
             _out = lambda z: z
-            
+
         elif label in ['ops', 'ordinary_phase_space']:
             assert hasattr(self, 'nfdict')
             _inp = lambda z: self.nfdict['K']@z # z = (p, q) => U*S*z = (xi, eta) ; K = U*S (see notation in linalg.normal_form)
@@ -371,15 +370,16 @@ class lieoperator(_lieoperator):
             
         if inp:
             self._inp = _inp
+        else:
+            self._inp = lambda z: z
+            
         if out:
             self._out = _out
-                
-                
-    def __call__(self, z, **kwargs):
-        if not z.__class__.__name__ == 'liepoly':
-            z = self._inp(z)
-            return self._out(_lieoperator.__call__(self, z=z, **kwargs))
         else:
-            return _lieoperator.__call__(self, z=z, **kwargs)
+            self._out = lambda z: z
+                
+    def evaluate(self, z, **kwargs):
+        z = self._inp(z)
+        return self._out(_lieoperator.evaluate(self, z=z, **kwargs))
 
         

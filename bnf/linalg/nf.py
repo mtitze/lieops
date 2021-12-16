@@ -5,7 +5,7 @@ import numpy as np
 import mpmath as mp
 import cmath
 
-from .tools import basis_extension, eigenspaces, get_principal_sqrt
+from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
 from .checks import is_positive_definite, relative_eq
 from .matrix import column_matrix_2_code, create_J
     
@@ -633,18 +633,17 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
         Sinv: The inverse of S, i.e. the symplectic map to (real) normal form.
         H2: The input in matrix form.
         T: The (optional) matrix T described above.
-        J: The (original) symplectic structure J' = J.transpose()@J@T, where J is the block-matrix given above.
+        J: The (original) symplectic structure J' = T.transpose()@J@T within which the input Hamiltonian was formulated.
+            Hereby J is the block-matrix from above.
         J2: The new symplectic structure for the (xi, eta)-coordinates.
         U: The unitary map from the S(p, q) = (u, v)-block coordinates to the (xi, eta)-coordinates.
         Uinv: The inverse of U.
-        K: The linear map transforming (q, p) to (xi, eta)-coordinates. Hence, it will transform
-           H2 to complex normal form via Kinv.transpose()*H2*Kinv. K is given by U*S*T.
-        Kinv: The inverse of K.
+        K: The linear map transforming (q, p) to (xi, eta)-coordinates. K is given by U*S*T.
+        Kinv: The inverse of K. Hence, it will transform H2 to complex normal form via Kinv.transpose()*H2*Kinv.
         rnf: The 'real' normal form, by which we understand the diagonalization of H2 relative to the 
-             symplectic matrix S. Note that S might be complex if the Hesse matrix of H2 is not positive definite.
+            symplectic matrix S. Note that S might be complex if the Hesse matrix of H2 is not positive definite.
         cnf: The 'complex' normal form, which is given as the representation of H2 in terms of the complex
             normalizing (xi, eta)-coordinates (the 'new' complex symplectic structure).
-        D: The real entries of rnf in form of a list.
     ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
@@ -679,10 +678,8 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
     if len(T) != 0: # transform results back to the requested (q, p)-ordering
         S = T.transpose()@S@T
         Sinv = T.transpose()@Sinv@T
-        D = T.transpose()@D@T
         J = T.transpose()@J@T
         H2 = T.transpose()@H2@T
-        
         K = K@T
         Kinv = T.transpose()@Kinv
     
@@ -692,8 +689,7 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
     out['Sinv'] = Sinv # this symplectic map will diagonalize H2 in its original 
     # (q, p)-coordinates via Sinv.transpose()*H2*Sinv. Sinv (and S) are symplectic wrt. J
     out['H2'] = H2 # the input matrix
-    out['rnf'] = D # the diagonal matrix obtained as a result of the symplectic diagonalization of H2
-    out['D'] = [D[i, i].real for i in range(len(D))]
+    out['rnf'] = Sinv.transpose()@H2@Sinv # the diagonal matrix obtained as a result of the symplectic diagonalization of H2
     out['T'] = T
     out['J'] = J # the original symplectic structure
     out['J2'] = J2 # the new symplectic structure

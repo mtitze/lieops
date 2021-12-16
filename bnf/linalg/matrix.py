@@ -134,7 +134,7 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
     return column_matrix_2_code(mat, **kwargs)
 
 
-class cmat: # TODO
+class cmat: # TODO: May work on a class to conveniently switch between numpy and mpmath code.
     '''
     Class to model a (sparse) matrix for various codes. 
     '''

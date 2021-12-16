@@ -601,39 +601,102 @@ class lieoperator:
         # Instead, we want to put the numpy arrays into our liepoly class.
         self.flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
         self.flow_parameter = t
-    
-    def __call__(self, z, **kwargs):
+        
+    def evaluate(self, z, **kwargs):
         '''
-        Compute the result of the current Lie operator g(:x:), applied to either a Lie polynomial
-        or evaluated at a specific point.
+        Evaluate current flow of Lie operator at a specific point.
         
         Parameters
         ----------
-        z: subscriptable or liepoly
-            The Lie polynomial or point of interest. 
-            If z is a Lie polynomial, then the orbit of g(:x:)z will be computed and the flow returned as liepoly class.
-            
-            If z is a list, then the values (g(:x:)y)(z) for the current liepoly elements y in self.components
-            are returned.
-            
-            Note that if an additional parameter t is passed, then the respective results for g(t*:x:) are calculated.
-            
-        **kwargs
-            Optional arguments passed to self.calcFlow.
+        z: subscriptable
+            The vector z in the expression (g(:x:)y)(z)
             
         Returns
         -------
-        list or liepoly
-            A list of length len(self.flow), representing the individual components of the Lie operator
-            (g(:x:)y)(z), for every y in self.components, or the Lie polynomial g(:x:)z, depending on the input.
+        list
+            The values (g(:x:)y)(z) for y in self.components.
+        '''
+        assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
+        if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
+            self.calcFlow(**kwargs)
+        return [self.flow[k](z) for k in range(len(self.flow))]
+        
+    def apply(self, z, **kwargs):
+        '''
+        Apply the current Lie operator g(:x:) onto a single liepoly class or a list of liepoly classes.
+        This function is basically intended as a shortcut for the successive call of self.calcOrbits and self.calcFlow.
+        
+        Parameters
+        ----------
+        z: liepoly or list of liepoly classes
+            The Lie polynomial(s) on which to apply the current Lie operator.
+            
+        Returns
+        -------
+        self.flow[0] or self.flow
+            Depending on the input, either the liepoly g(:x:)y is returned, or a list g(:x:)y for the given
+            liepoly elements y.
         '''
         if z.__class__.__name__ == 'liepoly':
             self.calcOrbits(components=[z], **kwargs)
             self.calcFlow(**kwargs)
             return self.flow[0]
-        else:       
-            assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
-            if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
-                self.calcFlow(**kwargs)
-            return [self.flow[k](z) for k in range(len(self.flow))]
+        else:
+            self.calcOrbits(components=z, **kwargs)
+            self.calcFlow(**kwargs)
+            return self.flow
+    
+    def compose(self, z, **kwargs):
+        '''
+        Compute the composition of the current Lie operator g(:x:) with another one f(:y:), 
+        to return the Lie operator h(:z:) given as
+           h(:z:) = g(:x:) f(:y:).
+           
+        Parameters
+        ----------
+        z: lieoperator
+            The Lie operator z = f(:y:) to be composed with the current Lie operator from the right.
+            
+        Returns
+        -------
+        lieoperator
+            The resulting Lie operator of the composition.
+        '''
+        raise NotImplementedError('Composition of Lie operators not yet implemented.')
+
+    def __call__(self, z, **kwargs):
+        '''
+        Compute the result of the current Lie operator g(:x:), applied to either 
+        1) a specific point
+        2) another Lie polynomial
+        3) another Lie operator
+        
+        Parameters
+        ----------
+        z: subscriptable or liepoly or lieoperator
+            
+        **kwargs
+            Optional arguments passed to self.calcFlow. Note that if an additional parameter t is passed, 
+            then the respective results for g(t*:x:) are calculated.
+            
+        Returns
+        -------
+        list or liepoly or lieoperator
+            1) If z is a list, then the values (g(:x:)y)(z) for the current liepoly elements y in self.components
+            are returned (see self.evaluate).
+            2) If z is a Lie polynomial, then the orbit of g(:x:)z will be computed and the flow returned as 
+               liepoly class (see self.apply).
+            3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
+        '''
+        if z.__class__.__name__ == 'liepoly':
+            return self.apply(z, **kwargs)
+        elif z.__class__.__name__ == self.__class__.__name__:
+            return self.compose(z, **kwargs)
+        else:
+            assert hasattr(z, '__getitem__'), 'Input needs to be subscriptable.'
+            if z[0].__class__.__name__ == 'liepoly':
+                return self.apply(z, **kwargs)
+            else:
+                return self.evaluate(z, **kwargs)
+
     
