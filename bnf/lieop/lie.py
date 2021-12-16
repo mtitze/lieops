@@ -490,6 +490,7 @@ class lieoperator:
         Optional arguments may be passed to self.set_generator, self.calcOrbits and self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
+        self.flow_parameter = 1 # default flow parameter to be used (and may be changed) in self.calcFlow
         self.set_exponent(x, **kwargs)
         if not 'generator' in kwargs.keys() and 'power' in kwargs.keys(): 
             # if only a power argument is given, and no generator specified, 
@@ -585,13 +586,13 @@ class lieoperator:
             self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
         self.orbits = [self.action(y) for y in self.components]
         
-    def calcFlow(self, t=1, **kwargs):
+    def calcFlow(self, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for every y in self.components.
         
         Parameters
         ----------
-        t: float (or e.g. numpy.complex128 array)
+        t: float (or e.g. numpy.complex128 array), optional
             Parameter in the exponent at which the Lie operator should be evaluated.
         '''
         if not hasattr(self, 'orbits'):
@@ -599,6 +600,7 @@ class lieoperator:
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
         # standing on the left, then numpy would put the liepoly classes into its array, something we do not want. 
         # Instead, we want to put the numpy arrays into our liepoly class.
+        t = kwargs.get('t', self.flow_parameter)
         self.flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
         self.flow_parameter = t
         
@@ -619,6 +621,13 @@ class lieoperator:
         assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
         if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
             self.calcFlow(**kwargs)
+            
+        if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'):
+            # If it happens that both self.flow_parameter and z have a shape (e.g. if both are numpy arrays)
+            # then we reshape z to be able to broadcast z and self.flow_parameter into a common array.
+            # In this way it is possible to compute n coordinate points for m flow parameters.
+            trailing_ones = [1]*len(self.flow_parameter.shape)
+            z = z.reshape(*z.shape, *trailing_ones)
         return [self.flow[k](z) for k in range(len(self.flow))]
         
     def apply(self, z, **kwargs):
