@@ -19,4 +19,4 @@
 
 __version__ = '0.1.0'
 
-from .nf import bnf
+from bnf.lieop import *

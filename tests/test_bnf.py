@@ -1,17 +1,19 @@
-import time
-from bnf import __version__
-from bnf.lie import liepoly, exp_ad, create_coords, compose
-from bnf.nf import first_order_nf_expansion, homological_eq, bnf
-from bnf.linalg import qpqp2qp, is_positive_definite
 import numpy as np
 import mpmath as mp
+import time
+from sympy import Symbol
+
 from njet.functions import cos, sin, exp
 from njet import derive
-from sympy import Symbol
+
+from bnf import __version__
+from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lieoperator
+from bnf.lieop.nf import homological_eq
+from bnf.linalg.matrix import qpqp2qp
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
-    !!! this is a slow version of the BNF routine !!!!
+    !!! this may be a slow version of the BNF routine !!!!
     
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
@@ -110,61 +112,6 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     out['Qk'] = Qk_all
         
     return out
-
-
-def williamson_check(A, S, J, code='numpy', tol=1e-14):
-    '''
-    Check if a given matrix A and the matrix S diagonalizting A according to the theorem of Williamson
-    by S.transpose()*A*S = D actually are satisfying all required conditions of the theorem.
-    
-    If any condition is violated, the routine raises an AssertionError.
-    
-    Parameters
-    ----------
-    A: matrix
-        The matrix to be diagonalized.
-        
-    S: matrix
-        The symplectic matrix obtained by Williamson's theorem.
-        
-    code: str, optional
-        The code by which the check should be performed. Either 'mpmath' or 'numpy' (default).
-        
-    tol: float, optional
-        A tolerance by which certain properties (like matrix entries) are considered to be zero (default 1e-14).
-    '''
-
-    if code == 'numpy':
-        isreal = np.isreal(A).all()
-        isposdef = is_positive_definite(A, code=code)
-        issymmetric = np.all(A - A.transpose()) == 0
-        isevendim = len(A)%2 == 0
-        symplecticity = np.linalg.norm(S.transpose()*J*S - J)
-        issymplectic = symplecticity < tol
-        
-        diag = J@S@J@A@J@S.transpose()@J
-        offdiag = np.array([[diag[k, l] if k != l else 0 for k in range(len(diag))] for l in range(len(diag))])
-        isdiagonal = np.all(np.abs(offdiag) < tol)
-
-    elif code == 'mpmath':
-        isreal = mp.norm(A - A.conjugate()) == 0
-        isposdef = is_positive_definite(A, code=code)
-        issymmetric = all([[(A - A.transpose())[i, j] == 0 for i in range(len(A))] for j in range(len(A))])
-        isevendim = len(A)%2 == 0
-        symplecticity = mp.norm(S.transpose()@J@S - J)
-        issymplectic = symplecticity < tol
-        
-        diag = J@S@J@A@J@S.transpose()@J
-        absoffdiag = np.array([[abs(complex(diag[k, l])) if k != l else 0 for k in range(len(diag))] for l in range(len(diag))])
-        isdiagonal = np.all(absoffdiag < tol)
-        
-    assert isreal, 'Input matrix A not real.'
-    assert isposdef, 'Input matrix A not positive definite.'
-    assert issymmetric,  'Input matrix A not symmetric.'
-    assert isevendim, 'Dimension not even.'
-    assert issymplectic, f'Symplecticity not ensured: |S^(tr)@J@S - J| = {symplecticity} >= {tol} (tol)'
-    assert isdiagonal, f'Matrix D = S^(-tr)@M@S^(-1) =\n{diag}\nappears not to be diagonal (one entry having abs > {tol} (tol)).'
-
 
 def check_2nd_orders(hdict, dim, tol=1e-14): 
     '''
@@ -391,7 +338,7 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     assert all([abs(term1.values[k] - term2.values[k]) < tol for k in common_keys])
     
     
-def test_compose(a: int=3, b: int=5, k: int=7):
+def test_construct(a: int=3, b: int=5, k: int=7):
     # test if :sin(xi*eta):, :cos(xi*eta):, :exp(xi*eta): applied to xi**a*eta**b gives
     # values as expected.
     
@@ -402,11 +349,11 @@ def test_compose(a: int=3, b: int=5, k: int=7):
     assert eps@eps_ab == -1j*(b - a)*eps_ab
     assert eps**k@eps_ab == -1j*k*eps**(k - 1)*(b - a)*eps_ab
     
-    sin_eps = compose(eps, sin, power=20)
-    cos_eps = compose(eps, cos, power=20)
+    sin_eps = construct(eps, sin, power=20)
+    cos_eps = construct(eps, cos, power=20)
     assert sin_eps@eps_ab == -1j*cos_eps*(b - a)*eps_ab
     
-    exp_eps = compose(1j*eps/(b - a), exp, power=10)
+    exp_eps = construct(1j*eps/(b - a), exp, power=10)
     assert exp_eps@eps_ab == exp_eps*eps_ab
     assert exp_eps**k@eps_ab == k*exp_eps**k*eps_ab
             
@@ -449,6 +396,6 @@ if __name__ == '__main__':
     test_exp_ad2()
     test_flow1()
     test_flow2()
-    test_compose()
+    test_construct()
     test_bnf_performance()
     

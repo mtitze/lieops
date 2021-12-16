@@ -1,12 +1,15 @@
+import numpy as np
+import mpmath as mp
+
 from njet.ad import standardize_function
 from njet.jet import check_zero
 from njet import derive
+
 from .lie import liepoly, exp_ad, create_coords
 from .lie import lieoperator as _lieoperator
-from .linalg import normal_form, matrix_from_dict
+from bnf.linalg.nf import normal_form
+from bnf.linalg.matrix import matrix_from_dict
 
-import numpy as np
-import mpmath as mp
 
 def Omega(mu, a, b):
     '''
@@ -108,8 +111,8 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
         The output of linalg.normal_form routine, providing the linear map information at the requested point.
     '''
     assert order >= 2
-    
     Hst, dim = standardize_function(H, n_args=n_args)
+    #assert dim%2 == 0, 'Dimension must be even; try passing n_args argument.'
     
     # Step 1 (optional): Construct H locally around z (N.B. shifts are symplectic, as they drop out from derivatives.)
     # This step is required, because later on (at point (+)) we want to extract the Taylor coefficients, and
@@ -256,27 +259,27 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
         
     return out
 
-
-
+# We now extend the lieoperator class with the normal form analysis functionality
 class lieoperator(_lieoperator):
     
     def __init__(self, *args, **kwargs):
-        _lieoperator.__init__(self, *args, **kwargs)
+        self.code = kwargs.get('code', 'numpy')
+        # The following two internal routines are optional transformations before and after self.__call__ is executed.
+        # they are used to conveniently switch the representation of a Lie operator between
+        # certain coordinate systems.
         self._inp = lambda z: z # optional transformation before self.__call__ is executed.
         self._out = lambda z: z # optional transformation after self.__call__ is executed.
+        _lieoperator.__init__(self, *args, **kwargs)
             
     def set_exponent(self, H, **kwargs):
         if not H.__class__.__name__ == 'liepoly':
-            assert 'order' in kwargs.keys(), "Lie operator with callable as exponent requires 'order' argument to be set." 
-            # obtain an expansion of H in terms of complex first-order normal form coordinates
-            taylor_coeffs, nfdict = first_order_nf_expansion(H, **kwargs)
-            _lieoperator.set_exponent(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
-            self.nfdict = nfdict
+            assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
             self.order = kwargs['order']
-        else:
+            # obtain an expansion of H in terms of complex first-order normal form coordinates
+            taylor_coeffs, self.nfdict = first_order_nf_expansion(H, code=self.code, **kwargs)
+            _lieoperator.set_exponent(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
+        else: # original behavior
             _lieoperator.set_exponent(self, x=H, **kwargs)
-        self.code = kwargs.get('code', 'numpy')
-            
             
     def transform(self, label='', inp=True, out=True, **kwargs):
         '''
@@ -284,6 +287,26 @@ class lieoperator(_lieoperator):
         
         Pre-defined coordinate systems require self.nfdict to be set, given by the
         output of the linalg.normal_form routine.
+        
+        Parameters
+        ----------
+        label: str
+            The name of the transformation to be used. Currently supported:
+            
+            1) cnf, default, complex_normal_form
+            2) ops, ordinary_phase_space
+            3) rnf, real_normal_form, floquet
+            4) aa, angle_action
+            
+            if left blank, then a custom transformation is assumed.
+            
+        inp: boolean
+            Whether the transformation should be applied to the input before self.__call__ (default: True).
+            
+        out: boolean
+            Whether the transformation should be applied to the output after self.__call__ (default: True)
+            
+        T
         '''
         if label in ['cnf', 'default', 'complex_normal_form']:
             _inp = lambda z: z
@@ -335,10 +358,16 @@ class lieoperator(_lieoperator):
             
         else:
             # User-defined transformation
-            assert 'T' in kwargs.keys() and 'Tinv' in kwargs.keys(), f"Custom transformation requires 'T' and 'Tinv' parameters to be set."
-            assert hasattr(T, '__call__') and hasattr(Tinv, '__call__'), 'T or Tinv not callable.'
-            _inp = T
-            _out = Tinv
+            inp, out = False, False
+            assert 'T' in kwargs.keys() or 'Tinv' in kwargs.keys(), f"Custom transformation requires 'T' or 'Tinv' parameters to be set."
+            if 'T' in kwargs.keys():
+                assert hasattr(T, '__call__'), 'T not callable.'
+                inp = True
+                _inp = T
+            if 'Tinv' in kwargs.keys():
+                assert hasattr(Tinv, '__call__'), 'Tinv not callable.'
+                out = True
+                _out = Tinv
             
         if inp:
             self._inp = _inp
