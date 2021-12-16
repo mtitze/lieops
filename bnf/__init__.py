@@ -20,3 +20,4 @@
 __version__ = '0.1.0'
 
 from bnf.lieop import *
+from bnf.linalg import *

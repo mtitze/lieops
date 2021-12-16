@@ -67,7 +67,7 @@ def youla_normal_form(M, tol=1e-13, **kwargs):
         Matrix to be transformed.
         
     tol:
-        Tolerance passed to linalg._check_linear_independence routine.
+        Tolerance passed to ._check_linear_independence routine.
         
     Returns
     -------
@@ -214,7 +214,7 @@ def unitary_diagonalize_symmetric(M, tol=1e-14, **kwargs):
         A tolerance parameter by which the given matrix is checked for symmetry
         
     **kwargs
-        Additional parameters passed to linalg.youla_normal_form
+        Additional parameters passed to .youla_normal_form
         
     Returns
     -------
@@ -403,7 +403,7 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     DD = ESi@A@ES # DD will be diagonal with the Krein-pairs of eigenvalues described above on its main diagonal.
     U = _diagonal2block(DD.diagonal(), tol=tol) # The unitary matrix U will transform DD into block-diagonal form with diagonal entries on the anti-diagonal via U.transpose()@DD@U.
     
-    # Step 3: The routine linalg._diagonal2block internally determines the ordering of the Krein pairs. Since we require one representant for each pair, we compute the block-anti-diagonal result:
+    # Step 3: The routine ._diagonal2block internally determines the ordering of the Krein pairs. Since we require one representant for each pair, we compute the block-anti-diagonal result:
     K = U.transpose().conjugate()@DD@U # Note that the additional ".conjugate()" will transform DD into block-anti-diagonal form, which will then be matrix-similar to J.
     assert all([abs((K.transpose() + K)[j, k]) < tol for j in range(len(K)) for k in range(len(K))]), f'Matrix expected to be anti-symmetric within given tolerance {tol}.'
     Li = np.diag([1/np.sqrt(K[i, i + dim]) for i in range(dim)]*2)
@@ -446,7 +446,7 @@ def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
         list of vectors defining a real skew symmetric (n x n)-matrix.
 
     **kwargs 
-        Additional arguments are passed to linalg.checks.relative_eq routine. Warning: If chosing 'mpmath' as code and dps value is
+        Additional arguments are passed to .checks.relative_eq routine. Warning: If chosing 'mpmath' as code and dps value is
         set too small (corresponding to a too rough precision), then the tolerance 'tol' may have to be increased as well.
     
     Returns
@@ -512,7 +512,7 @@ def williamson(V, code='numpy', **kwargs):
         List of vectors (subscriptables) defining the matrix.
         
     **kwargs
-        Additional arguments are passed to linalg.anti_diagonalize_real_skew routine.
+        Additional arguments are passed to .anti_diagonalize_real_skew routine.
     
     Returns
     -------

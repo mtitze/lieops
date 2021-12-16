@@ -99,7 +99,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
         An optional tolerance for checks. Default: 1e-14.
         
     **kwargs
-        Arguments passed to linalg.normal_form
+        Arguments passed to linalg..normal_form
         
     Returns
     -------

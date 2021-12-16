@@ -32,7 +32,7 @@ def gram_schmidt(vectors, mode='complex', **kwargs):
         If mode == 'complex' (default), then all norms and scalar products are computed using conjugation.
         
     **kwargs 
-        Additional arguments passed to linalg.twonorm
+        Additional arguments passed to .twonorm
     
     Returns
     -------

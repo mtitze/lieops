@@ -8,7 +8,7 @@ from njet import derive
 
 from bnf import __version__
 from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lieoperator
-from bnf.lieop.nf import homological_eq
+from bnf.lieop.lienf import homological_eq
 from bnf.linalg.matrix import qpqp2qp
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
