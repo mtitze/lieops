@@ -1,3 +1,5 @@
+import numpy as np
+
 from njet.jet import factorials, check_zero
 from njet import derive
 
@@ -625,10 +627,21 @@ class lieoperator:
         if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'):
             # If it happens that both self.flow_parameter and z have a shape (e.g. if both are numpy arrays)
             # then we reshape z to be able to broadcast z and self.flow_parameter into a common array.
-            # In this way it is possible to compute n coordinate points for m flow parameters.
+            # After the application of self.flow, a reshape on the result is performed in order to
+            # shift the two first indices to the last, so that the @ operator can be applied as expected
+            # (see PEP 456). 
+            # In this way it is possible to compute n coordinate points for m flow parameters, while
+            # keeping the current self.flow_parameter untouched.
+            # TODO: may need to check speed for various reshaping options.
             trailing_ones = [1]*len(self.flow_parameter.shape)
             z = z.reshape(*z.shape, *trailing_ones)
-        return [self.flow[k](z) for k in range(len(self.flow))]
+            result = np.array([self.flow[k](z) for k in range(len(self.flow))])
+            # now the result has z.shape in its first len(z.shape) indices. We need to bring the first two
+            # indices to the rear in order to have an object by which we can apply the conventional matmul operation(s).
+            transp_indices = np.roll(np.arange(result.ndim), shift=-2)
+            return result.transpose(transp_indices) # reshaped result so that matrix multiplication can be applied.
+        else:
+            return [self.flow[k](z) for k in range(len(self.flow))]
         
     def apply(self, z, **kwargs):
         '''

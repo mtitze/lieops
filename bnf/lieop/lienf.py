@@ -260,20 +260,6 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
     return out
 
 
-def _matmul_reshaper(z):
-    '''
-    Small helper function to reshape an N-D array to bring the last 2 dimensions
-    to the front, in order to apply correct matrix multiplication.
-    
-    The reason is that in the lie.lieoperator.evaluate routine the z parameter
-    will be reshaped if the input coordinates and the flow parameter both have (in general different)
-    shapes.
-    '''
-    z = np.array(z)
-    if len(z.shape) > 2:
-        z = z.reshape(*np.roll(z.shape, shift=-2)) # the matrix operations 
-    return z
-
 # We now extend the lieoperator class with the normal form analysis functionality
 class lieoperator(_lieoperator):
     
@@ -329,12 +315,12 @@ class lieoperator(_lieoperator):
         elif label in ['ops', 'ordinary_phase_space']:
             assert hasattr(self, 'nfdict')
             _inp = lambda z: self.nfdict['K']@z # z = (p, q) => U*S*z = (xi, eta) ; K = U*S (see notation in linalg.normal_form)
-            _out = lambda z: self.nfdict['Kinv']@_matmul_reshaper(z)
-            
+            _out = lambda z: self.nfdict['Kinv']@z
+        
         elif label in ['rnf', 'real_normal_form', 'floquet']:
             assert hasattr(self, 'nfdict')
             _inp = lambda z: self.nfdict['U']@z # z = (u, v) => U*z = (xi, eta) (see notation in linalg.normal_form)
-            _out = lambda z: self.nfdict['Uinv']@_matmul_reshaper(z)
+            _out = lambda z: self.nfdict['Uinv']@z
         
         elif label in ['aa', 'angle_action']:
             # assume that the first dim parameters are angles, and the last dim parameters are actions.
