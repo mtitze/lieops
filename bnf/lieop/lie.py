@@ -620,6 +620,37 @@ class lieoperator:
         self.flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
         self.flow_parameter = t
         
+    def deriveFlow(self, **kwargs):
+        '''
+        Compute the derivative of the map t -> g(t:x:)y for the given self.orbits.
+        
+        Parameters
+        ----------
+        **kwargs
+            Optional parameters passed to njet.derive class.
+        
+        Returns
+        -------
+        dFlow: callable
+            Function mapping a parameter t to a list of dictionaries. Let n be the requested order (which needs to
+            be contained in **kwargs above, see njet.derive) with 0 <= k < n. 
+            Furthermore, let 0 <= j < len(self.components) and F_j the flow of the Lie operator g(:x:) y_k. Then
+            
+            dFlow(t)[j][(k,)] = (\partial^k/(\partial t^k) F_j) (t) .
+        '''
+        if not hasattr(self, 'orbits'):
+            raise RuntimeError("No orbits found. Flow calculation requires at least one Lie polynomial to be transported (check self.calcOrbits).")
+            
+        def to_derive(t):
+            self.calcFlow(t)
+            return self.flow
+        df = derive(to_derive, **kwargs)
+        
+        def dFlow(t):
+            components = df.eval([t])
+            return [df.get_taylor_coefficients(c) for c in components]
+        return dFlow
+
     def evaluate(self, z, **kwargs):
         '''
         Evaluate current flow of Lie operator at a specific point.
