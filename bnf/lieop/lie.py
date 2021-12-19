@@ -136,6 +136,9 @@ class liepoly:
                 else:
                     _ = add_values.pop(zero_tpl, None)
             max_power = self.max_power
+            return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
+        elif other.__class__.__name__ == 'jet':
+                return other + self
         else:
             assert other.dim == self.dim
             for k, v in other.values.items():
@@ -145,7 +148,7 @@ class liepoly:
                 else:
                     _ = add_values.pop(k, None)
             max_power = min([self.max_power, other.max_power])
-        return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
+            return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
     
     def __radd__(self, other):
         return self + other
@@ -208,8 +211,10 @@ class liepoly:
                     else:
                         _ = mult_values.pop(prod_tpl, None)
             return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)            
+        elif other.__class__.__name__ == 'jet':
+            return other*self
         else:
-            return self.__class__(values={k: v*other for k, v in self.values.items() if not check_zero(other)}, 
+            return self.__class__(values={k: other*v for k, v in self.values.items() if not check_zero(other)}, 
                                           dim=self.dim, max_power=self.max_power)
         
     def __rmul__(self, other):
