@@ -271,15 +271,15 @@ class lieoperator(_lieoperator):
         self.transform('default') # to set self._inp and self._out to be used in self.evaluate.
         _lieoperator.__init__(self, *args, **kwargs)
             
-    def set_exponent(self, H, **kwargs):
+    def set_argument(self, H, **kwargs):
         if not H.__class__.__name__ == 'liepoly':
             assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
             self.order = kwargs['order']
             # obtain an expansion of H in terms of complex first-order normal form coordinates
             taylor_coeffs, self.nfdict = first_order_nf_expansion(H, code=self.code, **kwargs)
-            _lieoperator.set_exponent(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
+            _lieoperator.set_argument(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
         else: # original behavior
-            _lieoperator.set_exponent(self, x=H, **kwargs)
+            _lieoperator.set_argument(self, x=H, **kwargs)
             
     def transform(self, label='', inp=True, out=True, **kwargs):
         '''

@@ -496,14 +496,14 @@ class lieoperator:
     Parameters
     ----------
     x: liepoly
-        The function in the exponent.
+        The function in the argument of the Lie operator.
     
     **kwargs
         Optional arguments may be passed to self.set_generator, self.calcOrbits and self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
         self.flow_parameter = 1 # default flow parameter to be used (and may be changed) in self.calcFlow
-        self.set_exponent(x, **kwargs)
+        self.set_argument(x, **kwargs)
         if not 'generator' in kwargs.keys() and 'power' in kwargs.keys(): 
             # if only a power argument is given, and no generator specified, 
             # the default Lie operator will be the exponential Lie operator.
@@ -514,10 +514,10 @@ class lieoperator:
             self.calcOrbits(**kwargs)
             self.calcFlow(**kwargs)
             
-    def set_exponent(self, x, **kwargs):
+    def set_argument(self, x, **kwargs):
         assert x.__class__.__name__ == 'liepoly'
-        self.exponent = x
-        self.n_args = 2*self.exponent.dim        
+        self.argument = x
+        self.n_args = 2*self.argument.dim        
         
     def set_generator(self, generator, **kwargs):
         '''
@@ -565,12 +565,12 @@ class lieoperator:
         -------
         list
             List containing g[n]*:x:**n y if g = [g[0], g[1], ...] denotes the underlying generator.
-            The list goes on up to the maximal power N determined by self.exponent.ad routine (see
+            The list goes on up to the maximal power N determined by self.argument.ad routine (see
             documentation there).
         '''
         assert hasattr(self, 'generator'), 'No generator set (check self.set_generator).'
-        assert hasattr(self, 'exponent'), 'No Lie polynomial in exponent set (check self.set_exponent)'
-        ad_action = self.exponent.ad(y, power=self.power)
+        assert hasattr(self, 'argument'), 'No Lie polynomial in argument set (check self.set_argument)'
+        ad_action = self.argument.ad(y, power=self.power)
         assert len(ad_action) > 0
         # N.B. if self.generator[j] = 0, then k_action[j]*self.generator[j] = {}. It will remain in the list below (because 
         # it always holds len(ad_action) > 0 by construction).
@@ -595,7 +595,7 @@ class lieoperator:
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
         else:
-            self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
+            self.components = create_coords(dim=self.argument.dim, **kwargs) # run over all canonical coordinates.
         self.orbits = [self.action(y) for y in self.components]
         
     def calcFlow(self, t=1, **kwargs):
@@ -605,15 +605,13 @@ class lieoperator:
         Parameters
         ----------
         t: float (or e.g. numpy.complex128 array), optional
-            Parameter in the exponent at which the Lie operator should be evaluated.
+            Parameter in the argument at which the Lie operator should be evaluated.
         '''
         if not hasattr(self, 'orbits'):
             raise RuntimeError("No orbits found. Flow calculation requires at least one Lie polynomial to be transported (check self.calcOrbits).")
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
         # standing on the left, then numpy would put the liepoly classes into its array, something we do not want. 
         # Instead, we want to put the numpy arrays into our liepoly class.
-        if type(t) == list:
-            print (t)
         self.flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
         self.flow_parameter = t
         
