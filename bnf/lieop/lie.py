@@ -128,7 +128,7 @@ class liepoly:
         add_values = {k: v for k, v in self.values.items()}
         if self.__class__.__name__ != other.__class__.__name__:
             # Treat other object as constant.
-            if other != 0:
+            if not check_zero(other):
                 zero_tpl = (0,)*self.dim*2
                 new_value = add_values.get(zero_tpl, 0) + other
                 if not check_zero(new_value):
@@ -645,11 +645,7 @@ class lieoperator:
             self.calcFlow(t)
             return self.flow
         df = derive(to_derive, **kwargs)
-        
-        def dFlow(t):
-            components = df.eval([t])
-            return [df.get_taylor_coefficients(c) for c in components]
-        return dFlow
+        return lambda t: [df.get_taylor_coefficients(c) for c in df.eval([t])]
 
     def evaluate(self, z, **kwargs):
         '''
