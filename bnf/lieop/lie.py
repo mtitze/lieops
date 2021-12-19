@@ -120,7 +120,8 @@ class liepoly:
             prod = 1
             for j in range(self.dim):
                 prod *= z[j]**k[j]*z[j + self.dim]**k[j + self.dim]
-            result += v*prod
+            result += prod*v # v needs to stay on the right-hand side here, because prod may be a jet class (if we
+            # compute the derivative(s) of the Lie polynomial)
         return result
         
     def __add__(self, other):
@@ -242,7 +243,16 @@ class liepoly:
         return len(self.values)
     
     def __eq__(self, other):
-        return self.values == other.values
+        if self.__class__.__name__ == other.__class__.__name__:
+            return self.values == other.values
+        else:
+            if self.maxdeg() != 0:
+                return False
+            else:
+                return self.values.get((0, 0), 0) == other
+            
+    def __getitem__(self, key):
+        return self.values[key]
         
     def ad(self, y, power: int=1):
         '''
@@ -485,7 +495,7 @@ class lieoperator:
     
     Parameters
     ----------
-    x:
+    x: liepoly
         The function in the exponent.
     
     **kwargs
@@ -588,7 +598,7 @@ class lieoperator:
             self.components = create_coords(dim=self.exponent.dim, **kwargs) # run over all canonical coordinates.
         self.orbits = [self.action(y) for y in self.components]
         
-    def calcFlow(self, **kwargs):
+    def calcFlow(self, t=1, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for every y in self.components.
         
@@ -602,7 +612,8 @@ class lieoperator:
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
         # standing on the left, then numpy would put the liepoly classes into its array, something we do not want. 
         # Instead, we want to put the numpy arrays into our liepoly class.
-        t = kwargs.get('t', self.flow_parameter)
+        if type(t) == list:
+            print (t)
         self.flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
         self.flow_parameter = t
         
@@ -629,17 +640,17 @@ class lieoperator:
             # then we reshape z to be able to broadcast z and self.flow_parameter into a common array.
             # After the application of self.flow, a reshape on the result is performed in order to
             # shift the two first indices to the last, so that the @ operator can be applied as expected
-            # (see PEP 456). 
+            # (see PEP 456).
             # In this way it is possible to compute n coordinate points for m flow parameters, while
             # keeping the current self.flow_parameter untouched.
             # TODO: may need to check speed for various reshaping options.
             trailing_ones = [1]*len(self.flow_parameter.shape)
             z = z.reshape(*z.shape, *trailing_ones)
             result = np.array([self.flow[k](z) for k in range(len(self.flow))])
-            # now the result has z.shape in its first len(z.shape) indices. We need to bring the first two
+            # Now the result has z.shape in its first len(z.shape) indices. We need to bring the first two
             # indices to the rear in order to have an object by which we can apply the conventional matmul operation(s).
             transp_indices = np.roll(np.arange(result.ndim), shift=-2)
-            return result.transpose(transp_indices) # reshaped result so that matrix multiplication can be applied.
+            return result.transpose(transp_indices)
         else:
             return [self.flow[k](z) for k in range(len(self.flow))]
         

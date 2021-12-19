@@ -313,14 +313,20 @@ class lieoperator(_lieoperator):
             _out = lambda z: z
 
         elif label in ['ops', 'ordinary_phase_space']:
-            assert hasattr(self, 'nfdict')
-            _inp = lambda z: self.nfdict['K']@z # z = (p, q) => U*S*z = (xi, eta) ; K = U*S (see notation in linalg.normal_form)
-            _out = lambda z: self.nfdict['Kinv']@z
+            if 'nfdict' in kwargs.keys():
+                nfdict = kwargs['nfdict']
+            else:
+                nfdict = self.nfdict
+            _inp = lambda z: nfdict['K']@z # z = (p, q) => U*S*z = (xi, eta) ; K = U*S (see notation in linalg.normal_form)
+            _out = lambda z: nfdict['Kinv']@z
         
         elif label in ['rnf', 'real_normal_form', 'floquet']:
-            assert hasattr(self, 'nfdict')
-            _inp = lambda z: self.nfdict['U']@z # z = (u, v) => U*z = (xi, eta) (see notation in linalg.normal_form)
-            _out = lambda z: self.nfdict['Uinv']@z
+            if 'nfdict' in kwargs.keys():
+                nfdict = kwargs['nfdict']
+            else:
+                nfdict = self.nfdict
+            _inp = lambda z: nfdict['U']@z # z = (u, v) => U*z = (xi, eta) (see notation in linalg.normal_form)
+            _out = lambda z: nfdict['Uinv']@z
         
         elif label in ['aa', 'angle_action']:
             # assume that the first dim parameters are angles, and the last dim parameters are actions.
