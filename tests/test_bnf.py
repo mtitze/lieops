@@ -356,7 +356,25 @@ def test_construct(a: int=3, b: int=5, k: int=7):
     exp_eps = construct(1j*eps/(b - a), exp, power=10)
     assert exp_eps@eps_ab == exp_eps*eps_ab
     assert exp_eps**k@eps_ab == k*exp_eps**k*eps_ab
+    
+    
+def test_lieoperator_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
+    
+    mu0 = 2*np.pi*Q
+    w = -1
+    coeff = w*1j*mu0/np.sqrt(2)**3
+    H_accu = liepoly(values={(1, 1): -mu0,
+                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))})
             
+    H_accu_f = lambda z: H_accu([(z[0] + 1j*z[1])/np.sqrt(2),
+                                 (z[0] - 1j*z[1])/np.sqrt(2)])
+    
+    L1 = lieoperator(H_accu_f, t=1, order=order, power=power, n_args=2)
+    argflow = L1.argument.flow(power=L1.power) 
+    assert argflow(z) == L1(z)
     
 def test_bnf_performance(threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).
@@ -396,6 +414,7 @@ if __name__ == '__main__':
     test_exp_ad2()
     test_flow1()
     test_flow2()
+    test_lieoperator_flow_consistency()
     test_construct()
     test_bnf_performance()
     

@@ -137,8 +137,6 @@ class liepoly:
                     _ = add_values.pop(zero_tpl, None)
             max_power = self.max_power
             return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
-        elif other.__class__.__name__ == 'jet':
-                return other + self
         else:
             assert other.dim == self.dim
             for k, v in other.values.items():
@@ -210,9 +208,7 @@ class liepoly:
                         mult_values[prod_tpl] = prod_val
                     else:
                         _ = mult_values.pop(prod_tpl, None)
-            return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)            
-        elif other.__class__.__name__ == 'jet':
-            return other*self
+            return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)
         else:
             return self.__class__(values={k: other*v for k, v in self.values.items() if not check_zero(other)}, 
                                           dim=self.dim, max_power=self.max_power)
@@ -516,8 +512,8 @@ class lieoperator:
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
         if 'components' in kwargs.keys() or 't' in kwargs.keys():
-            self.calcOrbits(**kwargs)
-            self.calcFlow(**kwargs)
+            _ = self.calcOrbits(**kwargs)
+            _ = self.calcFlow(**kwargs)
             
     def set_argument(self, x, **kwargs):
         assert x.__class__.__name__ == 'liepoly'
@@ -601,8 +597,18 @@ class lieoperator:
             self.components = kwargs['components']
         else:
             self.components = create_coords(dim=self.argument.dim, **kwargs) # run over all canonical coordinates.
-        self.orbits = [self.action(y) for y in self.components]
-        
+        orbits = [self.action(y) for y in self.components]
+        self.orbits = orbits
+        return orbits
+    
+    def flowFunc(self, **kwargs):
+        '''
+        Compute the flow function phi(t, z) = [g(t:x:) y](z) .
+        '''
+        if not hasattr(self, 'orbits'):
+            _ = self.calcOrbits(**kwargs)
+        return lambda t, z: [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+     
     def calcFlow(self, t=1, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for every y in self.components.
@@ -613,39 +619,15 @@ class lieoperator:
             Parameter in the argument at which the Lie operator should be evaluated.
         '''
         if not hasattr(self, 'orbits'):
-            raise RuntimeError("No orbits found. Flow calculation requires at least one Lie polynomial to be transported (check self.calcOrbits).")
+            _ = self.calcOrbits(**kwargs)        
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
         # standing on the left, then numpy would put the liepoly classes into its array, something we do not want. 
         # Instead, we want to put the numpy arrays into our liepoly class.
-        self.flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
         self.flow_parameter = t
-        
-    def deriveFlow(self, **kwargs):
-        '''
-        Compute the derivative of the map t -> g(t:x:)y for the given self.orbits.
-        
-        Parameters
-        ----------
-        **kwargs
-            Optional parameters passed to njet.derive class.
-        
-        Returns
-        -------
-        dFlow: callable
-            Function mapping a parameter t to a list of dictionaries. Let n be the requested order (which needs to
-            be contained in **kwargs above, see njet.derive) with 0 <= k < n. 
-            Furthermore, let 0 <= j < len(self.components) and F_j the flow of the Lie operator g(:x:) y_k. Then
-            
-            dFlow(t)[j][(k,)] = (\partial^k/(\partial t^k) F_j) (t) .
-        '''
-        if not hasattr(self, 'orbits'):
-            raise RuntimeError("No orbits found. Flow calculation requires at least one Lie polynomial to be transported (check self.calcOrbits).")
-            
-        def to_derive(t):
-            self.calcFlow(t)
-            return self.flow
-        df = derive(to_derive, **kwargs)
-        return lambda t: [df.get_taylor_coefficients(c) for c in df.eval([t])]
+        flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+        self.flow = flow
+        return flow
+        #return lambda t, z: [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
 
     def evaluate(self, z, **kwargs):
         '''
@@ -663,7 +645,7 @@ class lieoperator:
         '''
         assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
         if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
-            self.calcFlow(**kwargs)
+            _ = self.calcFlow(**kwargs)
             
         if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'):
             # If it happens that both self.flow_parameter and z have a shape (e.g. if both are numpy arrays)
@@ -701,13 +683,11 @@ class lieoperator:
             liepoly elements y.
         '''
         if z.__class__.__name__ == 'liepoly':
-            self.calcOrbits(components=[z], **kwargs)
-            self.calcFlow(**kwargs)
-            return self.flow[0]
+            _ = self.calcOrbits(components=[z], **kwargs)
+            return self.calcFlow(**kwargs)[0]
         else:
-            self.calcOrbits(components=z, **kwargs)
-            self.calcFlow(**kwargs)
-            return self.flow
+            _ = self.calcOrbits(components=z, **kwargs)
+            return self.calcFlow(**kwargs)
     
     def compose(self, z, **kwargs):
         '''
