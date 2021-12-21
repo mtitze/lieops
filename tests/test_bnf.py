@@ -186,8 +186,8 @@ def test_shift():
     H_shift = lambda x, y, px, py: H(x + z[0], y + z[1], px + z[2], py + z[3])
     dH_shift = derive(H_shift, order=3)
     
-    assert dH.hess(z, mult=False) == dH_shift.hess(z0, mult=False)
-    assert dH.hess(z, mult=True) == dH_shift.hess(z0, mult=True)
+    assert dH.hess(z, mult_prm=False) == dH_shift.hess(z0, mult_prm=False)
+    assert dH.hess(z, mult_prm=True) == dH_shift.hess(z0, mult_prm=True)
     assert dH_shift.get_taylor_coefficients(dH_shift.eval(z0)) == dH.get_taylor_coefficients(dH.eval(z))
     
     

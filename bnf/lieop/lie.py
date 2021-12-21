@@ -1,7 +1,7 @@
 import numpy as np
 
 from njet.jet import factorials, check_zero
-from njet import derive
+from njet import derive, jetpoly
 
 from .genfunc import genexp
 
@@ -386,6 +386,30 @@ class liepoly:
         if not 'power' in kwargs.keys():
             kwargs['power'] = self.max_power
         return construct([self], f, **kwargs)
+    
+    def to_jetpoly(self):
+        '''
+        Map the current Lie polynomial to an njet jetpoly class.
+        
+        Returns
+        -------
+        p: jetpoly
+            A jetpoly class of self.dim*2 variables, representing the current Lie polynomial.
+        '''
+        # N.B. self.dim corresponds to the number of xi (or eta) variables.
+        # Although xi and eta are related by complex conjugation, we need to treat them as being independently,
+        # in line with Wirtinger calculus. However, this fact needs to be taken into account when evaluating those polynomials, so
+        # a polynomial should be evaluated always at points [z, z.conjugate()] etc.
+
+        constant_key = (0,)*self.dim*2
+        jpvalues = {}
+        if constant_key in self.values.keys():
+            jpvalues[frozenset([(0, 0)])] = self.values[constant_key]
+        for key, v in self.values.items():
+            if sum(key) == 0: # we already dealt with the constant term.
+                continue
+            jpvalues[frozenset([(j, key[j]) for j in range(self.dim*2) if key[j] != 0])] = v
+        return jetpoly(values=jpvalues)
             
     
 def create_coords(dim, **kwargs):
@@ -456,7 +480,7 @@ def construct(lps, f, power=float('inf')):
         return construction
     else:
         dcomp = derive(construction, order=power, n_args=2*dim_poly)
-        taylor_coeffs = dcomp([0]*2*dim_poly, mult=False)
+        taylor_coeffs = dcomp([0]*2*dim_poly, mult_drv=False)
         return liepoly(values=taylor_coeffs, dim=dim_poly, max_power=power)
     
 
@@ -546,7 +570,7 @@ class lieoperator:
             # assume that g is a function of one variable which needs to be derived n-times at zero.
             assert generator.__code__.co_argcount == 1, 'Function needs to depend on a single variable.'
             dg = derive(generator, order=kwargs['power'])
-            taylor_coeffs = dg([0], mult=False)
+            taylor_coeffs = dg([0], mult_drv= False)
             self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
         else:
             raise NotImplementedError('Input function not recognized.')
@@ -751,5 +775,5 @@ class lieoperator:
                 return self.apply(z, **kwargs)
             else:
                 return self.evaluate(z, **kwargs)
-
+            
     

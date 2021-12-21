@@ -149,7 +149,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     Kmap = lambda zz: [sum([zz[k]*Kinv[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: Kinv[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
     HK = lambda zz: H(Kmap(zz))
     dHK = derive(HK, order=order, n_args=dim)
-    results = dHK(z0, mult=False) # mult=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
+    results = dHK(z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
     
     if warn:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
