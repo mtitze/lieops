@@ -603,7 +603,17 @@ class lieoperator:
     
     def flowFunc(self, **kwargs):
         '''
-        Compute the flow function phi(t, z) = [g(t:x:) y](z) .
+        Return the flow function phi(t, z) = [g(t:x:) y](z) .
+        
+        Parameters
+        ----------
+        **kwargs
+            Optional arguments passed to self.calcOrbits
+        
+        Returns
+        -------
+        phi: callable
+            The flow of the current Lie operator, as described above.
         '''
         if not hasattr(self, 'orbits'):
             _ = self.calcOrbits(**kwargs)
@@ -611,15 +621,15 @@ class lieoperator:
      
     def calcFlow(self, t=1, **kwargs):
         '''
-        Compute the Lie operators [g(t:x:)]y for every y in self.components.
+        Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
         
         Parameters
         ----------
-        t: float (or e.g. numpy.complex128 array), optional
+        t: float (or e.g. numpy array), optional
             Parameter in the argument at which the Lie operator should be evaluated.
         '''
         if not hasattr(self, 'orbits'):
-            _ = self.calcOrbits(**kwargs)        
+            _ = self.calcOrbits(**kwargs)
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
         # standing on the left, then numpy would put the liepoly classes into its array, something we do not want. 
         # Instead, we want to put the numpy arrays into our liepoly class.

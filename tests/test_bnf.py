@@ -9,7 +9,7 @@ from njet import derive
 from bnf import __version__
 from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lieoperator
 from bnf.lieop.lienf import homological_eq
-from bnf.linalg.matrix import qpqp2qp
+from bnf.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
@@ -223,12 +223,12 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
     xieta = create_coords(1)
 
     # first apply K, then exp_ad:
-    xy_mapped = Kinv@np.array([xieta]).transpose()
+    xy_mapped = Kinv@np.array([xieta], dtype=object).transpose()
     xy_final_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu) # (x, y) final in terms of xi and eta 
     
     # first apply exp_ad, then K:
     xy_fin = exp_ad(HLie, xieta, power=power, t=mu)
-    xy_final = Kinv@np.array([xy_fin]).transpose() # (x, y) final in terms of xi and eta
+    xy_final = Kinv@np.array([xy_fin], dtype=object).transpose() # (x, y) final in terms of xi and eta
     
     # Both results must be equal.
     for k in range(len(xy_final)):
@@ -290,7 +290,6 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
             
 def test_flow1(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
     # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
-    mu0 = 0.43
     coeff = 1j*mu0/np.sqrt(2)**3
     H_accu = liepoly(values={(1, 1): -mu0,
                              (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
@@ -306,10 +305,9 @@ def test_flow1(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, tol=1e-15, 
     
     
 def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
-    # Test if the flow of two Lie polynomials is a symplectic map, i.e. test if
+    # Test if the flow of a Lie operator is a symplectic map, i.e. test if
     # exp(:H:){x, y} = {exp(:H:)x, exp(:H:)y}
     # holds.
-    mu0 = 0.43
     coeff = 1j*mu0/np.sqrt(2)**3
     H_accu = liepoly(values={(1, 1): -mu0,
                              (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
@@ -338,6 +336,37 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     assert all([abs(term1.values[k] - term2.values[k]) < tol for k in common_keys])
     
     
+def test_flow3(Q=0.252, p=[0.232]*2, max_power=30, order=10, power=50, tol=1e-12):
+    # Test if the flow map of a Lie operator is a symplectic map: Test if
+    # M := Jacobi_x(phi(t, x)) it holds M.transpose()@Jc@M - Jc = 0, where Jc is the complex symplectic structure given
+    # by the (xi, eta)-coordinates.
+    mu0 = 2*np.pi*Q
+    w = -1
+    coeff = w*1j*mu0/np.sqrt(2)**3
+
+    H_accu = liepoly(values={(1, 1): -mu0,
+                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))})
+    
+    H_accu_f = lambda z: H_accu([(z[0] + 1j*z[1])/np.sqrt(2),
+                                 (z[0] - 1j*z[1])/np.sqrt(2)])
+
+
+    L1 = lieoperator(H_accu_f, order=order, t=1, power=power, n_args=2, max_power=max_power)
+    # check Symplecticity of the flow of L1 at position p:
+    L1flow = L1.flowFunc()
+    dL1flow = derive(lambda x: L1flow(1, x), order=1, n_args=2)
+    ep = dL1flow.eval(p)
+    jacobi = [[dL1flow.get_taylor_coefficients(ep[0])[(1, 0)], dL1flow.get_taylor_coefficients(ep[0])[(0, 1)]],
+              [dL1flow.get_taylor_coefficients(ep[1])[(1, 0)], dL1flow.get_taylor_coefficients(ep[1])[(0, 1)]]]
+    jacobi = np.array(jacobi)
+    Jc = -1j*column_matrix_2_code(create_J(1))
+    check = jacobi.transpose()@Jc@jacobi - Jc
+    assert all([all([abs(check[i, j]) < tol for i in range(2)]) for j in range(2)])
+    
+
 def test_construct(a: int=3, b: int=5, k: int=7):
     # test if :sin(xi*eta):, :cos(xi*eta):, :exp(xi*eta): applied to xi**a*eta**b gives
     # values as expected.
@@ -414,6 +443,7 @@ if __name__ == '__main__':
     test_exp_ad2()
     test_flow1()
     test_flow2()
+    test_flow3()
     test_lieoperator_flow_consistency()
     test_construct()
     test_bnf_performance()
