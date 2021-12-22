@@ -116,10 +116,18 @@ class liepoly:
         '''
         assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim}'
         result = 0
+        
+        # compute the occuring powers
+        z_powers = {}
+        j = 0
+        for we in zip(*self.values.keys()):
+            z_powers[j] = {k: z[j]**k for k in np.unique(we)}
+            j += 1
+            
         for k, v in self.values.items():
             prod = 1
             for j in range(self.dim):
-                prod *= z[j]**k[j]*z[j + self.dim]**k[j + self.dim]
+                prod *= z_powers[j][k[j]]*z_powers[j + self.dim][k[j + self.dim]]
             result += prod*v # v needs to stay on the right-hand side here, because prod may be a jet class (if we
             # compute the derivative(s) of the Lie polynomial)
         return result
