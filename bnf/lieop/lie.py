@@ -117,13 +117,15 @@ class liepoly:
         assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim}'
         result = 0
         
-        # compute the occuring powers
+        # compute the occuring powers ahead of evaluation
         z_powers = {}
         j = 0
         for we in zip(*self.values.keys()):
-            z_powers[j] = {k: z[j]**k for k in np.unique(we)}
+            z_powers[j] = {k: z[j]**int(k) for k in np.unique(we)} # need to convert k to int, 
+            # otherwise we get a conversion to some numpy array if z is not a float (e.g. an njet).
             j += 1
             
+        # evaluate polynomial at requested point
         for k, v in self.values.items():
             prod = 1
             for j in range(self.dim):
@@ -516,6 +518,9 @@ def exp_ad(x, y, power, **kwargs):
         Class of type liepoly, representing the result of the exponential Lie operator exp(:x:)y,
         up to the requested power.
     '''
+    if not 't' in kwargs.keys():
+        kwargs['t'] = 1
+        
     if y.__class__.__name__ == 'liepoly': # if the input is a Lie polynomial, also return a Lie polynomial
         return lieoperator(x, generator=genexp(power), components=[y], **kwargs).flow[0]
     else:
@@ -535,7 +540,8 @@ class lieoperator:
         Optional arguments may be passed to self.set_generator, self.calcOrbits and self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
-        self.flow_parameter = 1 # default flow parameter to be used (and may be changed) in self.calcFlow
+        self.init_kwargs = kwargs
+        self.flow_parameter = kwargs.get('t', 1) # can be changed in self.calcFlow
         self.set_argument(x, **kwargs)
         if not 'generator' in kwargs.keys() and 'power' in kwargs.keys(): 
             # if only a power argument is given, and no generator specified, 
@@ -543,8 +549,9 @@ class lieoperator:
             kwargs['generator'] = genexp(kwargs['power'])    
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
-        if 'components' in kwargs.keys() or 't' in kwargs.keys():
+        if 'components' in kwargs.keys():
             _ = self.calcOrbits(**kwargs)
+        if 't' in kwargs.keys():
             _ = self.calcFlow(**kwargs)
             
     def set_argument(self, x, **kwargs):
@@ -622,16 +629,34 @@ class lieoperator:
             List of liepoly objects on which the Lie operator g(:x:) should be applied on.
             If nothing specified, then the canonical coordinates are used.
             
+        store: bool, optinal
+            If true (default), store the current orbits in the field self.orbits.
+            
         **kwargs
             Optional arguments passed to lie.create_coords.
         '''
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
-        else:
+        elif not hasattr(self, 'components'):
             self.components = create_coords(dim=self.argument.dim, **kwargs) # run over all canonical coordinates.
         orbits = [self.action(y) for y in self.components]
-        self.orbits = orbits
+        if kwargs.get('store', True):
+            self.orbits = orbits
         return orbits
+    
+    def __matmul__(self, other):
+        '''
+        Compute a composition of Lie operators.
+        If g(:x:) denote the current Lie operator and :y: is another Lie operator,
+        then this operation will compute
+        [g(:x:):y:] z ,
+        where z are the components of the current Lie operator.
+        '''
+        assert hasattr(self, 'components') and hasattr(self, 'generator')
+        assert other.__class__.__name__ == 'liepoly'
+        return self.__class__(self.argument, t=self.flow_parameter, 
+                             generator=self.generator, components=[other@y for y in self.components])
+            
     
     def flowFunc(self, **kwargs):
         '''
@@ -659,17 +684,24 @@ class lieoperator:
         ----------
         t: float (or e.g. numpy array), optional
             Parameter in the argument at which the Lie operator should be evaluated.
+            
+        **kwargs
+            Optional arguments passed to self.calcOrbits, if the orbits were not yet computed.
         '''
-        if not hasattr(self, 'orbits'):
-            _ = self.calcOrbits(**kwargs)
+        if 'orbits' in kwargs.keys():
+            orbits = kwargs['orbits']
+        elif not hasattr(self, 'orbits'):
+            orbits = self.calcOrbits(**kwargs)
+        else:
+            orbits = self.orbits
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
         # standing on the left, then numpy would put the liepoly classes into its array, something we do not want. 
         # Instead, we want to put the numpy arrays into our liepoly class.
-        self.flow_parameter = t
-        flow = [sum([self.orbits[k][j]*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
-        self.flow = flow
+        flow = [sum([orbits[k][j]*t**j for j in range(len(orbits[k]))]) for k in range(len(orbits))]
+        if kwargs.get('store', True):
+            self.flow = flow
+            self.flow_parameter = t
         return flow
-        #return lambda t, z: [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
 
     def evaluate(self, z, **kwargs):
         '''
@@ -784,4 +816,25 @@ class lieoperator:
             else:
                 return self.evaluate(z, **kwargs)
             
+    def copy(self):
+        '''
+        Create a copy of the current Lie operator
+        
+        Returns
+        -------
+        lieoperator
+            A copy of the current Lie operator.
+        '''
+        kwargs = {}
+        kwargs.update(self.init_kwargs)
+        kwargs['t'] = self.flow_parameter
+        if hasattr(self, 'generator'):
+            kwargs['generator'] = self.generator
+        out = self.__class__(self.argument, **kwargs)
+        if hasattr(self, 'orbits'):
+            out.orbits = [o.copy() for o in self.orbits]
+            out.components = [c.copy() for c in self.components]
+        if hasattr(self, 'flow'):
+            out.flow = [l.copy() for l in self.flow]
+        return out
     
