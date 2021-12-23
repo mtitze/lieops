@@ -658,7 +658,7 @@ class lieoperator:
                              generator=self.generator, components=[other@y for y in self.components])
             
     
-    def flowFunc(self, **kwargs):
+    def flowFunc(self, t, z):
         '''
         Return the flow function phi(t, z) = [g(t:x:) y](z) .
         
@@ -672,9 +672,7 @@ class lieoperator:
         phi: callable
             The flow of the current Lie operator, as described above.
         '''
-        if not hasattr(self, 'orbits'):
-            _ = self.calcOrbits(**kwargs)
-        return lambda t, z: [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+        return [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
      
     def calcFlow(self, t=1, **kwargs):
         '''
@@ -719,7 +717,9 @@ class lieoperator:
         '''
         assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
         if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
-            _ = self.calcFlow(**kwargs)
+            flow = self.calcFlow(**kwargs)
+        else:
+            flow = self.flow
             
         if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'):
             # If it happens that both self.flow_parameter and z have a shape (e.g. if both are numpy arrays)
@@ -732,13 +732,13 @@ class lieoperator:
             # TODO: may need to check speed for various reshaping options.
             trailing_ones = [1]*len(self.flow_parameter.shape)
             z = z.reshape(*z.shape, *trailing_ones)
-            result = np.array([self.flow[k](z) for k in range(len(self.flow))])
+            result = np.array([flow[k](z) for k in range(len(flow))])
             # Now the result has z.shape in its first len(z.shape) indices. We need to bring the first two
             # indices to the rear in order to have an object by which we can apply the conventional matmul operation(s).
             transp_indices = np.roll(np.arange(result.ndim), shift=-2)
             return result.transpose(transp_indices)
         else:
-            return [self.flow[k](z) for k in range(len(self.flow))]
+            return [flow[k](z) for k in range(len(flow))]
         
     def apply(self, z, **kwargs):
         '''

@@ -304,9 +304,7 @@ class lieoperator(_lieoperator):
             Whether the transformation should be applied to the input before self.__call__ (default: True).
             
         out: boolean
-            Whether the transformation should be applied to the output after self.__call__ (default: True)
-            
-        T
+            Whether the transformation should be applied to the output after self.__call__ (default: True).
         '''
         if label in ['cnf', 'default', 'complex_normal_form']:
             _inp = lambda z: z
