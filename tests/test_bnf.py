@@ -354,10 +354,10 @@ def test_flow3(Q=0.252, p=[0.232]*2, max_power=30, order=10, power=50, tol=1e-12
                                  (z[0] - 1j*z[1])/np.sqrt(2)])
 
 
-    L1 = lieoperator(H_accu_f, order=order, t=1, power=power, n_args=2, max_power=max_power)
+    t_ref = 1
+    L1 = lieoperator(H_accu_f, order=order, t=t_ref, power=power, n_args=2, max_power=max_power)
     # check Symplecticity of the flow of L1 at position p:
-    L1flow = L1.flowFunc()
-    dL1flow = derive(lambda x: L1flow(1, x), order=1, n_args=2)
+    dL1flow = derive(lambda x: L1.flowFunc(t_ref, x), order=1, n_args=2)
     ep = dL1flow.eval(p)
     jacobi = [[dL1flow.get_taylor_coefficients(ep[0])[(1, 0)], dL1flow.get_taylor_coefficients(ep[0])[(0, 1)]],
               [dL1flow.get_taylor_coefficients(ep[1])[(1, 0)], dL1flow.get_taylor_coefficients(ep[1])[(0, 1)]]]

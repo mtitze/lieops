@@ -114,8 +114,8 @@ class liepoly:
             The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim
             (the components of z correspond to the xi-values).
         '''
+        # prepare input vector
         assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim}'
-        result = 0
         
         # compute the occuring powers ahead of evaluation
         z_powers = {}
@@ -126,6 +126,7 @@ class liepoly:
             j += 1
             
         # evaluate polynomial at requested point
+        result = 0
         for k, v in self.values.items():
             prod = 1
             for j in range(self.dim):
@@ -638,7 +639,7 @@ class lieoperator:
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
         elif not hasattr(self, 'components'):
-            self.components = create_coords(dim=self.argument.dim, **kwargs) # run over all canonical coordinates.
+            self.components = create_coords(dim=self.argument.dim, **kwargs)
         orbits = [self.action(y) for y in self.components]
         if kwargs.get('store', True):
             self.orbits = orbits
