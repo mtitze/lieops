@@ -112,9 +112,12 @@ class liepoly:
         ----------
         z: subscriptable
             The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim
-            (the components of z correspond to the xi-values).
+            (the components of z correspond to the xi-values). Otherwise, it is assumed that len(z) == 2*self.dim,
+            where z = (xi, eta) denote a set of complex conjugated coordinates.
         '''
         # prepare input vector
+        if len(z) == self.dim:
+            z = z + [e.conjugate() for e in z]
         assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim}'
         
         # compute the occuring powers ahead of evaluation
@@ -628,7 +631,7 @@ class lieoperator:
         ----------
         components: list, optional
             List of liepoly objects on which the Lie operator g(:x:) should be applied on.
-            If nothing specified, then the canonical coordinates are used.
+            If nothing specified, then the canonical xi-coordinates are used.
             
         store: bool, optinal
             If true (default), store the current orbits in the field self.orbits.
@@ -639,7 +642,7 @@ class lieoperator:
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
         elif not hasattr(self, 'components'):
-            self.components = create_coords(dim=self.argument.dim, **kwargs)
+            self.components = create_coords(dim=self.argument.dim, **kwargs)[:self.argument.dim]
         orbits = [self.action(y) for y in self.components]
         if kwargs.get('store', True):
             self.orbits = orbits

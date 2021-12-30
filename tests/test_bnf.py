@@ -288,7 +288,7 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
             assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
             
             
-def test_flow1(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
+def test_flow1(mu0=0.43, z=[0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
     # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
     coeff = 1j*mu0/np.sqrt(2)**3
     H_accu = liepoly(values={(1, 1): -mu0,
@@ -301,7 +301,7 @@ def test_flow1(mu0=0.43, z=[0.013, 0.046], a=1.23, b=2.07, power=40, tol=1e-15, 
 
     v1 = Hflow(Hflow(z, t=a), t=b)
     v2 = Hflow(z, t=a + b)
-    assert all([abs(v1[k] - v2[k])/(min([abs(v1[k]), abs(v2[k])])) < tol for k in range(2)])
+    assert all([abs(v1[k] - v2[k]) < tol for k in range(1)])
     
     
 def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
@@ -336,7 +336,7 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     assert all([abs(term1.values[k] - term2.values[k]) < tol for k in common_keys])
     
     
-def test_flow3(Q=0.252, p=[0.232]*2, max_power=30, order=10, power=50, tol=1e-12):
+def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
     # Test if the flow map of a Lie operator is a symplectic map: Test if
     # M := Jacobi_x(phi(t, x)) it holds M.transpose()@Jc@M - Jc = 0, where Jc is the complex symplectic structure given
     # by the (xi, eta)-coordinates.
@@ -353,14 +353,15 @@ def test_flow3(Q=0.252, p=[0.232]*2, max_power=30, order=10, power=50, tol=1e-12
     H_accu_f = lambda z: H_accu([(z[0] + 1j*z[1])/np.sqrt(2),
                                  (z[0] - 1j*z[1])/np.sqrt(2)])
 
-
+    xieta = create_coords(1)
+    
     t_ref = 1
-    L1 = lieoperator(H_accu_f, order=order, t=t_ref, power=power, n_args=2, max_power=max_power)
+    L1 = lieoperator(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, max_power=max_power)
     # check Symplecticity of the flow of L1 at position p:
     dL1flow = derive(lambda x: L1.flowFunc(t_ref, x), order=1, n_args=2)
-    ep = dL1flow.eval(p)
-    jacobi = [[dL1flow.get_taylor_coefficients(ep[0])[(1, 0)], dL1flow.get_taylor_coefficients(ep[0])[(0, 1)]],
-              [dL1flow.get_taylor_coefficients(ep[1])[(1, 0)], dL1flow.get_taylor_coefficients(ep[1])[(0, 1)]]]
+    ep, epc = dL1flow.eval(p + p) # N.B. ep contains x0-terms, while ecp contains x1-terms
+    jacobi = [[dL1flow.get_taylor_coefficients(ep)[(1, 0)], dL1flow.get_taylor_coefficients(ep)[(0, 1)]],
+              [dL1flow.get_taylor_coefficients(epc)[(1, 0)], dL1flow.get_taylor_coefficients(epc)[(0, 1)]]]
     jacobi = np.array(jacobi)
     Jc = -1j*column_matrix_2_code(create_J(1))
     check = jacobi.transpose()@Jc@jacobi - Jc
