@@ -278,13 +278,13 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
-def _diagonal2block(D, tol=1e-13):
+def _diagonal2block(D, tol=1e-8):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
        D = diag(a, b, ..., -a, ..., -b, ...)
        
-    to a block matrix B = U.transpose()@D@U of the form
+    to a block matrix B = U.transpose().conjugate()@D@U of the form
     
         /  0   W  \
     B = |         |
@@ -298,7 +298,7 @@ def _diagonal2block(D, tol=1e-13):
         A list of diagonal entries
         
     tol: float, optional
-        A small parameter to identify the pairs on the diagonal of D.
+        A small parameter to identify the pairs on the diagonal of D (default 1e-12).
     
     Returns
     -------
@@ -312,21 +312,21 @@ def _diagonal2block(D, tol=1e-13):
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     ind1, ind2 = [], []
     for i in range(len(D)):
-        if i in ind1:
+        if i in ind1 or i in ind2:
             continue
         for j in range(len(D)):
-            if j in ind1 or j == i:
+            if j in ind1 or j in ind2 or j == i:
                 continue
             if abs(D[i] + D[j]) < tol:
                 ind1.append(i)
                 ind2.append(j)
                 break # index i consumed
-            
+                
     assert len(ind1) == len(ind2) and len(ind1) == dim, 'Error identifying pairs. Check input matrix or tolerance.'
-    pairs = list(zip(ind1, ind2))    
+    pairs = list(zip(ind1, ind2))
     
-    # Step 2: Construct U, assuming that it will transform a matrix with the order
-    U = np.zeros([dim2, dim2], dtype=complex)
+    # Step 2: Construct U, assuming that it will transform a matrix with the above order
+    U = np.eye(dim2, dtype=complex)
     U2by2 = _create_umat_xieta(2)
     for i, j in pairs:
         U[i, i] = U2by2[0, 0]
