@@ -278,7 +278,7 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
-def _diagonal2block(D, tol=1e-8):
+def _diagonal2block(D, tol=1e-10):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
@@ -298,7 +298,7 @@ def _diagonal2block(D, tol=1e-8):
         A list of diagonal entries
         
     tol: float, optional
-        A small parameter to identify the pairs on the diagonal of D (default 1e-12).
+        A small parameter to identify the pairs on the diagonal of D (default 1e-10).
     
     Returns
     -------

@@ -212,7 +212,7 @@ def test_fonfe(tol=1e-14, code='numpy'):
     assert he == heT
     
     
-def test_exp_ad1(mu=-0.2371, power=18, tol=1e-15):
+def test_exp_ad1(mu=-0.2371, power=18, tol=1e-14):
     # Test the exponential operator on Lie maps for the case of a 2nd order Hamiltonian (rotation) and
     # the linear map K to (first-order) normal form.
     

@@ -5,8 +5,6 @@ import numpy as np
 import mpmath as mp
 from scipy.linalg import schur
 
-from .checks import relative_eq 
-
 def twonorm(vector, code='numpy', mode='complex', **kwargs):
     # Compute the 2-norm of a vector.
     # This seems to provide slightly faster results than np.linalg.norm
@@ -19,7 +17,7 @@ def twonorm(vector, code='numpy', mode='complex', **kwargs):
     if code == 'mpmath':
         return mp.sqrt(sum2)    
     
-def gram_schmidt(vectors, mode='complex', **kwargs):
+def gram_schmidt(vectors, mode='complex', tol=1e-15, **kwargs):
     '''Gram-Schmidt orthogonalization procedure of linarly independent vectors with complex entries, i.e.
     'unitarization'.
     
@@ -55,14 +53,34 @@ def gram_schmidt(vectors, mode='complex', **kwargs):
             for m in range(dim):
                 sum1[(m, i)] -= scalar_product_ij*ortho[(m, j)]  
         norm_i = twonorm([sum1[(m, i)] for m in range(dim)], mode=mode, **kwargs)
+        if abs(norm_i) < tol:
+            raise RuntimeError(f'Division by zero with mode ({mode}) encountered; check input on linearly independence.')
         for m in range(dim):
             ortho[(m, i)] = sum1[(m, i)]/norm_i
     return [[ortho[(m, i)] for m in range(dim)] for i in range(k)]
 
 
-def rref(M, augment=None):
+def rref(M, augment=None, tol=1e-10, **kwargs):
     '''
     Compute the reduced row echelon form of M (M can be a real or complex matrix).
+    
+    Parameters
+    ----------
+    M: matrix
+        matrix to be transformed.
+        
+    augment: matrix, optional
+        optional matrix to be used on the right-hand side of M, and which will be simultaneously transformed.
+        If nothing specified, the identity matrix will be used.
+        
+    tol: float, optional
+        A tolerance by which we identify small numbers as zero.
+    
+    Returns
+    -------
+    triple
+        A triple consisting of i) the transformed matrix M, ii) the transformed augment and iii) the pivot indices
+        of the transformed matrix M (a list of tuples).
     '''
     # reduced row echelon form of M
     n, m = M.shape
@@ -79,7 +97,7 @@ def rref(M, augment=None):
         column_j_has_pivot = False
         for k in range(pivot_row_index, n):
             # skip 0-entries
-            if Mone[k, j] == 0:
+            if abs(Mone[k, j]) <= tol:
                 continue
             Mone[k, :] = Mone[k, :]/Mone[k, j]        
             # exchange the first non-zero entry with those at the top (if it is not already the top)
@@ -100,7 +118,7 @@ def rref(M, augment=None):
             continue
         for k in range(pivot_row_index):
             # skip 0-entries
-            if Mone[k, j] == 0:
+            if abs(Mone[k, j]) <= tol:
                 continue
             Mone[k, :] = Mone[k, :] - Mone[k, j]*Mone[pivot_row_index, :]
         
@@ -109,14 +127,30 @@ def rref(M, augment=None):
     return Mone[:,:m], Mone[:,m:], pivot_indices
 
 
-def imker(M):
+def imker(M, **kwargs):
     '''
     Obtain a basis for the image and the kernel of M.
     M can be a real or complex matrix.
+    
+    Parameters
+    ----------
+    M:
+        matrix to be analyzed.
+        
+    **kwargs
+        Additional arguments passed to rref routine.
+        
+    Returns
+    -------
+    image:
+        matrix spanning the image of M
+        
+    kernel:
+        matrix spanning to the kernel of M
     '''
     # Idea taken from
     # https://math.stackexchange.com/questions/1612616/how-to-find-null-space-basis-directly-by-matrix-calculation
-    ImT, KerT, pivots = rref(M.transpose())
+    ImT, KerT, pivots = rref(M.transpose(), **kwargs) # transpose the input matrix to obtain kernel & image in the end.
     zero_row_indices = pivots[-1][0] + 1
     kernel = KerT[zero_row_indices:, :].transpose()
     image = ImT[:zero_row_indices, :].transpose()
@@ -136,30 +170,18 @@ def basis_extension(*vects, gs=False, **kwargs):
     return ext
 
 
-def eigenspaces(M, code='numpy', flatten=False, **kwargs):
+def eig(M, code='numpy', **kwargs):
     '''
-    Let M be a square matrix. Then this routine will determine a basis of normalized eigenvectors. Hereby
-    eigenvectors belonging to the same eigenvalues are (complex) orthogonalized.
+    Compute the eigenvalues and eigenvectors of a given matrix, based on underlying code.
     
     Parameters
     ----------
-    M:
-        list of vectors defining a (n x n)-matrix.
+    M: matrix
+        Matrix to be considered.
         
     code: str, optional
         Code to be used to determine the eigenvalues and eigenvectors. 
-        Currently supported: 'numpy' (default), 'mpmath'.
-        
-    flatten: boolean, optional
-        If True, flatten the respective results (default: False).
-        
-    Returns
-    -------
-    eigenvalues: list
-        List of elements, where the k-th element constitute the eigenvalue to the k-th eigenspace.
-    
-    eigenvectors: list
-        List of lists, where the k-th element is a list of pairwise unitary vectors spanning the k-th eigenspace.
+        Currently supported: 'numpy', 'mpmath'.
     '''
     if code == 'numpy':
         eigenvalues, eigenvectors = np.linalg.eig(M)
@@ -169,6 +191,34 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
         mp.mp.dps = kwargs.get('dps', 32) # number of digits defining precision; as default we set 32.
         eigenvalues, eigenvectors = mp.eig(mp.matrix(M))
         eigenvectors = [[eigenvectors[k, j] for k in range(len(eigenvalues))] for j in range(len(eigenvalues))]
+    return eigenvalues, eigenvectors
+
+
+def eigenspaces(M, flatten=False, tol=1e-10, **kwargs):
+    '''
+    Let M be a square matrix. Then this routine will determine a basis of normalized eigenvectors. Hereby
+    eigenvectors belonging to the same eigenvalues are (complex) orthogonalized.
+    
+    Parameters
+    ----------
+    M:
+        list of vectors defining a (n x n)-matrix.
+        
+    flatten: boolean, optional
+        If True, flatten the respective results (default: False).
+        
+    tol: float, optional
+        Parameter to identify small values as being zero.
+        
+    Returns
+    -------
+    eigenvalues: list
+        List of elements, where the k-th element constitute the eigenvalue to the k-th eigenspace.
+    
+    eigenvectors: list
+        List of lists, where the k-th element is a list of pairwise unitary vectors spanning the k-th eigenspace.
+    '''
+    eigenvalues, eigenvectors = eig(M, **kwargs)
         
     n = len(eigenvalues)
     assert n > 0
@@ -178,19 +228,25 @@ def eigenspaces(M, code='numpy', flatten=False, **kwargs):
     for i in range(1, n):
         j = 0
         while j < len(eigenspaces):
-            if relative_eq(eigenvalues[i], eigenvalues[eigenspaces[j][0]], **kwargs):
+            if abs(eigenvalues[i] - eigenvalues[eigenspaces[j][0]]) < tol: 
+                # eigenvalues[i] has been identified to belong to eigenspaces[j] group; append the index to this group
                 eigenspaces[j].append(i)
                 break
             j += 1    
-        if j == len(eigenspaces):
+        if j == len(eigenspaces): 
+            # no previous eigenspace belonging to this eigenvalue has been found; create a new group
             eigenspaces.append([i])
                 
     # orthogonalize vectors within the individual eigenspaces
     eigenvalues_result, eigenvectors_result = [], []
     for indices in eigenspaces:
         vectors = [eigenvectors[k] for k in indices]
-        on_vectors = gram_schmidt(vectors, code=code, **kwargs)
-        on_eigenvalues = [eigenvalues[k] for k in indices]
+        # the vectors may be linearly dependent; we therefore orthogonalize its image
+        vimage, vkernel = imker(np.array(vectors).transpose(), tol=tol) # transpose() necessary here because the imker routine needs an ordinary matrix as input
+        # TODO: check mpmath compatibility of imker routine.
+        basis_e = vimage.transpose().tolist() # transpose().tolist() creates a list of column-vectors, as required by gram_schmidt routine
+        on_vectors = gram_schmidt(basis_e, **kwargs) 
+        on_eigenvalues = [eigenvalues[k] for k in indices[:len(basis_e)]]
         if flatten:
             eigenvectors_result += on_vectors
             eigenvalues_result += on_eigenvalues
