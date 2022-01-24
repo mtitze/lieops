@@ -97,7 +97,7 @@ def rref(M, augment=None, tol=1e-10, **kwargs):
         column_j_has_pivot = False
         for k in range(pivot_row_index, n):
             # skip 0-entries
-            if abs(Mone[k, j]) <= tol:
+            if abs(Mone[k, j]) < tol:
                 continue
             Mone[k, :] = Mone[k, :]/Mone[k, j]        
             # exchange the first non-zero entry with those at the top (if it is not already the top)
@@ -118,7 +118,7 @@ def rref(M, augment=None, tol=1e-10, **kwargs):
             continue
         for k in range(pivot_row_index):
             # skip 0-entries
-            if abs(Mone[k, j]) <= tol:
+            if abs(Mone[k, j]) < tol:
                 continue
             Mone[k, :] = Mone[k, :] - Mone[k, j]*Mone[pivot_row_index, :]
         
@@ -194,7 +194,7 @@ def eig(M, code='numpy', **kwargs):
     return eigenvalues, eigenvectors
 
 
-def eigenspaces(M, flatten=False, tol=1e-10, **kwargs):
+def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     '''
     Let M be a square matrix. Then this routine will determine a basis of normalized eigenvectors. Hereby
     eigenvectors belonging to the same eigenvalues are (complex) orthogonalized.
@@ -209,6 +209,10 @@ def eigenspaces(M, flatten=False, tol=1e-10, **kwargs):
         
     tol: float, optional
         Parameter to identify small values as being zero.
+        
+    check: boolean, optional
+        Check if the number of zero-eigenvalues is consistent with the dimension of the kernel of the input matrix within the given tolerance.
+        The kernel of the input matrix is hereby determined by the imker routine.
         
     Returns
     -------
@@ -236,16 +240,24 @@ def eigenspaces(M, flatten=False, tol=1e-10, **kwargs):
         if j == len(eigenspaces): 
             # no previous eigenspace belonging to this eigenvalue has been found; create a new group
             eigenspaces.append([i])
+    
+    if check:
+        # check if we have identified the number of zero-eigenvalues 
+        # to agree with the dimension of the kernel of the input matrix
+        image, kernel = imker(np.array(M.tolist()), tol=tol) # conversion to list to handle both numpy and mpmath objects; TODO: check mpmath compatibility of imker routine.
+        dim_kernel = kernel.shape[1]
+        # check if tolerance can detect the zero-eigenvalues
+        assert dim_kernel == len([e for e in eigenspaces if abs(eigenvalues[e[0]]) < tol]), f'The number of zero-eigenvalues is not consistent with the dimension of the kernel of the input matrix using the tolerance tol: {tol}.'
                 
     # orthogonalize vectors within the individual eigenspaces
     eigenvalues_result, eigenvectors_result = [], []
     for indices in eigenspaces:
         vectors = [eigenvectors[k] for k in indices]
-        # the vectors may be linearly dependent; we therefore orthogonalize its image
+        # the vectors given by the eig routine may be linearly dependent; we therefore orthogonalize its image
         vimage, vkernel = imker(np.array(vectors).transpose(), tol=tol) # transpose() necessary here because the imker routine needs an ordinary matrix as input
         # TODO: check mpmath compatibility of imker routine.
         basis_e = vimage.transpose().tolist() # transpose().tolist() creates a list of column-vectors, as required by gram_schmidt routine
-        on_vectors = gram_schmidt(basis_e, **kwargs) 
+        on_vectors = gram_schmidt(basis_e, tol=tol, **kwargs) 
         on_eigenvalues = [eigenvalues[k] for k in indices[:len(basis_e)]]
         if flatten:
             eigenvectors_result += on_vectors
