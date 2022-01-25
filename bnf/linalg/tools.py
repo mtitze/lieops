@@ -172,10 +172,10 @@ def imker(M, **kwargs):
     # Idea taken from
     # https://math.stackexchange.com/questions/1612616/how-to-find-null-space-basis-directly-by-matrix-calculation    
 
-    code = kwargs.get('code', 'numpy')
+    code = kwargs.get('code', get_package_name(M))
     if code == 'numpy':
         M = np.array(M)
-    elif code == 'mpmath':
+    if code == 'mpmath':
         M = mp.matrix(M)
     
     ImT, KerT, pivots = rref(M.transpose(), **kwargs) # transpose the input matrix to obtain kernel & image in the end.
@@ -217,7 +217,7 @@ def basis_extension(*vects, gs=False, **kwargs):
     code = get_package_name(vects[0])
     if code == 'numpy':
         vects = np.array(vects)
-    elif code == 'mpmath':
+    if code == 'mpmath':
         vects = mp.matrix(vects)
         
     _, ext = imker(vects.conjugate(), **kwargs)
@@ -236,7 +236,7 @@ def basis_extension(*vects, gs=False, **kwargs):
         return mp.matrix(ext).transpose()
 
 
-def eig(M, code='numpy', **kwargs):
+def eig(M, **kwargs):
     '''
     Compute the eigenvalues and eigenvectors of a given matrix, based on underlying code.
     
@@ -244,11 +244,8 @@ def eig(M, code='numpy', **kwargs):
     ----------
     M: matrix
         Matrix to be considered.
-        
-    code: str, optional
-        Code to be used to determine the eigenvalues and eigenvectors. 
-        Currently supported: 'numpy', 'mpmath'.
     '''
+    code = get_package_name(M)
     if code == 'numpy':
         eigenvalues, eigenvectors = np.linalg.eig(M)
         eigenvalues = eigenvalues.tolist()
@@ -288,6 +285,7 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     eigenvectors: list
         List of lists, where the k-th element is a list of pairwise unitary vectors spanning the k-th eigenspace.
     '''
+    code = get_package_name(M)
     eigenvalues, eigenvectors = eig(M, **kwargs)
         
     n = len(eigenvalues)
@@ -312,10 +310,9 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
         # check if we have identified the number of zero-eigenvalues 
         # to agree with the dimension of the kernel of the input matrix
         image, kernel = imker(M, tol=tol, **kwargs)
-        code = kwargs.get('code', 'numpy')
         if code == 'numpy':
             dim_kernel = kernel.shape[1]
-        elif code == 'mpmath':
+        if code == 'mpmath':
             dim_kernel = kernel.cols
         # check if tolerance can detect the zero-eigenvalues
         n_zero_eigenvalues = len([e for e in eigenspaces if abs(eigenvalues[e[0]]) < tol])
@@ -326,7 +323,7 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     for indices in eigenspaces:
         vectors = [[eigenvectors[k][j] for k in indices] for j in range(dim)]
         # the vectors given by the eig routine may be linearly dependent; we therefore orthogonalize its image
-        vimage, vkernel = imker(vectors, tol=tol, **kwargs)
+        vimage, vkernel = imker(vectors, tol=tol, code=code)
         vimage = vimage.transpose().tolist() # transpose().tolist() creates a list of column-vectors, as required by gram_schmidt routine
         
         basis_e = [v for v in vimage if twonorm(v, **kwargs) >= tol]
