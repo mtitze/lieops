@@ -94,7 +94,7 @@ def rref(M, augment=None, tol=1e-10, **kwargs):
         assert augment.shape[0] == n
         Mone = np.bmat([M, augment])
         
-    elif code == 'mpmath':
+    if code == 'mpmath':
         n, m = M.rows, M.cols
         if augment == None:
             augment = mp.eye(n)
@@ -172,7 +172,7 @@ def imker(M, **kwargs):
     # Idea taken from
     # https://math.stackexchange.com/questions/1612616/how-to-find-null-space-basis-directly-by-matrix-calculation    
 
-    code = kwargs.get('code', get_package_name(M))
+    code = get_package_name(M)
     if code == 'numpy':
         M = np.array(M)
     if code == 'mpmath':
@@ -183,13 +183,21 @@ def imker(M, **kwargs):
         # this can happen if M = 0, so no pivot points exist.
         if code == 'numpy':
             kernel = np.eye(M.shape[1])
+            image = np.matrix([[]])
         elif code == 'mpmath':
             kernel = mp.eye(M.cols)
-        image = 0*M
+            image = mp.matrix([[]])
     else: 
         zero_row_indices = pivots[-1][0] + 1
         kernel = KerT[zero_row_indices:, :].transpose()
         image = ImT[:zero_row_indices, :].transpose()
+        
+    # consistency check
+    if code == 'numpy':
+        assert kernel.shape[1] + image.shape[1] == M.shape[1]
+    if code == 'mpmath':
+        assert kernel.cols + image.cols == M.cols        
+        
     return image, kernel
 
 
@@ -236,7 +244,7 @@ def basis_extension(*vects, gs=False, **kwargs):
         return mp.matrix(ext).transpose()
 
 
-def eig(M, **kwargs):
+def eig(M, tol=1e-15, **kwargs):
     '''
     Compute the eigenvalues and eigenvectors of a given matrix, based on underlying code.
     
@@ -246,14 +254,20 @@ def eig(M, **kwargs):
         Matrix to be considered.
     '''
     code = get_package_name(M)
+    
     if code == 'numpy':
+        assert M.shape[0] == M.shape[1]
         eigenvalues, eigenvectors = np.linalg.eig(M)
         eigenvalues = eigenvalues.tolist()
-        eigenvectors = eigenvectors.T.tolist()
+        eigenvectors = [np.array(eigenvectors)[:, j] for j in range(len(eigenvalues))] # convert the np.matrix objects, which are the result of the
+        # numpy eig routine back to np.array's.
+        
     if code == 'mpmath':
+        assert M.cols == M.rows
         mp.mp.dps = kwargs.get('dps', 32) # number of digits defining precision.
         eigenvalues, eigenvectors = mp.eig(mp.matrix(M))
-        eigenvectors = [[eigenvectors[k, j] for k in range(len(eigenvalues))] for j in range(len(eigenvalues))]
+        eigenvectors = [eigenvectors[:, j] for j in range(len(eigenvalues))]
+        
     return eigenvalues, eigenvectors
 
 
@@ -288,9 +302,11 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     code = get_package_name(M)
     eigenvalues, eigenvectors = eig(M, **kwargs)
         
+    # consistency check
     n = len(eigenvalues)
     assert n > 0
     dim = len(eigenvectors[0])
+    assert all([twonorm(e) >= tol for e in eigenvectors]), f'Norm of at least one eigenvector < {tol}.'
         
     # group the indices of the eigenvectors if they belong to the same eigenvalues.
     eigenspaces = [[0]] # 'eigenspaces' will be the collection of these groups of indices.
@@ -322,15 +338,20 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     eigenvalues_result, eigenvectors_result = [], []
     for indices in eigenspaces:
         vectors = [[eigenvectors[k][j] for k in indices] for j in range(dim)]
-        # the vectors given by the eig routine may be linearly dependent; we therefore orthogonalize its image
-        vimage, vkernel = imker(vectors, tol=tol, code=code)
-        vimage = vimage.transpose().tolist() # transpose().tolist() creates a list of column-vectors, as required by gram_schmidt routine
+        # the vectors given by the eig routine may be linearly dependent; we therefore need to orthogonalize its image
+        if code == 'numpy':
+            span = np.array(vectors)
+        if code == 'mpmath':
+            span = mp.matrix(vectors)
+        vimage, vkernel = imker(span, tol=tol)
         
-        basis_e = [v for v in vimage if twonorm(v, **kwargs) >= tol]
-        zeros_e = [v for v in vimage if twonorm(v, **kwargs) < tol]
-        if len(basis_e) > 0:
-            basis_e = gram_schmidt(basis_e, tol=tol, **kwargs)
-        on_vectors = zeros_e + basis_e
+        # creates a list of *column*-vectors, as required by gram_schmidt routine. TODO: need way to treat both codes simultaneously...
+        if code == 'numpy':
+            vimage = vimage.transpose().tolist()
+        if code == 'mpmath':
+            vimage = [[vimage[j, k] for j in range(vimage.rows)] for k in range(vimage.cols)]
+
+        on_vectors = gram_schmidt(vimage, tol=tol, **kwargs)
         on_eigenvalues = [eigenvalues[k] for k in indices[:len(on_vectors)]]
         if flatten:
             eigenvectors_result += on_vectors
