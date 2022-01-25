@@ -5,17 +5,20 @@ import numpy as np
 import mpmath as mp
 from scipy.linalg import schur
 
-def twonorm(vector, code='numpy', mode='complex', **kwargs):
+from .matrix import get_package_name
+
+def twonorm(vector, mode='complex', code='numpy', **kwargs):
     # Compute the 2-norm of a vector.
     # This seems to provide slightly faster results than np.linalg.norm
     if mode == 'complex':
         sum2 = sum([vector[k].conjugate()*vector[k] for k in range(len(vector))])
     else:
         sum2 = sum([vector[k]*vector[k] for k in range(len(vector))])
+
     if code == 'numpy':
-        return np.sqrt(sum2)
+        return np.sqrt(np.real(sum2))
     if code == 'mpmath':
-        return mp.sqrt(sum2)    
+        return mp.sqrt(mp.re(sum2))    
     
 def gram_schmidt(vectors, mode='complex', tol=1e-15, **kwargs):
     '''Gram-Schmidt orthogonalization procedure of linarly independent vectors with complex entries, i.e.
@@ -82,47 +85,65 @@ def rref(M, augment=None, tol=1e-10, **kwargs):
         A triple consisting of i) the transformed matrix M, ii) the transformed augment and iii) the pivot indices
         of the transformed matrix M (a list of tuples).
     '''
+    code = get_package_name(M)
     # reduced row echelon form of M
-    n, m = M.shape
-    if augment == None:
-        augment = np.eye(n)
-    assert augment.shape[1] == n
-    Mone = np.bmat([M, augment])
+    if code == 'numpy':
+        n, m = M.shape
+        if augment == None:
+            augment = np.eye(n)        
+        assert augment.shape[0] == n
+        Mone = np.bmat([M, augment])
+        
+    elif code == 'mpmath':
+        n, m = M.rows, M.cols
+        if augment == None:
+            augment = mp.eye(n)
+        assert augment.rows == n
+        Mone = mp.zeros(n, m + augment.cols)
+        Mone[:, :m] = M
+        Mone[:, m:] = augment
     
     # transform Mone = (M | 1)
     pivot_row_index = 0
-    next_pivot_row_index = 1
     pivot_indices = [] # to record the pivot indices
     for j in range(m):
+        
+        # Step 1: determine the pivot row of column j
         column_j_has_pivot = False
         for k in range(pivot_row_index, n):
             # skip 0-entries
             if abs(Mone[k, j]) < tol:
                 continue
-            Mone[k, :] = Mone[k, :]/Mone[k, j]        
-            # exchange the first non-zero entry with those at the top (if it is not already the top)
-            if not column_j_has_pivot:
-                if k > pivot_row_index:
+                
+            if k > pivot_row_index:
+                # exchange this entry with those at the intended pivot_row_index row
+                if code == 'numpy':
                     pivot_row = np.copy(Mone[pivot_row_index, :])
-                    Mone[pivot_row_index, :] = np.copy(Mone[k, :])
-                    Mone[k, :] = pivot_row
-                pivot_indices.append((pivot_row_index, j)) # also record the pivot indices for output
-                next_pivot_row_index = pivot_row_index + 1
-                column_j_has_pivot = True
-                continue
-            # eliminate k-th row
-            Mone[k, :] = Mone[k, :] - Mone[pivot_row_index, :]
-            
-        # for the reduced form, we also need to remove entries from the rows < pivot:
-        if not column_j_has_pivot:
+                    Mone[pivot_row_index, :] = np.copy(Mone[k, :])/Mone[k, j]
+                elif code == 'mpmath':
+                    pivot_row = Mone[pivot_row_index, :].copy()
+                    Mone[pivot_row_index, :] = Mone[k, :].copy()/Mone[k, j]
+                Mone[k, :] = pivot_row
+
+            # normalize the column belonging to the pivot index
+            Mone[pivot_row_index, :] = Mone[pivot_row_index, :]/Mone[pivot_row_index, j]
+                    
+            pivot_indices.append((pivot_row_index, j)) # record the pivot indices for output
+            column_j_has_pivot = True
+            break
+                
+        if not column_j_has_pivot: 
+            # It can happen that column_j_has_pivot = False: Namely, if the colum has only zero entries.
+            # In this case we just proceed with the next column.
             continue
-        for k in range(pivot_row_index):
-            # skip 0-entries
-            if abs(Mone[k, j]) < tol:
+            
+        # Step 2: eliminate the other non-zero rows.
+        for k in range(0, n):
+            if abs(Mone[k, j]) < tol or k == pivot_row_index:
                 continue
             Mone[k, :] = Mone[k, :] - Mone[k, j]*Mone[pivot_row_index, :]
-        
-        pivot_row_index = next_pivot_row_index
+            
+        pivot_row_index = pivot_row_index + 1
         
     return Mone[:,:m], Mone[:,m:], pivot_indices
 
@@ -149,25 +170,70 @@ def imker(M, **kwargs):
         matrix spanning to the kernel of M
     '''
     # Idea taken from
-    # https://math.stackexchange.com/questions/1612616/how-to-find-null-space-basis-directly-by-matrix-calculation
+    # https://math.stackexchange.com/questions/1612616/how-to-find-null-space-basis-directly-by-matrix-calculation    
+
+    code = kwargs.get('code', 'numpy')
+    if code == 'numpy':
+        M = np.array(M)
+    elif code == 'mpmath':
+        M = mp.matrix(M)
+    
     ImT, KerT, pivots = rref(M.transpose(), **kwargs) # transpose the input matrix to obtain kernel & image in the end.
-    zero_row_indices = pivots[-1][0] + 1
-    kernel = KerT[zero_row_indices:, :].transpose()
-    image = ImT[:zero_row_indices, :].transpose()
+    if len(pivots) == 0:
+        # this can happen if M = 0, so no pivot points exist.
+        if code == 'numpy':
+            kernel = np.eye(M.shape[1])
+        elif code == 'mpmath':
+            kernel = mp.eye(M.cols)
+        image = 0*M
+    else: 
+        zero_row_indices = pivots[-1][0] + 1
+        kernel = KerT[zero_row_indices:, :].transpose()
+        image = ImT[:zero_row_indices, :].transpose()
     return image, kernel
 
 
 def basis_extension(*vects, gs=False, **kwargs):
     '''
-    Provide an extension of a given set of vectors
-    to span the full space. The vectors can have real or
-    complex coefficients.
+    Provide an extension of a given set of vectors to span the full space. 
+    The vectors can have real or complex coefficients.
+    
+    Parameters
+    ----------
+    *vects:
+        Vectors to be extended
+        
+    gs: boolean, optional
+        Apply the Gram-Schmidt orthogonalization procedure on the extension.
+        
+    **kwargs
+        Optional arguments passed to gram_schmidt. In use only if gs=True.
+        
+    Returns
+    -------
+    matrix
+        A matrix representing a basis extension of the given vectors.
     '''
-    _, ext = imker(np.array(vects).conjugate())
-    n, m = ext.shape
+    code = get_package_name(vects[0])
+    if code == 'numpy':
+        vects = np.array(vects)
+    elif code == 'mpmath':
+        vects = mp.matrix(vects)
+        
+    _, ext = imker(vects.conjugate(), **kwargs)
+    
+    if code == 'numpy':
+        n, m = ext.shape
+    elif code == 'mpmath':
+        n, m = ext.rows, ext.cols
+        
     if gs and n > 0 and m > 0:
-        ext = np.array(gram_schmidt([[ext[k, j] for k in range(n)] for j in range(m)], **kwargs)).transpose()
-    return ext
+        ext = gram_schmidt([[ext[k, j] for k in range(n)] for j in range(m)], **kwargs)
+        
+    if code == 'numpy':
+        return np.array(ext).transpose()
+    elif code == 'mpmath':
+        return mp.matrix(ext).transpose()
 
 
 def eig(M, code='numpy', **kwargs):
@@ -188,7 +254,7 @@ def eig(M, code='numpy', **kwargs):
         eigenvalues = eigenvalues.tolist()
         eigenvectors = eigenvectors.T.tolist()
     if code == 'mpmath':
-        mp.mp.dps = kwargs.get('dps', 32) # number of digits defining precision; as default we set 32.
+        mp.mp.dps = kwargs.get('dps', 32) # number of digits defining precision.
         eigenvalues, eigenvectors = mp.eig(mp.matrix(M))
         eigenvectors = [[eigenvectors[k, j] for k in range(len(eigenvalues))] for j in range(len(eigenvalues))]
     return eigenvalues, eigenvectors
@@ -226,7 +292,8 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
         
     n = len(eigenvalues)
     assert n > 0
-    
+    dim = len(eigenvectors[0])
+        
     # group the indices of the eigenvectors if they belong to the same eigenvalues.
     eigenspaces = [[0]] # 'eigenspaces' will be the collection of these groups of indices.
     for i in range(1, n):
@@ -244,21 +311,30 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     if check:
         # check if we have identified the number of zero-eigenvalues 
         # to agree with the dimension of the kernel of the input matrix
-        image, kernel = imker(np.array(M.tolist()), tol=tol) # conversion to list to handle both numpy and mpmath objects; TODO: check mpmath compatibility of imker routine.
-        dim_kernel = kernel.shape[1]
+        image, kernel = imker(M, tol=tol, **kwargs)
+        code = kwargs.get('code', 'numpy')
+        if code == 'numpy':
+            dim_kernel = kernel.shape[1]
+        elif code == 'mpmath':
+            dim_kernel = kernel.cols
         # check if tolerance can detect the zero-eigenvalues
-        assert dim_kernel == len([e for e in eigenspaces if abs(eigenvalues[e[0]]) < tol]), f'The number of zero-eigenvalues is not consistent with the dimension of the kernel of the input matrix using the tolerance tol: {tol}.'
+        n_zero_eigenvalues = len([e for e in eigenspaces if abs(eigenvalues[e[0]]) < tol])
+        assert dim_kernel == n_zero_eigenvalues, f'The number {n_zero_eigenvalues} of zero-eigenvalues is not consistent with the dimension {dim_kernel} of the kernel of the input matrix, both determined using a tolerance of: {tol}.'
                 
     # orthogonalize vectors within the individual eigenspaces
     eigenvalues_result, eigenvectors_result = [], []
     for indices in eigenspaces:
-        vectors = [eigenvectors[k] for k in indices]
+        vectors = [[eigenvectors[k][j] for k in indices] for j in range(dim)]
         # the vectors given by the eig routine may be linearly dependent; we therefore orthogonalize its image
-        vimage, vkernel = imker(np.array(vectors).transpose(), tol=tol) # transpose() necessary here because the imker routine needs an ordinary matrix as input
-        # TODO: check mpmath compatibility of imker routine.
-        basis_e = vimage.transpose().tolist() # transpose().tolist() creates a list of column-vectors, as required by gram_schmidt routine
-        on_vectors = gram_schmidt(basis_e, tol=tol, **kwargs) 
-        on_eigenvalues = [eigenvalues[k] for k in indices[:len(basis_e)]]
+        vimage, vkernel = imker(vectors, tol=tol, **kwargs)
+        vimage = vimage.transpose().tolist() # transpose().tolist() creates a list of column-vectors, as required by gram_schmidt routine
+        
+        basis_e = [v for v in vimage if twonorm(v, **kwargs) >= tol]
+        zeros_e = [v for v in vimage if twonorm(v, **kwargs) < tol]
+        if len(basis_e) > 0:
+            basis_e = gram_schmidt(basis_e, tol=tol, **kwargs)
+        on_vectors = zeros_e + basis_e
+        on_eigenvalues = [eigenvalues[k] for k in indices[:len(on_vectors)]]
         if flatten:
             eigenvectors_result += on_vectors
             eigenvalues_result += on_eigenvalues

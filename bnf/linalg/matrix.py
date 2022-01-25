@@ -3,6 +3,22 @@
 
 import numpy as np
 import mpmath as mp
+
+def get_package_name(x):
+    '''
+    Routine intended to get the package name of a specific object (taken from njet.functions).
+    
+    Parameters
+    ----------
+    x: obj
+        The object to be examined.
+        
+    Returns
+    -------
+    str
+        A string denoting the code to be used on the object. 
+    '''
+    return str(x.__class__.__mro__[0].__module__).split('.')[0]
     
 def printmat(M, tol=1e-14):
     # print a matrix (for e.g. debugging reasons)

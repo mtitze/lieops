@@ -99,13 +99,13 @@ def youla_normal_form(M, tol=1e-13, **kwargs):
         u1 = x1/twonorm(x1)
         u2 = x2 - (u1.transpose().conjugate()@x2)*u1
         u2 = u2/twonorm(u2)
-        ext = basis_extension(u1.tolist(), u2.tolist(), gs=True)
+        ext = basis_extension(u1, u2, gs=True)
         U[:, 0] = u1
         U[:, 1] = u2
         k = 2
     else:
         u1 = x1/twonorm(x1)
-        ext = basis_extension(u1.tolist(), gs=True)
+        ext = basis_extension(u1, gs=True)
         U[:, 0] = u1
         k = 1
     U[:, k:] = ext
