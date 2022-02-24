@@ -69,7 +69,8 @@ def homological_eq(mu, Z, **kwargs):
     return chi, Q
 
 
-def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, **kwargs):
+def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, 
+                             code='numpy', **kwargs):
     '''
     Return the Taylor-expansion of a Hamiltonian H in terms of first-order complex normal form coordinates
     around an optional point of interest. For the notation see my thesis.
@@ -132,7 +133,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     dH = derive(H, order=2, n_args=dim)
     z0 = dim*[0]
     Hesse_dict = dH.hess(z0)
-    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, **kwargs)
+    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code)
     
     # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
     if warn:

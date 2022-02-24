@@ -7,7 +7,7 @@ import cmath
 
 from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
 from .checks import is_positive_definite, relative_eq
-from .matrix import column_matrix_2_code, create_J
+from .matrix import column_matrix_2_code, create_J, get_package_name
     
 
 def _check_linear_independence(a, b, tol=1e-14):
@@ -278,7 +278,7 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
-def _diagonal2block(D, tol=1e-10):
+def _diagonal2block(D, code, tol=1e-10, **kwargs):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
@@ -296,6 +296,9 @@ def _diagonal2block(D, tol=1e-10):
     ----------
     D:
         A list of diagonal entries
+        
+    code:
+        A code defining the matrix object output.
         
     tol: float, optional
         A small parameter to identify the pairs on the diagonal of D (default 1e-10).
@@ -326,8 +329,12 @@ def _diagonal2block(D, tol=1e-10):
     pairs = list(zip(ind1, ind2))
     
     # Step 2: Construct U, assuming that it will transform a matrix with the above order
-    U = np.eye(dim2, dtype=complex)
-    U2by2 = _create_umat_xieta(2)
+    if code == 'numpy':
+        U = np.eye(dim2, dtype=complex)
+    if code == 'mpmath':
+        U = mp.eye(dim2, dtype=complex)
+        
+    U2by2 = _create_umat_xieta(2, code=code, **kwargs)
     for i, j in pairs:
         U[i, i] = U2by2[0, 0]
         U[i, j] = U2by2[0, 1]
@@ -337,7 +344,11 @@ def _diagonal2block(D, tol=1e-10):
     # Step 3: Ensure that U maps to the desired block ordering.
     # Pair k should be mapped to the indices (k, k + dim) and (k + dim, k). This can be done with a
     # transformation T as follows.
-    T = np.zeros([dim2, dim2])
+    if code == 'numpy':
+        T = np.zeros([dim2, dim2])
+    if code == 'mpmath':
+        T = mp.zeros(dim2)
+        
     k = 0
     for i, j in pairs:
         # map ei to ek and ej to e(k + dim)
@@ -401,7 +412,7 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     EV, ES = np.linalg.eig(A)
     ESi = np.linalg.inv(ES)
     DD = ESi@A@ES # DD will be diagonal with the Krein-pairs of eigenvalues described above on its main diagonal.
-    U = _diagonal2block(DD.diagonal(), tol=tol) # The unitary matrix U will transform DD into block-diagonal form with diagonal entries on the anti-diagonal via U.transpose()@DD@U.
+    U = _diagonal2block(DD.diagonal(), code='numpy', tol=tol) # The unitary matrix U will transform DD into block-diagonal form with diagonal entries on the anti-diagonal via U.transpose()@DD@U.
     
     # Step 3: The routine ._diagonal2block internally determines the ordering of the Krein pairs. Since we require one representant for each pair, we compute the block-anti-diagonal result:
     K = U.transpose().conjugate()@DD@U # Note that the additional ".conjugate()" will transform DD into block-anti-diagonal form, which will then be matrix-similar to J.
@@ -429,7 +440,7 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     return S, K, U
     
 
-def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
+def anti_diagonalize_real_skew(M, **kwargs):
     r'''Anti-diagonalize a real skew symmetric matrix A so that it will have the block-form
     
              /  0   X  \
@@ -455,13 +466,16 @@ def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
         Orthogonal real matrix R so that R.transpose()@M@R has skew-symmetric antidiagonal form with respect 
         to (n//2 x n//2) block matrices (Hereby M denotes the input matrix).
     '''
-    evalues, evectors = eigenspaces(M, flatten=True, code=code, **kwargs)
+    
+    code = get_package_name(M)
+    evalues, evectors = eigenspaces(M, flatten=True, **kwargs)
     n = len(evalues)
     
     if code == 'numpy':
         sqrt2 = np.sqrt(2)
     if code == 'mpmath':
-        mp.mp.dps = kwargs.get('dps', 32)
+        if 'dps' in kwargs.keys(): 
+            mp.mp.dps = kwargs['dps']
         sqrt2 = mp.sqrt(2)
     
     # now construct a real basis
@@ -496,7 +510,7 @@ def anti_diagonalize_real_skew(M, code='numpy', **kwargs):
     return column_matrix_2_code(v_block1 + v_block2, code=code)
 
 
-def williamson(V, code='numpy', **kwargs):
+def williamson(V, **kwargs):
     r'''Compute Williamson's decomposition of a symmetric positive definite real matrix,
     according to 'R. Simon, S. Chaturvedi, and V. Srinivasan: Congruences and Canonical Forms 
     for a Positive Matrix: Application to the Schweinler-Wigner Extremum Principle'.
@@ -535,6 +549,8 @@ def williamson(V, code='numpy', **kwargs):
     dim2 = len(V)
     assert dim2%2 == 0
     dim = dim2//2
+    
+    code = get_package_name(V)
 
     if code == 'numpy':
         evalues, evectors = np.linalg.eigh(V)
@@ -556,7 +572,7 @@ def williamson(V, code='numpy', **kwargs):
         
     J = column_matrix_2_code(create_J(dim), code=code)
     skewmat = V12i@J@V12i
-    A = anti_diagonalize_real_skew(skewmat, code=code, **kwargs)    
+    A = anti_diagonalize_real_skew(skewmat, **kwargs)    
     K = A.transpose()@skewmat@A # the sought anti-diagonal matrix
 
     # obtain D as described in the reference above
@@ -572,19 +588,89 @@ def williamson(V, code='numpy', **kwargs):
     return S, D
 
 
-def _create_umat_xieta(dim, code='numpy', **kwargs):
+def stf(G, d2b_tol=1e-10, **kwargs):
+    '''
+    Symplectic Takagi factorization.
+    
+    Let G be a general symmetric matrix with complex entries and J the canonical symplectic
+    structure. Assume that G@J is diagonalizable.
+    
+    Then this routine will determine a symplectic matrix S so that S@D@S.transpose() = G, where
+    S will be complex in general.
+    
+    Parameters
+    ----------
+    G: matrix
+        Symmetric matrix.
+        
+    d2b_tol: float, optional
+        Optional tolerance given to '_diagonal2block' routine.
+        
+    **kwargs: optional
+        Optional arguments passed to 'eigenspaces' routine.
+        
+    Returns
+    -------
+    S: matrix
+        Symplectic matrix.
+        
+    D: matrix
+        Diagonal matrix.
+    '''
+    code = get_package_name(G)
+    
+    dim2 = len(G)
+    assert dim2%2 == 0, 'Dimension must be even.'
+    dim = dim2//2
+    
+    if code == 'numpy':
+        J = np.array(create_J(dim)).transpose()
+    if code == 'mpmath':
+        J = mp.matrix(create_J(dim)).transpose()
+    
+    GJ = G@J
+    
+    # Step 1: Anti-block-diagonalize GJ
+    evals, evects = eigenspaces(GJ, flatten=True, **kwargs)
+    if code == 'numpy':
+        Yi = np.array(evects).transpose()
+        Y = np.linalg.inv(Yi)
+    if code == 'mpmath':
+        Yi = mp.matrix(evects).transpose()
+        Y = mp.inverse(Yi)
+        
+    U = _diagonal2block(evals, code=code, tol=d2b_tol)
+    X = U.transpose().conjugate()@Y
+    Xi = Yi@U
+    F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
+    
+    # Step 2: Construct symplectic matrix
+    if code == 'numpy':
+        YY = get_principal_sqrt(-J@X.transpose()@J@X)
+        D = np.diag(2*[F[k, k + dim] for k in range(dim)])   
+        
+    if code == 'mpmath':
+        YY = mp.sqrtm(-J@X.transpose()@J@X)
+        D = mp.diag(2*[F[k, k + dim] for k in range(dim)])
+        
+    return YY@Xi, D
+
+
+def _create_umat_xieta(dim, code, **kwargs):
     '''
     Create a unitary matrix, mapping (p, q)-coordinates to (xi, eta)-coordinates via
     xi = (q + 1j*p)/sqrt(2)
     eta = (q - 1j*p)/sqrt(2)
     '''
+    assert dim%2 == 0
+    
     if code == 'numpy':
         sqrt2 = np.sqrt(2)
     if code == 'mpmath':
-        mp.mp.dps = kwargs.get('dps', 32) 
+        if 'dps' in kwargs.keys():
+            mp.mp.dps = kwargs['dps'] 
         sqrt2 = mp.sqrt(2)
         
-    assert dim%2 == 0
     U1, U2 = [], []
     dim_half = dim//2
     for k in range(dim_half):
@@ -594,7 +680,7 @@ def _create_umat_xieta(dim, code='numpy', **kwargs):
     return column_matrix_2_code(U1 + U2, code=code)
 
     
-def normal_form(H2, T=[], code='numpy', **kwargs):
+def normal_form(H2, T=[], **kwargs):
     r'''
     Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
@@ -618,11 +704,6 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
              \ -1   0  /
              
         into a matrix J' by matrix congruence: J' = T.transpose()@J@T.
-        
-    code: str, optional
-        The code in which the matrix calculations should be performed. Supported codes: 'numpy', 'mpmath'.
-        If the input is given in form of a matrix, the user has to ensure the correct code is selected.
-        Default: 'numpy'.
              
     Returns
     -------
@@ -647,6 +728,8 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
     ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
+    
+    code = get_package_name(H2)
         
     # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
@@ -654,8 +737,8 @@ def normal_form(H2, T=[], code='numpy', **kwargs):
         
     J = column_matrix_2_code(create_J(dim//2), code=code)
         
-    if is_positive_definite(H2, code=code):
-        S, D = williamson(V=H2, code=code, **kwargs)
+    if is_positive_definite(H2):
+        S, D = williamson(V=H2, **kwargs)
         # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
         # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
         # (xi, eta) (as e.g. defined in my thesis):

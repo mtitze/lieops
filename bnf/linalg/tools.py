@@ -7,18 +7,20 @@ from scipy.linalg import schur
 
 from .matrix import get_package_name
 
-def twonorm(vector, mode='complex', code='numpy', **kwargs):
+def twonorm(vector, mode='complex', **kwargs):
     # Compute the 2-norm of a vector.
     # This seems to provide slightly faster results than np.linalg.norm
     if mode == 'complex':
         sum2 = sum([vector[k].conjugate()*vector[k] for k in range(len(vector))])
     else:
         sum2 = sum([vector[k]*vector[k] for k in range(len(vector))])
-
-    if code == 'numpy':
-        return np.sqrt(np.real(sum2))
+        
+    code = get_package_name(sum2)
+    
     if code == 'mpmath':
-        return mp.sqrt(mp.re(sum2))    
+        return mp.sqrt(mp.re(sum2))
+    if code in ['numpy', 'builtins']:
+        return np.sqrt(np.real(sum2))
     
 def gram_schmidt(vectors, mode='complex', tol=1e-15, **kwargs):
     '''Gram-Schmidt orthogonalization procedure of linarly independent vectors with complex entries, i.e.
@@ -244,7 +246,7 @@ def basis_extension(*vects, gs=False, **kwargs):
         return mp.matrix(ext).transpose()
 
 
-def eig(M, tol=1e-15, **kwargs):
+def eig(M, symmetric=False, **kwargs):
     '''
     Compute the eigenvalues and eigenvectors of a given matrix, based on underlying code.
     
@@ -252,20 +254,31 @@ def eig(M, tol=1e-15, **kwargs):
     ----------
     M: matrix
         Matrix to be considered.
+        
+    symmetric: boolean, optional
+        Whether the matrix is assumed to be symmetric.
     '''
     code = get_package_name(M)
     
     if code == 'numpy':
         assert M.shape[0] == M.shape[1]
-        eigenvalues, eigenvectors = np.linalg.eig(M)
+        if not symmetric:
+            eigenvalues, eigenvectors = np.linalg.eig(M)
+        else:
+            eigenvalues, eigenvectors = np.linalg.eigh(M)
         eigenvalues = eigenvalues.tolist()
         eigenvectors = [np.array(eigenvectors)[:, j] for j in range(len(eigenvalues))] # convert the np.matrix objects, which are the result of the
         # numpy eig routine back to np.array's.
         
     if code == 'mpmath':
         assert M.cols == M.rows
-        mp.mp.dps = kwargs.get('dps', 32) # number of digits defining precision.
-        eigenvalues, eigenvectors = mp.eig(mp.matrix(M))
+        if 'dps' in kwargs.keys():
+            mp.mp.dps = kwargs['dps'] # number of digits defining precision.#
+
+        if not symmetric:
+            eigenvalues, eigenvectors = mp.eig(mp.matrix(M))    
+        else:
+            eigenvalues, eigenvectors = mp.eigh(mp.matrix(M))
         eigenvectors = [eigenvectors[:, j] for j in range(len(eigenvalues))]
         
     return eigenvalues, eigenvectors
@@ -291,6 +304,9 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
         Check if the number of zero-eigenvalues is consistent with the dimension of the kernel of the input matrix within the given tolerance.
         The kernel of the input matrix is hereby determined by the imker routine.
         
+    **kwargs
+        Optional arguments passed to eig, imker and gram_schmidt routines.
+        
     Returns
     -------
     eigenvalues: list
@@ -306,7 +322,7 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     n = len(eigenvalues)
     assert n > 0
     dim = len(eigenvectors[0])
-    assert all([twonorm(e) >= tol for e in eigenvectors]), f'Norm of at least one eigenvector < {tol}.'
+    assert all([twonorm(e) >= tol for e in eigenvectors]), f'Norm of at least one eigenvector < {tol}.' # sometimes mpmath produces eigenvectors of zero norm!
         
     # group the indices of the eigenvectors if they belong to the same eigenvalues.
     eigenspaces = [[0]] # 'eigenspaces' will be the collection of these groups of indices.
@@ -332,7 +348,7 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
             dim_kernel = kernel.cols
         # check if tolerance can detect the zero-eigenvalues
         n_zero_eigenvalues = len([e for e in eigenspaces if abs(eigenvalues[e[0]]) < tol])
-        assert dim_kernel == n_zero_eigenvalues, f'The number {n_zero_eigenvalues} of zero-eigenvalues is not consistent with the dimension {dim_kernel} of the kernel of the input matrix, both determined using a tolerance of: {tol}.'
+        assert dim_kernel == n_zero_eigenvalues, f'The number of zero-eigenvalues ({n_zero_eigenvalues}) is not consistent with the dimension ({dim_kernel}) of the kernel of the input matrix, both determined using a tolerance of {tol}. Check input and/or try to adjust precision.'
                 
     # orthogonalize vectors within the individual eigenspaces
     eigenvalues_result, eigenvectors_result = [], []
@@ -343,7 +359,7 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
             span = np.array(vectors)
         if code == 'mpmath':
             span = mp.matrix(vectors)
-        vimage, vkernel = imker(span, tol=tol)
+        vimage, vkernel = imker(span, tol=tol, **kwargs)
         
         # creates a list of *column*-vectors, as required by gram_schmidt routine. TODO: need way to treat both codes simultaneously...
         if code == 'numpy':
@@ -359,6 +375,7 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
         else:
             eigenvectors_result.append(on_vectors)
             eigenvalues_result.append(on_eigenvalues[0]) # all of these eigenvalues are considered to be equal, so we pic the first one.
+            
     return eigenvalues_result, eigenvectors_result
 
 

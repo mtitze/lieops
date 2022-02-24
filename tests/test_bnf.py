@@ -363,7 +363,7 @@ def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
     jacobi = [[dL1flow.get_taylor_coefficients(ep)[(1, 0)], dL1flow.get_taylor_coefficients(ep)[(0, 1)]],
               [dL1flow.get_taylor_coefficients(epc)[(1, 0)], dL1flow.get_taylor_coefficients(epc)[(0, 1)]]]
     jacobi = np.array(jacobi)
-    Jc = -1j*column_matrix_2_code(create_J(1))
+    Jc = -1j*column_matrix_2_code(create_J(1), code='numpy')
     check = jacobi.transpose()@Jc@jacobi - Jc
     assert all([all([abs(check[i, j]) < tol for i in range(2)]) for j in range(2)])
     

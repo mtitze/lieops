@@ -25,7 +25,7 @@ def printmat(M, tol=1e-14):
     M = mp.matrix(M)
     mp.nprint(mp.chop(M, tol))
     
-def column_matrix_2_code(M, code='numpy', **kwargs):
+def column_matrix_2_code(M, code, **kwargs):
     # translate a list of column vectors to a numpy or mpmath matrix
     if code == 'numpy':
         return np.array(M).transpose()
@@ -95,8 +95,7 @@ def qpqp2qp(n):
     return np.bmat([[q, p]])
 
 
-
-def matrix_from_dict(M, symmetry: int=0, **kwargs):
+def matrix_from_dict(M, code, symmetry: int=0, **kwargs):
     
     '''
     Create matrix from (sparse) dict.
@@ -118,8 +117,8 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
         If 1, matrix is assumed to be symmetric. Requires n_rows == n_cols.
         If -1, matrix is assumed to be anti-symmetric. Requires n_rows == n_cols.
         
-    **kwargs
-        Arguments passed to 'column_matrix_2_code' routine.
+    code: str
+        Requested code passed to 'column_matrix_2_code' routine.
     '''
     assert symmetry in [-1, 0, 1]
 
@@ -147,7 +146,7 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
                 # (hij != 0 and hji == 0) or (hij == 0 and hji == 0). 
                 mat[j][i] = hij
                 mat[i][j] = symmetry*hij
-    return column_matrix_2_code(mat, **kwargs)
+    return column_matrix_2_code(mat, code=code)
 
 
 class cmat: # TODO: May work on a class to conveniently switch between numpy and mpmath code.

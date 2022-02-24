@@ -3,7 +3,9 @@
 import numpy as np
 import mpmath as mp
 
-def is_positive_definite(A, code='numpy'):
+from .matrix import get_package_name
+
+def is_positive_definite(A):
     '''Check if a given matrix A is positive definite.
 
     Parameters
@@ -19,8 +21,9 @@ def is_positive_definite(A, code='numpy'):
     boolean
         True if matrix is positive definite.
     '''
-    out = True
+    code = get_package_name(A)
     
+    out = True
     if code == 'mpmath':
         try:
             _ = mp.cholesky(A)
@@ -58,7 +61,7 @@ def relative_eq(a, b, tol=1e-14, **kwargs):
     else:
         return abs(a - b)/max([abs(a), abs(b)]) < tol
     
-def williamson_check(A, S, J, code='numpy', tol=1e-14):
+def williamson_check(A, S, J, tol=1e-14):
     '''
     Check if a given matrix A and the matrix S diagonalizting A according to the theorem of Williamson
     by S.transpose()*A*S = D actually are satisfying all required conditions of the theorem.
@@ -79,6 +82,7 @@ def williamson_check(A, S, J, code='numpy', tol=1e-14):
     tol: float, optional
         A tolerance by which certain properties (like matrix entries) are considered to be zero (default 1e-14).
     '''
+    code = get_package_name(A)
 
     if code == 'numpy':
         isreal = np.isreal(A).all()
