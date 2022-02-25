@@ -593,7 +593,7 @@ def symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
     Symplectic Takagi factorization.
     
     Let G be a general symmetric matrix with complex entries and J the canonical symplectic
-    structure. Assume that G@J is diagonalizable.
+    structure. Assumes that G@J is diagonalizable.
     
     Then this routine will determine a symplectic matrix S so that S@D@S.transpose() = G, where
     S will be complex in general.
@@ -648,8 +648,7 @@ def symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
     
     # Step 2: Construct symplectic matrix
     if code == 'numpy':
-        YY = get_principal_sqrt(-J@X.transpose()@J@X)  
-        
+        YY = get_principal_sqrt(-J@X.transpose()@J@X)
     if code == 'mpmath':
         YY = mp.sqrtm(-J@X.transpose()@J@X)
         
@@ -691,9 +690,8 @@ def normal_form(H2, T=[], mode='default', **kwargs):
     Paramters
     ---------
     H2:
-        Symmetric matrix so that J@H2 is diagonalizable.
-        Attention: No direct check if J@H2 is diagonalizable or symmetric; it may be checked
-        in parts in one of the subroutines.
+        Symmetric matrix so that H2@J is diagonalizable.
+        Attention: A check if H2@J is diagonalizable is not done explicitly.
         
     T: matrix, optional
         Orthogonal matrix to change the ordering of canoncial
