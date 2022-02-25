@@ -64,7 +64,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     for j in range(dim): # add the second-order coefficients (tunes)
         tpl = tuple([0 if k != j and k != j + dim else 1 for k in range(dim2)])
         muj = taylor_coeffs[tpl]
-        assert muj.imag == 0
+        assert muj.imag < tol
         muj = muj.real
         H0[tpl] = muj
         mu.append(muj)
@@ -250,7 +250,7 @@ def test_exp_ad1(mu=-0.2371, power=18, tol=1e-14):
         assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
     
     
-def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **kwargs):
+def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32, **kwargs):
     # Test the exponential operator on Lie maps for the case of a 5th order Hamiltonian and
     # a non-linear map, making use of K, the linear map to (first-order) normal form.
     
@@ -258,7 +258,7 @@ def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', **
     # and therefore requires mpmath to have sufficient precision (and sufficiently high power in exp).
     
     H2 = lambda x, px: mu*0.5*(x**2 + px**2) + x**3 + x*px**4
-    expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, **kwargs)
+    expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, dps=dps, **kwargs)
     HLie = liepoly(values=expansion, max_power=max_power)
     K = nfdict['K']
     xieta = create_coords(1, max_power=max_power)

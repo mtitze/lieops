@@ -211,7 +211,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
     for j in range(dim): # add the second-order coefficients (tunes)
         tpl = tuple([0 if k != j and k != j + dim else 1 for k in range(dim2)])
         muj = taylor_coeffs[tpl]
-        assert muj.imag == 0
+        assert muj.imag < tol
         muj = muj.real
         H0[tpl] = muj
         mu.append(muj)

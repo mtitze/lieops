@@ -301,7 +301,7 @@ def _diagonal2block(D, code, tol=1e-10, **kwargs):
         A code defining the matrix object output.
         
     tol: float, optional
-        A small parameter to identify the pairs on the diagonal of D (default 1e-10).
+        A small parameter to identify the pairs on the diagonal of D.
     
     Returns
     -------
@@ -356,7 +356,7 @@ def _diagonal2block(D, code, tol=1e-10, **kwargs):
         T[k + dim, j] = 1
         k += 1
         
-    return U@T
+    return U@T.transpose()
 
 
 def unitary_williamson(M, tol=1e-14, **kwargs):
@@ -588,7 +588,7 @@ def williamson(V, **kwargs):
     return S, D
 
 
-def stf(G, d2b_tol=1e-10, **kwargs):
+def symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
     '''
     Symplectic Takagi factorization.
     
@@ -622,6 +622,7 @@ def stf(G, d2b_tol=1e-10, **kwargs):
     dim2 = len(G)
     assert dim2%2 == 0, 'Dimension must be even.'
     dim = dim2//2
+    assert max([max([abs(G[j, k] - G[k, j]) for j in range(dim2)]) for k in range(dim2)]) < kwargs.get('tol', d2b_tol), 'Input matrix does not appear to be symmetric.'
     
     if code == 'numpy':
         J = np.array(create_J(dim)).transpose()
@@ -643,15 +644,14 @@ def stf(G, d2b_tol=1e-10, **kwargs):
     X = U.transpose().conjugate()@Y
     Xi = Yi@U
     F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
+    D = -F@J
     
     # Step 2: Construct symplectic matrix
     if code == 'numpy':
-        YY = get_principal_sqrt(-J@X.transpose()@J@X)
-        D = np.diag(2*[F[k, k + dim] for k in range(dim)])   
+        YY = get_principal_sqrt(-J@X.transpose()@J@X)  
         
     if code == 'mpmath':
         YY = mp.sqrtm(-J@X.transpose()@J@X)
-        D = mp.diag(2*[F[k, k + dim] for k in range(dim)])
         
     return YY@Xi, D
 
@@ -680,7 +680,7 @@ def _create_umat_xieta(dim, code, **kwargs):
     return column_matrix_2_code(U1 + U2, code=code)
 
     
-def normal_form(H2, T=[], **kwargs):
+def normal_form(H2, T=[], mode='default', **kwargs):
     r'''
     Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
@@ -691,7 +691,9 @@ def normal_form(H2, T=[], **kwargs):
     Paramters
     ---------
     H2:
-        Symmetric matrix.
+        Symmetric matrix so that J@H2 is diagonalizable.
+        Attention: No direct check if J@H2 is diagonalizable or symmetric; it may be checked
+        in parts in one of the subroutines.
         
     T: matrix, optional
         Orthogonal matrix to change the ordering of canoncial
@@ -704,6 +706,12 @@ def normal_form(H2, T=[], **kwargs):
              \ -1   0  /
              
         into a matrix J' by matrix congruence: J' = T.transpose()@J@T.
+        
+    mode: str, optional
+        Method of how to compute the symplectic matrices which conjugate-diagonalize H2.
+        Supported modes are (default: 'default'):
+        1) 'default' -- Use symplectic Takagi factorization
+        2) 'classic' -- Use (unitary) Williamson diagonalization (works only if H2 is invertible.)
              
     Returns
     -------
@@ -734,21 +742,29 @@ def normal_form(H2, T=[], **kwargs):
     # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
         H2 = T@H2@T.transpose()
-        
+
     J = column_matrix_2_code(create_J(dim//2), code=code)
-        
-    if is_positive_definite(H2):
-        S, D = williamson(V=H2, **kwargs)
-        # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
-        # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
-        # (xi, eta) (as e.g. defined in my thesis):
-        U = _create_umat_xieta(dim=dim, code=code, **kwargs)
+
+    if mode == 'default':
+        S, D = symplectic_takagi(H2, **kwargs)
+        S = S.transpose()    
         Sinv = -J@S.transpose()@J
-    else:
-        assert code == 'numpy' # TODO: mpmath
-        # apply new general routine in case H2 is not positive definite
-        Sinv, D, U = unitary_williamson(M=H2, **kwargs) # U.conjugate()@Sinv.transpose()@G@Sinv@U.conjugate().transpose() will be in (xi, eta)-canonical form.
-        S = -J@Sinv.transpose()@J
+        U = _create_umat_xieta(dim=dim, code=code, **kwargs)
+    if mode == 'classic':
+        # OLD code, using Williamson or "unitary" Williamson.      
+        if is_positive_definite(H2):
+            S, D = williamson(V=H2, **kwargs)
+            # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
+            # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
+            # (xi, eta) (as e.g. defined in my thesis):
+            U = _create_umat_xieta(dim=dim, code=code, **kwargs)
+            Sinv = -J@S.transpose()@J
+        else:
+            assert code == 'numpy' # TODO: mpmath support
+            # apply new general routine in case H2 is not positive definite
+            Sinv, D, U = unitary_williamson(M=H2, **kwargs) # U.conjugate()@Sinv.transpose()@H2@Sinv@U.conjugate().transpose() will be in (xi, eta)-canonical form.
+            S = -J@Sinv.transpose()@J
+    
     # U is hermitian, therefore
     Uinv = U.transpose().conjugate()
 
