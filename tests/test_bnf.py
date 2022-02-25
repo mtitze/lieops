@@ -2,6 +2,7 @@ import numpy as np
 import mpmath as mp
 import time
 from sympy import Symbol
+import pytest
 
 from njet.functions import cos, sin, exp
 from njet import derive
@@ -128,6 +129,100 @@ def check_2nd_orders(hdict, dim, tol=1e-14):
     # the remaining values must be smaller than the given tolerance
     return all([abs(v) < tol for v in he2.values()])
 
+
+def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
+    # Test the exponential operator on Lie maps for the case of a 2nd order Hamiltonian (rotation) and
+    # the linear map K to (first-order) normal form.
+    
+    H2 = lambda x, px: 0.5*(x**2 + px**2)
+    expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy', **kwargs)
+    HLie = liepoly(values=expansion)
+    Kinv = nfdict['Kinv'] # K(p, q) = (xi, eta)
+    xieta = create_coords(1)
+
+    # first apply K, then exp_ad:
+    xy_mapped = Kinv@np.array([xieta], dtype=object).transpose()
+    xy_final_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu) # (x, y) final in terms of xi and eta 
+    
+    # first apply exp_ad, then K:
+    xy_fin = exp_ad(HLie, xieta, power=power, t=mu)
+    xy_final = Kinv@np.array([xy_fin], dtype=object).transpose() # (x, y) final in terms of xi and eta
+    
+    # Both results must be equal.
+    for k in range(len(xy_final)):
+        d1 = xy_final[k][0].values
+        d2 = xy_final_mapped[k].values
+        for key, v1 in d1.items():
+            v2 = d2[key]
+            assert abs(v1 - v2) < tol
+            
+    # check if the result also agrees with the analytical expectation
+    K = nfdict['K']
+    zz = [Symbol('x'), Symbol('px')]
+    xf = np.cos(mu)*zz[0] - np.sin(mu)*zz[1]
+    pxf = np.cos(mu)*zz[1] + np.sin(mu)*zz[0]
+    expectation = [xf, pxf]
+    for k in range(len(xy_final_mapped)):
+        lie_k = xy_final_mapped[k] # lie_k = exp(:HLie:)((Kinv*xieta)[k])
+        diff = expectation[k] - (lie_k( sum([zz[l]*K[:, l] for l in range(len(zz))]) ) ).expand()
+        assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
+        
+def fonfe(tol=1e-14, code='numpy', **kwargs):
+    # Test of the first-order normal form expansion and the result of reordering the canonical coordinates. Both results against each other.
+    
+    # compute expansion up to 3rd order:
+    H = lambda x, y, px, py: 0.24*(x**2 + px**2) + 0.86*(y**2 + py**2) + x**3 - y**3 - sin(x + 9*x**4*y + 0.2*px*y + 0.411*x*y - 0.378*px*x - 0.039*x*py + 1.2*y*py + 0.13*py*px) + x
+    he, he_dict = first_order_nf_expansion(H, order=3, warn=True, code=code, **kwargs)
+    
+    # compute expansion of the same Hamiltonian, but with respect to an alternative symplectic structure, up to third order:
+    T = qpqp2qp(2)
+    if code == 'mpmath':
+        T = mp.matrix(T)
+    HT = lambda x, px, y, py: H(x, y, px, py)
+    heT, heT_dict = first_order_nf_expansion(HT, order=3, warn=True, T=T, code=code, **kwargs)
+    
+    assert check_2nd_orders(he, dim=2, tol=tol)
+    assert check_2nd_orders(heT, dim=2, tol=tol)
+    
+    # compare results against each other
+    assert he == heT
+    
+def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32, **kwargs):
+    # Test the exponential operator on Lie maps for the case of a 5th order Hamiltonian and
+    # a non-linear map, making use of K, the linear map to (first-order) normal form.
+    
+    # Attention: This test appears to be suceptible against round-off errors for higher powers (power and max_power),
+    # and therefore requires mpmath to have sufficient precision (and sufficiently high power in exp).
+    
+    H2 = lambda x, px: mu*0.5*(x**2 + px**2) + x**3 + x*px**4
+    expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, dps=dps, **kwargs)
+    HLie = liepoly(values=expansion, max_power=max_power)
+    K = nfdict['K']
+    xieta = create_coords(1, max_power=max_power)
+    
+    # first apply function, then exp_ad:
+    if code == 'numpy':
+        xy_mapped = (K@np.array([xieta]).transpose()).tolist()
+    elif code == 'mpmath':
+        xy_mapped = [[sum([xieta[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
+    xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
+    xy_final_mapped = exp_ad(HLie, xy_mapped, power)    
+    
+    # first apply exp_ad, then function:
+    xy_fin = exp_ad(HLie, xieta, power)
+    if code == 'numpy':
+        xy_final = (K@np.array([xy_fin]).transpose()).tolist()
+    elif code == 'mpmath':
+        xy_final = [[sum([xy_fin[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
+    xy_final = [xy_final[k][0]**3 + 0.753 for k in range(len(xy_final))] # apply an additional non-linear operation
+    
+    # Both results must be relatively close (and every entry non-zero).
+    for k in range(len(xy_final)):
+        d1 = xy_final[k].values
+        d2 = xy_final_mapped[k].values
+        for key, v1 in d1.items():
+            v2 = d2[key]
+            assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
     
 #########
 # Tests #
@@ -135,7 +230,6 @@ def check_2nd_orders(hdict, dim, tol=1e-14):
 
 def test_version():
     assert __version__ == '0.1.0'
-    
     
 def test_jacobi():
     # Test the Jacobi-identity for the liepoly class
@@ -190,103 +284,17 @@ def test_shift():
     assert dH.hess(z, mult_drv=True) == dH_shift.hess(z0, mult_drv=True)
     assert dH_shift.get_taylor_coefficients(dH_shift.eval(z0)) == dH.get_taylor_coefficients(dH.eval(z))
     
-    
-def test_fonfe(tol=1e-14, code='numpy'):
-    # Test of the first-order normal form expansion and the result of reordering the canonical coordinates. Both results against each other.
-    
-    # compute expansion up to 3rd order:
-    H = lambda x, y, px, py: 0.24*(x**2 + px**2) + 0.86*(y**2 + py**2) + x**3 - y**3 - sin(x + 9*x**4*y + 0.2*px*y + 0.411*x*y - 0.378*px*x - 0.039*x*py + 1.2*y*py + 0.13*py*px) + x
-    he, he_dict = first_order_nf_expansion(H, order=3, warn=True, code=code)
-    
-    # compute expansion of the same Hamiltonian, but with respect to an alternative symplectic structure, up to third order:
-    T = qpqp2qp(2)
-    if code == 'mpmath':
-        T = mp.matrix(T)
-    HT = lambda x, px, y, py: H(x, y, px, py)
-    heT, heT_dict = first_order_nf_expansion(HT, order=3, warn=True, T=T, code=code)
-    
-    assert check_2nd_orders(he, dim=2, tol=tol)
-    assert check_2nd_orders(heT, dim=2, tol=tol)
-    
-    # compare results against each other
-    assert he == heT
-    
-    
-def test_exp_ad1(mu=-0.2371, power=18, tol=1e-14):
-    # Test the exponential operator on Lie maps for the case of a 2nd order Hamiltonian (rotation) and
-    # the linear map K to (first-order) normal form.
-    
-    H2 = lambda x, px: 0.5*(x**2 + px**2)
-    expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy')
-    HLie = liepoly(values=expansion)
-    Kinv = nfdict['Kinv'] # K(p, q) = (xi, eta)
-    xieta = create_coords(1)
-
-    # first apply K, then exp_ad:
-    xy_mapped = Kinv@np.array([xieta], dtype=object).transpose()
-    xy_final_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu) # (x, y) final in terms of xi and eta 
-    
-    # first apply exp_ad, then K:
-    xy_fin = exp_ad(HLie, xieta, power=power, t=mu)
-    xy_final = Kinv@np.array([xy_fin], dtype=object).transpose() # (x, y) final in terms of xi and eta
-    
-    # Both results must be equal.
-    for k in range(len(xy_final)):
-        d1 = xy_final[k][0].values
-        d2 = xy_final_mapped[k].values
-        for key, v1 in d1.items():
-            v2 = d2[key]
-            assert abs(v1 - v2) < tol
-            
-    # check if the result also agrees with the analytical expectation
-    K = nfdict['K']
-    zz = [Symbol('x'), Symbol('px')]
-    xf = np.cos(mu)*zz[0] - np.sin(mu)*zz[1]
-    pxf = np.cos(mu)*zz[1] + np.sin(mu)*zz[0]
-    expectation = [xf, pxf]
-    for k in range(len(xy_final_mapped)):
-        lie_k = xy_final_mapped[k] # lie_k = exp(:HLie:)((Kinv*xieta)[k])
-        diff = expectation[k] - (lie_k( sum([zz[l]*K[:, l] for l in range(len(zz))]) ) ).expand()
-        assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
-    
-    
-def test_exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32, **kwargs):
-    # Test the exponential operator on Lie maps for the case of a 5th order Hamiltonian and
-    # a non-linear map, making use of K, the linear map to (first-order) normal form.
-    
-    # Attention: This test appears to be suceptible against round-off errors for higher powers (power and max_power),
-    # and therefore requires mpmath to have sufficient precision (and sufficiently high power in exp).
-    
-    H2 = lambda x, px: mu*0.5*(x**2 + px**2) + x**3 + x*px**4
-    expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, dps=dps, **kwargs)
-    HLie = liepoly(values=expansion, max_power=max_power)
-    K = nfdict['K']
-    xieta = create_coords(1, max_power=max_power)
-    
-    # first apply function, then exp_ad:
-    if code == 'numpy':
-        xy_mapped = (K@np.array([xieta]).transpose()).tolist()
-    elif code == 'mpmath':
-        xy_mapped = [[sum([xieta[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
-    xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
-    xy_final_mapped = exp_ad(HLie, xy_mapped, power)    
-    
-    # first apply exp_ad, then function:
-    xy_fin = exp_ad(HLie, xieta, power)
-    if code == 'numpy':
-        xy_final = (K@np.array([xy_fin]).transpose()).tolist()
-    elif code == 'mpmath':
-        xy_final = [[sum([xy_fin[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
-    xy_final = [xy_final[k][0]**3 + 0.753 for k in range(len(xy_final))] # apply an additional non-linear operation
-    
-    # Both results must be relatively close (and every entry non-zero).
-    for k in range(len(xy_final)):
-        d1 = xy_final[k].values
-        d2 = xy_final_mapped[k].values
-        for key, v1 in d1.items():
-            v2 = d2[key]
-            assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
-            
+@pytest.mark.parametrize("code, mode", [('numpy', 'default'), ('numpy', 'classic'), ('mpmath', 'default'), ('mpmath', 'classic')])
+def test_fonfe(code, mode):
+    fonfe(code=code, mode=mode)
+        
+@pytest.mark.parametrize("mode", ('default', 'classic'))
+def test_exp_ad1(mode):
+    exp_ad1(mode=mode)
+        
+@pytest.mark.parametrize("mode", ('default', 'classic'))
+def test_exp_ad2(mode):
+    exp_ad2(mode=mode)
             
 def test_flow1(mu0=0.43, z=[0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
     # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
@@ -389,6 +397,8 @@ def test_construct(a: int=3, b: int=5, k: int=7):
     
     
 def test_lieoperator_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
+    # Check if the flow function of a Lie-polynomial gives the same result as the
+    # flow of the Lie-operator, having this polynomial as argument (exponent).
     
     mu0 = 2*np.pi*Q
     w = -1

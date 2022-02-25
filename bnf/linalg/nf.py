@@ -748,11 +748,11 @@ def normal_form(H2, T=[], mode='default', **kwargs):
         S = S.transpose()    
         Sinv = -J@S.transpose()@J
         U = _create_umat_xieta(dim=dim, code=code, **kwargs)
-    if mode == 'classic':
+    elif mode == 'classic':
         # OLD code, using Williamson or "unitary" Williamson.      
         if is_positive_definite(H2):
             S, D = williamson(V=H2, **kwargs)
-            # The first dim columns of S denote (new) canonical coordinates u, the last dim columns of S
+            # The first dim columns of S denote (new) canonical positions u, the last dim columns of S
             # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
             # (xi, eta) (as e.g. defined in my thesis):
             U = _create_umat_xieta(dim=dim, code=code, **kwargs)
@@ -762,7 +762,9 @@ def normal_form(H2, T=[], mode='default', **kwargs):
             # apply new general routine in case H2 is not positive definite
             Sinv, D, U = unitary_williamson(M=H2, **kwargs) # U.conjugate()@Sinv.transpose()@H2@Sinv@U.conjugate().transpose() will be in (xi, eta)-canonical form.
             S = -J@Sinv.transpose()@J
-    
+    else:
+        raise RuntimeError(f"Mode '{mode}' not recognized.")
+        
     # U is hermitian, therefore
     Uinv = U.transpose().conjugate()
 
