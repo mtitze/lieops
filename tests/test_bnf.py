@@ -11,6 +11,7 @@ from bnf import __version__
 from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lieoperator
 from bnf.lieop.lienf import homological_eq
 from bnf.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
+from bnf.linalg.nf import symplectic_takagi
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
@@ -224,6 +225,39 @@ def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32,
             v2 = d2[key]
             assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
     
+def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
+    # Test symplectic Takagi factorization with a diagonalizable GJ having some zeros on its main diagonal.
+    
+    A = [[0.53 - 2.647*1j, -0.1 + 2*1j, 0.1 + 0.93*1j, -1.1 - 0.24*1j],
+         [4.24 -0.35*1j, 0.553 + 0.3*1j, -0.95 + 23.15*1j, 0.56 - 7.35*1j],
+         [-5.37 + 1.44*1j, 0.331 + 0.352*1j, 0.925 - 2.743*1j, 3.3 - 9.1*1j],
+         [0.252 + 0.673*1j, 6.8832 - 9.21*1j, 0.975 + 9.356*1j, 0.4242 - 0.773*1j]]
+    
+    if code == 'numpy':
+        A = np.array(A)
+        EE = np.eye(4)
+        J = np.matrix(create_J(2)).transpose()
+    if code == 'mpmath':
+        A = mp.matrix(A)
+        EE = mp.eye(4)
+        J = mp.matrix(create_J(2)).transpose()
+                
+    EE[2, 2] = 0
+    EE[3, 3] = 0
+
+    G = A.transpose()@J@EE@J@A
+    G = G + G.transpose()
+    
+    S0, D0 = symplectic_takagi(G, tol=tol1, dps=dps)
+    
+    symplecticity = S0.transpose()@J@S0 - J
+    factorization = S0@D0@S0.transpose() - G
+    
+    dim2 = len(G)
+    assert max([max([abs(symplecticity[j, k]) for j in range(dim2)]) for k in range(dim2)]) < tol2
+    assert max([max([abs(factorization[j, k]) for j in range(dim2)]) for k in range(dim2)]) < tol2
+    
+    
 #########
 # Tests #
 #########
@@ -284,17 +318,26 @@ def test_shift():
     assert dH.hess(z, mult_drv=True) == dH_shift.hess(z0, mult_drv=True)
     assert dH_shift.get_taylor_coefficients(dH_shift.eval(z0)) == dH.get_taylor_coefficients(dH.eval(z))
     
+    
+@pytest.mark.parametrize("tol1, tol2, code", [(1e-18, 1e-10, 'numpy'), (1e-35, 1e-28, 'mpmath')])
+def test_stf_with_zeros(tol1, tol2, code, dps=32):
+    stf_with_zeros(tol1=tol1, tol2=tol2, code=code, dps=dps)
+    
+    
 @pytest.mark.parametrize("code, mode", [('numpy', 'default'), ('numpy', 'classic'), ('mpmath', 'default'), ('mpmath', 'classic')])
 def test_fonfe(code, mode):
     fonfe(code=code, mode=mode)
         
+        
 @pytest.mark.parametrize("mode", ('default', 'classic'))
 def test_exp_ad1(mode):
     exp_ad1(mode=mode)
+    
         
 @pytest.mark.parametrize("mode", ('default', 'classic'))
 def test_exp_ad2(mode):
     exp_ad2(mode=mode)
+    
             
 def test_flow1(mu0=0.43, z=[0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
     # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
@@ -441,21 +484,4 @@ def test_bnf_performance(threshold=1.1, tol=1e-15):
     for key in chifinal_ref.values.keys():
         v1, v2 = chifinal_ref.values[key], chifinal.values[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
-
-    
-if __name__ == '__main__':
-    test_version()
-    test_jacobi()
-    test_poisson()
-    test_shift()
-    test_fonfe(code='numpy')
-    test_fonfe(code='mpmath')
-    test_exp_ad1()
-    test_exp_ad2()
-    test_flow1()
-    test_flow2()
-    test_flow3()
-    test_lieoperator_flow_consistency()
-    test_construct()
-    test_bnf_performance()
     
