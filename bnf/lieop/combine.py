@@ -3,6 +3,8 @@ from itertools import product
 from scipy.special import bernoulli
 from njet.jet import factorials
 
+import numpy as np
+
 '''
 References:
 [1]: S. P. Norsett, A. Iserles, H. Z. Munth-Kaas and A. Zanna: Lie Group Methods (2000).
@@ -55,7 +57,7 @@ class tree:
         if self.index != other.index:
             return False
         else:
-            if self.index == 1: # then other.index == 1 as well
+            if self.index == 1: # == other.index
                 return True
             else:
                 return self.branches[0] == other.branches[0] and self.branches[1] == other.branches[1]
@@ -78,6 +80,9 @@ def forests(k, time_power=0):
     ----------
     k: int
         The maximal index up to which we want to construct the trees.
+        
+    time_power: int, optional
+        Optional initial order of time, of the first Taylor coefficient of the given operator.
         
     Returns
     -------
@@ -106,9 +111,13 @@ def forests(k, time_power=0):
                 else:
                     t12.time_power = t1.time_power + t2.time_power + 2 # keep track of the power in time, see Ref. [2], Thm. 19
                 treesj.append(t12)
-                    
         tree_groups.append(treesj)
-        forest_groups.append([t for t in treesj if t.time_power == time_power + j + 1])
+            
+    time_powers = np.unique([t.time_power for tg in tree_groups for t in tg])
+    max_power = k*(time_power + 1) + 2 # Trees of index k can only contribute to forests of k + 2 at most (if multiplied by a tree with index 1).
+    # Each additional time_power can be extracted out of the brackets and therefore acts as a flat addition to this value. So we have max_power = k + 2 + k*time_power = k*(1 + time_power) + 2. We do not include forests beyond this value.
+    forest_groups = {power: [t for tg in tree_groups for t in tg if t.time_power == power] for power in time_powers if power <= max_power}
+    # N.B. in Ref. [2] it appears that the term belonging to "F_5" with coeff -1/24 is not correctly assigned. It should be in F_6. This code also predicts that it is in F_6. To be checked: In Ref. [1] #T_6 = 132 and #F_6 = 21, while here #T_6 = 136 and #F_6 = 21. Given the fact that there is agreement with #F_6, I am not sure whether there was a miscalculation of #T_6 in Ref. [1].
         
     return tree_groups, forest_groups
 
