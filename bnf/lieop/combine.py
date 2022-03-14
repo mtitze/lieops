@@ -15,27 +15,27 @@ References:
 
 class tree:
     '''
-    A tree according to Ref. [1]
+    A tree according to Refs. [1, 2, 3]
     '''
     
     def __init__(self, *branches, time_power=0):
         self.branches = branches
         if len(branches) == 0:
             self.index = 1 # we set the index of the fundamental object to one, to have the easiest way to increase the index for higher-orders.
-            self.pivot_branches = []
+            self.pivot_branches = [] # Contains the trees listen in Eq. (2.3), Ref. [3]
             self.factor = 1
             self.time_power = time_power # The power of the first coefficient in the Taylor expansion of the Hamiltonian with respect to time.
         else:
             assert len(branches) == 2
             self.index = branches[0].index + branches[1].index
-            self.pivot_branches = [branches[0]] + branches[1].pivot_branches # The trees listen in Eq. (2.3), Ref. [3]
+            self.pivot_branches = [branches[0]] + branches[1].pivot_branches # Contains the trees listen in Eq. (2.3), Ref. [3]
             
     def set_factor(self, b=[]):
         '''
         Set the factor associated with the coefficient of the tree.
         The factor will be given in self.factor.
         
-        Attention: Calling this method requires that all the factors in self.pivot_branches have already been determined.
+        Attention: Calling this method requires that all the factors in self.pivot_branches have already been determined. There will be no check.
         
         Parameters
         ----------
@@ -74,7 +74,7 @@ class tree:
     
 def forests(k, time_power=0):
     '''
-    Construct a set of trees with respect to a given index, according to Ref. [1].
+    Construct a set of trees with respect to a given index, according to Refs. [1, 2, 3].
     
     Parameters
     ----------
@@ -88,6 +88,10 @@ def forests(k, time_power=0):
     -------
     list
         A list where the entry j corresponds to a list containing all trees with index j.
+        
+    dict
+        A dictionary representing the forests of trees for the requested time powers 
+        (up to k*(time_power + 1) + 2, see the discussion in this code below).
     '''
     factors = bernoulli(k)/factorials(k)
     tree_groups = [[tree(time_power=time_power)]] # Representing the sets T_k in Ref. [2].
