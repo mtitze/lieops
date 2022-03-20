@@ -20,6 +20,26 @@ class tree:
     
     def __init__(self, *branches, time_power=0):
         '''
+        self.integration_scheme
+        
+        Example:
+        Let the tree have the form
+          [I([I(H), H]), [I([I(H), H]), H]]
+        The function 'H' appears 5 times and each 'I' denotes a specific integration. 
+        In addition to this, there is an integration over the entire expression (whose upper bound
+        we shall denote by t_-1). 
+        By bi-linearity of the Lie brackets, we can move out the interior integrals to obtain:
+        
+        I_0^{t_j4} [I_0^{t_j1} [I_0^{t_j0} H(t_0), H(t_1)], [I_0^{t_j3} [I_0^{t_j2} H(t_2), H(t_3)], H(t_4)]]
+        
+        The field self.integration scheme is a list L so that L[k] = jk. For this example:
+        
+        L = [1, 4, 3, 4, -1]
+        
+        So that the above integral is given by
+
+        I_0^{t_-1} [I_0^{t_4} [I_0^{t_1} H(t_0), H(t_1)], [I_0^{t_4} [I_0^{t_3} H(t_2), H(t_3)], H(t_4)]]
+        
         Parameters
         ----------
         *branches: None or (tree, tree)
@@ -35,10 +55,30 @@ class tree:
             self.pivot_branches = [] # Contains the trees listen in e.g. Eq. (2.3), Ref. [3]
             self.factor = 1
             self.time_power = time_power # The power of the first coefficient in the Taylor expansion of the Hamiltonian with respect to time.
+            self.integration_scheme = [-1]
         else:
             assert len(branches) == 2
             self.index = branches[0].index + branches[1].index
             self.pivot_branches = [branches[0]] + branches[1].pivot_branches # Contains the trees listen in e.g. Eq. (2.3), Ref. [3]
+            
+            ### Keep track of the integration scheme ###
+            # copy the integration schemes of the two branches
+            scheme1 = [s for s in branches[0].integration_scheme]
+            scheme2 = [s for s in branches[1].integration_scheme]
+            
+            # find their free variables, which are those unique indices with a '-1'.
+            free_variable1 = scheme1.index(-1)
+            free_variable2 = scheme2.index(-1)
+            
+            # relabel indices of scheme2 to fit in the larger setting
+            scheme2 = [s + branches[0].index for s in scheme2]
+            scheme2[free_variable2] = -1 # keep the free variable of scheme2
+            
+            # define integration over the free variable of scheme1 with upper bound of the free variable of scheme2
+            scheme1[free_variable1] = free_variable2 + branches[0].index
+            
+            # put all together to define the integration scheme of the current tree
+            self.integration_scheme = scheme1 + scheme2
             
     def set_factor(self, b=[]):
         '''
@@ -63,79 +103,6 @@ class tree:
         for pbranch in self.pivot_branches:
             self.factor *= pbranch.factor
             
-    def get_integration_bound_indices(self, indices={}, position=1, scope1=2, scope2=0):
-        '''
-        Determine the integration bounds.
-        
-        Example:
-        Let the tree have the form
-          [I([I(H), H]), [I([I(H), H]), H]]
-        The function 'H' appears 5 times and each 'I' denotes a specific integration. 
-        In addition to this, there is an integration over the entire expression (whose upper bound
-        we shall denote by t_0). 
-        By bi-linearity of the Lie brackets, we can move out the interior integrals to obtain:
-        
-        I_0^{t_j5} [I_0^{t_j2} [I_0^{t_j1} H(t_1), H(t_2)], [I_0^{t_j4} [I_0^{t_j3} H(t_3), H(t_4)], H(t_5)]]
-        
-        The result of this routine is a dictionary D so that D[k] = jk. In the above example:
-        
-        j5 = 0
-        j4 = 5
-        j3 = 4
-        j2 = 5
-        j1 = 2
-        
-        So that the above integral is given by
-        
-        I_0^{t_0} [I_0^{t_5} [I_0^{t_2} H(t_1), H(t_2)], [I_0^{t_5} [I_0^{t_4} H(t_3), H(t_4)], H(t_5)]]
-
-        Parameters
-        ----------
-        indices: dict, optional
-            Optional indices from a parent tree.
-            
-        position: int, optional
-            The current position of the tree in a parent tree, starting with index 1. This means that if the tree
-            would be printed, it corresponds to the k'th occurence of 'H'.
-            
-        scope1: int, optional
-            The current index k of t_k, the upper bound of the inner integration of the tree.
-            
-        scope2: int, optional
-            The current index k of t_k, the upper bound of the outer integration of the tree.
-            
-        Returns
-        -------
-        indices: dict
-            A dictionary relating the k'th variable to the index of the upper bound of its
-            respective integral.
-        '''
-        
-        if len(indices) == 0:
-            indices = {} # need to explicitly reset, otherwise calling this method again leads to a different result
-            
-        # determine the pivot branch positions
-        branch_positions = []
-        branch_position = position
-        for b in self.pivot_branches:
-            branch_positions.append(branch_position)
-            branch_position += b.index
-
-        last_position = self.index
-        branch_positions.append(last_position)
-
-        n = len(self.pivot_branches)
-        for k in range(n):
-            b = self.pivot_branches[k]
-            # scope1 corresponds to the inner integration, while scope2 to the outer integration
-            indices = b.get_integration_bound_indices(indices=indices, 
-                                                      position=branch_positions[k],
-                                                      scope1=branch_positions[k + 1] - 1,
-                                                      scope2=last_position)
-        indices[position] = scope1
-        indices[position + self.index - 1] = scope2        
-        return indices
-
     def __eq__(self, other):
         if self.index != other.index:
             return False
@@ -154,9 +121,6 @@ class tree:
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>' 
     
-class integration_variable:
-    def __init__(self, position=None):
-        self.position = position
     
 def forests(k, time_power=0):
     '''
