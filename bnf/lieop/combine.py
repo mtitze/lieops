@@ -123,7 +123,7 @@ class tree:
         -------
         list
             A list of n-tuples, each n-tuple (j1, j2, ..., jk) representing a factor of the form
-            1/(omega_{j1} + omega_{j2} + ... + omega_{jk}) 
+            1/(omega_{j1} + omega_{j2} + ... + omega_{jk})
             in the overall integrand.
             
         add_last_chain: bool, optional
@@ -133,12 +133,11 @@ class tree:
             return []
         _, levels = self.integration_chain()
         chains = {(k,): v for k, v in levels[-1].items()}
-        n_levels = len(levels)
         for level in levels[:0:-1]:
-            chains.update({k1 + (chains[k1],): level[chains[k1]] for k1 in chains if chains[k1] in level})
-            chains.update({(k2,): level[k2] for k2 in level if k2 not in chains.values()})
+            chains.update({k1 + (chains[k1],): level[chains[k1]] for k1 in chains if chains[k1] in level}) # we go through the integration levels backwards and collect all chains (which are indices propagated to the next level)
+            chains.update({(k2,): level[k2] for k2 in level if k2 not in chains.values()}) # if there are additional indices which started at the current level, we add them to our book:
         if add_last_chain:
-            # add the last chain, which is the sum over all indices
+            # If requested, add the last chain (which is the sum over all indices)
             chains[tuple(range(self.index))] = self._upper_bound_default # the value doesn't matter here
         return list(chains.keys())
             
