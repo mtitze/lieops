@@ -102,12 +102,45 @@ class tree:
         assert all([all([j < self.integration_bounds[k] for j in range(k)]) for k in range(len(self.integration_bounds)) if self.integration_bounds[k] != self._upper_bound_default])
         
         # construct the ordering
-        level = {self.integration_bounds.index(self._upper_bound_default): self._upper_bound_default}
-        order = [(self.integration_bounds.index(self._upper_bound_default), self._upper_bound_default)]
+        default_var = self.integration_bounds.index(self._upper_bound_default)
+        level = {default_var: self._upper_bound_default}
+        order = [(default_var, self._upper_bound_default)]
+        integration_levels = [level]
         while len(level.keys()) > 0:
             level = {k: self.integration_bounds[k] for k in range(len(self.integration_bounds)) if self.integration_bounds[k] in level.keys()}
-            order += [e[0] for e in zip(level.items())]   
-        return order
+            order += [e[0] for e in zip(level.items())]
+            integration_levels.append(level)
+        return order, integration_levels[:-1]
+    
+    def exp_integral_factors(self, add_last_chain=False):
+        '''
+        If the original t-dependency reads exp(i sum_j (omega_j t_j)), for some variables omega_j, then
+        a tree expression can be integrated immediately with respect to the t_j's. This routine will compute
+        the resulting factor in front of the exponential, which will depend on the omega_j's. Their indices
+        will be returned.
+
+        Returns
+        -------
+        list
+            A list of n-tuples, each n-tuple (j1, j2, ..., jk) representing a factor of the form
+            1/(omega_{j1} + omega_{j2} + ... + omega_{jk}) 
+            in the overall integrand.
+            
+        add_last_chain: bool, optional
+            If set to true, then add the last chain to the result, which corresponds to a summation over all available indices.
+        '''
+        if self.index == 1:
+            return []
+        _, levels = self.integration_chain()
+        chains = {(k,): v for k, v in levels[-1].items()}
+        n_levels = len(levels)
+        for level in levels[:0:-1]:
+            chains.update({k1 + (chains[k1],): level[chains[k1]] for k1 in chains if chains[k1] in level})
+            chains.update({(k2,): level[k2] for k2 in level if k2 not in chains.values()})
+        if add_last_chain:
+            # add the last chain, which is the sum over all indices
+            chains[tuple(range(self.index))] = self._upper_bound_default # the value doesn't matter here
+        return list(chains.keys())
             
     def set_factor(self, b=[]):
         '''
