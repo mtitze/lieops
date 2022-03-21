@@ -49,13 +49,14 @@ class tree:
             Only relevant at initialization if len(branches) == 0. 
             Defines the first order in time in the time-expansion of the operator (Hamiltonian).
         '''
+        self._upper_bound_default = -1 # should be smaller than 0
         self.branches = branches
         if len(branches) == 0:
             self.index = 1 # we set the index of the fundamental object to one, to have the easiest way to increase the index for higher-orders.
             self.pivot_branches = [] # Contains the trees listen in e.g. Eq. (2.3), Ref. [3]
             self.factor = 1
             self.time_power = time_power # The power of the first coefficient in the Taylor expansion of the Hamiltonian with respect to time.
-            self.integration_scheme = [-1]
+            self.integration_bounds = [self._upper_bound_default]
         else:
             assert len(branches) == 2
             self.index = branches[0].index + branches[1].index
@@ -63,22 +64,50 @@ class tree:
             
             ### Keep track of the integration scheme ###
             # copy the integration schemes of the two branches
-            scheme1 = [s for s in branches[0].integration_scheme]
-            scheme2 = [s for s in branches[1].integration_scheme]
+            bounds1 = [s for s in branches[0].integration_bounds]
+            bounds2 = [s for s in branches[1].integration_bounds]
             
             # find their free variables, which are those unique indices with a '-1'.
-            free_variable1 = scheme1.index(-1)
-            free_variable2 = scheme2.index(-1)
+            free_variable1 = bounds1.index(self._upper_bound_default)
+            free_variable2 = bounds2.index(self._upper_bound_default)
             
             # relabel indices of scheme2 to fit in the larger setting
-            scheme2 = [s + branches[0].index for s in scheme2]
-            scheme2[free_variable2] = -1 # keep the free variable of scheme2
+            bounds2 = [s + branches[0].index for s in bounds2]
+            bounds2[free_variable2] = self._upper_bound_default # keep the free variable of scheme2
             
             # define integration over the free variable of scheme1 with upper bound of the free variable of scheme2
-            scheme1[free_variable1] = free_variable2 + branches[0].index
+            bounds1[free_variable1] = free_variable2 + branches[0].index
             
             # put all together to define the integration scheme of the current tree
-            self.integration_scheme = scheme1 + scheme2
+            self.integration_bounds = bounds1 + bounds2
+            
+    def integration_chain(self):
+        '''
+        Convert the integration bounds of the current tree into a multi-dimensional integral over a simplex. I.e. this routine
+        will move the integrals in the example of self.__init__ in front of the entire expression.
+
+        Returns
+        -------
+        list:
+            A list of tuples, denoting the order and bounds of the multi-dimensional integral:
+            [(j1, b1), (j2, b2), ..., (jk, bk)] corresponds to
+
+            I_0^{b1} I_0^{b2} ... I_0^{bk} f(t_0, t_1, ..., t_k) dt_j1 ... dt_jk ,
+            
+            where f(t_0, t_1, ..., t_k) denotes the nested bracket expression of the tree (see self.__init__ for an example).
+        '''
+        # Input consistency check: In order to be able to move an integral into the front of the nested commutator expression, 
+        # it is necessary that for every variable t_k, its corresponding upper bound b_k does not equal one of the
+        # preceeding variables.
+        assert all([all([j < self.integration_bounds[k] for j in range(k)]) for k in range(len(self.integration_bounds)) if self.integration_bounds[k] != self._upper_bound_default])
+        
+        # construct the ordering
+        level = {self.integration_bounds.index(self._upper_bound_default): self._upper_bound_default}
+        order = [(self.integration_bounds.index(self._upper_bound_default), self._upper_bound_default)]
+        while len(level.keys()) > 0:
+            level = {k: self.integration_bounds[k] for k in range(len(self.integration_bounds)) if self.integration_bounds[k] in level.keys()}
+            order += [e[0] for e in zip(level.items())]   
+        return order
             
     def set_factor(self, b=[]):
         '''
