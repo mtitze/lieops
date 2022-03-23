@@ -112,34 +112,85 @@ class tree:
             integration_levels.append(level)
         return order, integration_levels[:-1]
     
-    def exp_integral_factors(self, add_last_chain=False):
+    def exp_integral_factors(self, consistency_checks=True):
         '''
         If the original t-dependency reads exp(i sum_j (omega_j t_j)), for some variables omega_j, then
         a tree expression can be integrated immediately with respect to the t_j's. This routine will compute
         the resulting factor in front of the exponential, which will depend on the omega_j's. Their indices
         will be returned.
+        
+        ATTENTION: 
+        Due to technical reasons, the indices of the results here are starting with 1 (instead of the ordinary Python 0's).
+        The reason for this is that we need to track negative values by minus signs (and -0 is stored in the result by 0, for the
+        index 0).
+        
+        Parameters
+        ----------
+        consistency_checks: boolean, optional
+            If true, perform some consistency checks of the output.
 
         Returns
         -------
         list
-            A list of n-tuples, each n-tuple (j1, j2, ..., jk) representing a factor of the form
-            1/(omega_{j1} + omega_{j2} + ... + omega_{jk})
-            in the overall integrand.
+            A list of lists, having length 2**(self.index - 1). Each entry A hereby represents 
+            one summand of the final integral.
             
-        add_last_chain: bool, optional
-            If set to true, then add the last chain to the result, which corresponds to a summation over all available indices.
+            1) Each entry [j1, j2, ..., jk] of A corresponds to a factor of the form
+            1/(omega_{j1} + omega_{j2} + ... + omega_{jk})
+            in front of the summand.
+            
+            2) Furthermore, A[-1] represents the term [exp(t_{-1}*(omega_{j1} + omega_{j2} + ... + omega_{jk})) - 1]
+            of the summand. Note that the '-1' originates from the fact that the bounds of the integral are assumed to be zero.
         '''
-        if self.index == 1:
-            return []
-        _, levels = self.integration_chain()
-        chains = {(k,): v for k, v in levels[-1].items()}
-        for level in levels[:0:-1]:
-            chains.update({k1 + (chains[k1],): level[chains[k1]] for k1 in chains if chains[k1] in level}) # we go through the integration levels backwards and collect all chains (which are indices propagated to the next level)
-            chains.update({(k2,): level[k2] for k2 in level if k2 not in chains.values()}) # if there are additional indices which started at the current level, we add them to our book:
-        if add_last_chain:
-            # If requested, add the last chain (which is the sum over all indices)
-            chains[tuple(range(self.index))] = self._upper_bound_default # the value doesn't matter here
-        return list(chains.keys())
+        n_variables = self.index
+        integral = [{'factors': [], 'exponent': {j + 1: [j + 1] for j in range(n_variables)}}] # the keys in 'exponent' denote the indices of the s-values, while the items denote the indices of the 'omega'-values. 
+        
+        if n_variables == 1:
+            return integral
+        
+        chain, _ = self.integration_chain()
+        for int_op in chain[::-1]:
+            variable, bound = int_op
+            variable = variable + 1
+            bound = bound + 1
+            
+            # perform the integration for each summand represented by an entry in 'integral'
+            new_integral = []
+            for entry in integral:
+                exponent = entry['exponent']
+                new_factors = [e for e in entry['factors']] # copy required; otherwise entry['factors'] will be modified unintentionally
+                coeffs = exponent[variable]
+                new_factors.append(coeffs)
+
+                # lower bound (zero):
+                exponent_lower = {k: [c for c in exponent[k]] for k in exponent.keys() if k != variable} # need to reset exponent[k] here as well, otherwise it will get modified unintentionally.
+                # upper bound:
+                exponent_upper = {a: [e for e in b] for a, b in exponent_lower.items()} # copy required; otherwise exponent_lower gets modified later
+                if bound in exponent_upper.keys():
+                    exponent_upper[bound] += coeffs
+                else:
+                    # the final integration
+                    assert bound == self._upper_bound_default + 1
+                    exponent_upper[bound] = coeffs
+                
+                # add integration for upper and lower bound to the new set of integrals
+                new_integral.append({'factors': new_factors, 'exponent': exponent_upper})
+                new_integral.append({'factors': new_factors[:-1] + [[-f for f in new_factors[-1]]], 'exponent': exponent_lower}) # the factors of the lower bound get a negative sign, due to the subtraction of that term.
+                
+            integral = new_integral
+            
+        non_zero_terms = [integral[2*k] for k in range(len(integral)//2)] # by construction, the non-zero exponents (upper bounds) are computed first
+        if consistency_checks:
+            # consistency checks
+            assert len(integral) == 2**self.index # each integration step yields two terms, one for the upper and one for the lower bound.
+            zero_terms = [integral[2*k + 1] for k in range(len(integral)//2)] # in the final output, the lower bounds have zero in their exponents.
+            assert all([len(e['exponent']) == 1 for e in non_zero_terms]) # the non-zero terms must have only self._upper_bound_default as single key.
+            assert all([len(e['exponent']) == 0 for e in zero_terms]) # verify that the zero_terms are in fact zero in their exponents.
+            assert all([e['exponent'][self._upper_bound_default + 1] == e['factors'][-1] for e in non_zero_terms]) # the last factors must equal the final exponents.
+            
+        # prepare output; only factors are required for the full information
+        return [e['factors'] for e in non_zero_terms]
+            
             
     def set_factor(self, b=[]):
         '''
