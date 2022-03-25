@@ -12,6 +12,48 @@ References:
 [3]: A. Iserles: Magnus expansions and beyond (2008)
 '''
 
+class fourier_model:
+    
+    '''
+    Model and compute a specific term in the integral of a tree, in case the original Hamiltonian has been decomposed into a Fourier series.
+    '''
+    
+    def __init__(self, factors=[], exponent={}, sign=1):
+        
+        self.factors = factors
+        self.exponent = exponent # the keys in 'exponent' denote the indices of the s-values, while the items denote the indices of the 'omega'-values. 
+        self.sign = sign
+        
+    def __str__(self):
+        if self.sign == -1:
+            out = '-'
+        else:
+            out = ' '
+            
+        out += '[ '
+        for flist in self.factors:
+            out += '('
+            for f in flist:
+                out += f'f{f} + '
+            out = out[:-3]
+            out += ')*'
+        out = out[:-1]
+        expstr = ''
+        
+        for k, v in self.exponent.items():
+            expstr += '('
+            for e in v:
+                expstr += f'f{e} + '
+            expstr = expstr[:-3]
+            expstr += ') + '
+        expstr = expstr[:-3]
+        
+        out += f' ]**(-1) * [exp( {expstr} ) - 1]'
+        return out
+    
+    def _repr_html_(self):
+        return f'<samp>{self.__str__()}</samp>' 
+
 
 class tree:
     '''
@@ -112,17 +154,12 @@ class tree:
             integration_levels.append(level)
         return order, integration_levels[:-1]
     
-    def exp_integral_factors(self, consistency_checks=True):
+    def fourier_integral_terms(self, consistency_checks=False):
         '''
         If the original t-dependency reads exp(i sum_j (omega_j t_j)), for some variables omega_j, then
         a tree expression can be integrated immediately with respect to the t_j's. This routine will compute
         the resulting factor in front of the exponential, which will depend on the omega_j's. Their indices
         will be returned.
-        
-        ATTENTION: 
-        Due to technical reasons, the indices of the results here are starting with 1 (instead of the ordinary Python 0's).
-        The reason for this is that we need to track negative values by minus signs (and -0 is stored in the result by 0, for the
-        index 0).
         
         Parameters
         ----------
@@ -132,51 +169,39 @@ class tree:
         Returns
         -------
         list
-            A list of lists, having length 2**(self.index - 1). Each entry A hereby represents 
+            A list of fourier_model objects, having length 2**(self.index - 1). Each entry A hereby represents 
             one summand of the final integral.
-            
-            1) Each entry [j1, j2, ..., jk] of A corresponds to a factor of the form
-            1/(omega_{j1} + omega_{j2} + ... + omega_{jk})
-            in front of the summand.
-            
-            2) Furthermore, A[-1] represents the term [exp(t_{-1}*(omega_{j1} + omega_{j2} + ... + omega_{jk})) - 1]
-            of the summand. Note that the '-1' originates from the fact that the bounds of the integral are assumed to be zero.
         '''
-        n_variables = self.index
-        integral = [{'factors': [], 'exponent': {j + 1: [j + 1] for j in range(n_variables)}}] # the keys in 'exponent' denote the indices of the s-values, while the items denote the indices of the 'omega'-values. 
-        
-        if n_variables == 1:
+        integral = [fourier_model(exponent={j: [j] for j in range(self.index)})] # the keys in 'exponent' denote the indices of the s-values, while the items denote the indices of the 'omega'-values.
+        if self.index == 1:
             return integral
         
         chain, _ = self.integration_chain()
         for int_op in chain[::-1]:
             variable, bound = int_op
-            variable = variable + 1
-            bound = bound + 1
             
             # perform the integration for each summand represented by an entry in 'integral'
             new_integral = []
             for entry in integral:
-                exponent = entry['exponent']
-                new_factors = [e for e in entry['factors']] # copy required; otherwise entry['factors'] will be modified unintentionally
-                coeffs = exponent[variable]
+                new_factors = [e for e in entry.factors] # copy required; otherwise entry['factors'] will be modified unintentionally
+                coeffs = entry.exponent[variable]
                 new_factors.append(coeffs)
 
                 # lower bound (zero):
-                exponent_lower = {k: [c for c in exponent[k]] for k in exponent.keys() if k != variable} # need to reset exponent[k] here as well, otherwise it will get modified unintentionally.
+                exponent_lower = {k: [c for c in entry.exponent[k]] for k in entry.exponent.keys() if k != variable} # need to reset exponent[k] here as well, otherwise it will get modified unintentionally.
                 # upper bound:
                 exponent_upper = {a: [e for e in b] for a, b in exponent_lower.items()} # copy required; otherwise exponent_lower gets modified later
                 if bound in exponent_upper.keys():
                     exponent_upper[bound] += coeffs
                 else:
                     # the final integration
-                    assert bound == self._upper_bound_default + 1
+                    assert bound == self._upper_bound_default
                     exponent_upper[bound] = coeffs
                 
                 # add integration for upper and lower bound to the new set of integrals
-                new_integral.append({'factors': new_factors, 'exponent': exponent_upper})
-                new_integral.append({'factors': new_factors[:-1] + [[-f for f in new_factors[-1]]], 'exponent': exponent_lower}) # the factors of the lower bound get a negative sign, due to the subtraction of that term.
-                
+                new_integral.append(fourier_model(factors=new_factors, exponent=exponent_upper, sign=entry.sign))
+                new_integral.append(fourier_model(factors=new_factors, exponent=exponent_lower, sign=-1*entry.sign))
+
             integral = new_integral
             
         non_zero_terms = [integral[2*k] for k in range(len(integral)//2)] # by construction, the non-zero exponents (upper bounds) are computed first
@@ -184,12 +209,12 @@ class tree:
             # consistency checks
             assert len(integral) == 2**self.index # each integration step yields two terms, one for the upper and one for the lower bound.
             zero_terms = [integral[2*k + 1] for k in range(len(integral)//2)] # in the final output, the lower bounds have zero in their exponents.
-            assert all([len(e['exponent']) == 1 for e in non_zero_terms]) # the non-zero terms must have only self._upper_bound_default as single key.
-            assert all([len(e['exponent']) == 0 for e in zero_terms]) # verify that the zero_terms are in fact zero in their exponents.
-            assert all([e['exponent'][self._upper_bound_default + 1] == e['factors'][-1] for e in non_zero_terms]) # the last factors must equal the final exponents.
+            assert all([len(e.exponent) == 1 for e in non_zero_terms]) # the non-zero terms must have only self._upper_bound_default as single key.
+            assert all([len(e.exponent) == 0 for e in zero_terms]) # verify that the zero_terms are in fact zero in their exponents.
+            assert all([e.exponent[self._upper_bound_default] == e.factors[-1] for e in non_zero_terms]) # the last factors must equal the final exponents.
             
         # prepare output; only factors are required for the full information
-        return [e['factors'] for e in non_zero_terms]
+        return non_zero_terms
             
             
     def set_factor(self, b=[]):
@@ -288,4 +313,4 @@ def forests(k, time_power=0):
     return tree_groups, forest_groups
 
 
-            
+
