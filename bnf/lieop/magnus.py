@@ -225,6 +225,23 @@ class tree:
             # put all together to define the integration scheme of the current tree
             self.integration_bounds = bounds1 + bounds2
             
+    def _set_time_power(self, eb=None):
+        '''
+        Set the time power of the tree.
+        
+        Parameters
+        ----------
+        eb: boolean, optional
+            self.branches[0] == self.branches[1]; if 'None' given, the check will be done.
+        '''
+        if eb == None:
+            eb = self.branches[0] == self.branches[1]
+            
+        if eb:
+            self.time_power = self.branches[0].time_power + self.branches[1].time_power + 2
+        else:
+            self.time_power = self.branches[0].time_power + self.branches[1].time_power + 1
+            
     def integration_chain(self):
         '''
         Convert the integration bounds of the current tree into a multi-dimensional integral over a simplex. I.e. this routine
@@ -367,11 +384,10 @@ class tree:
     def __eq__(self, other):
         if self.index != other.index:
             return False
+        elif self.index == 1: # == other.index
+            return True
         else:
-            if self.index == 1: # == other.index
-                return True
-            else:
-                return self.branches[0] == other.branches[0] and self.branches[1] == other.branches[1]
+            return self.branches[1] == other.branches[1] and self.branches[0] == other.branches[0]
         
     def __str__(self):
         if len(self.branches) == 0:
@@ -408,24 +424,31 @@ def forests(k, time_power=0):
     tree_groups = {0: [tree(time_power=time_power)]} # Representing the sets T_k in Refs. [1, 2, 3].
     forest_groups = [tree_groups[0]] # Representing the sets F_k in Refs. [1, 2, 3].
     for j in range(1, k + 1):
-        # construct the set of Trees with respect to index j from trees of indices q < j and p < j so that q + p = j
+        # construct the set of trees with respect to index j from trees of indices q < j and p < j so that q + p = j
         treesj = []
-        for q in range((j - 1)//2 + 1): # the case j - q - 1 < q is already covered by q later on (elements of trees_q and trees_p are exchanged and added, if the provide a new unique tree).
+        for q in range((j - 1)//2 + 1): # We don't have to iterate from 0 up to j - 1, but only half the way: The case j - q - 1 < q is already covered by some q later on (elements of trees_q and trees_p are exchanged and added, if they provide a new unique tree).
             p = j - q - 1
-            # N.B. q <= p
+            # N.B. 
+            # 1) q <= p
+            # 2) Unfortunately there is no immediate relation to the building of trees and the factors: Even if the factor
+            # of a specific tree is zero, it may happen that this tree is used later on in a tree with a higher index whose factor
+            # is not zero. So for building the forest we need to take all trees into account even if their factors may be zero.
+            # For example: Tree nr. 7 in Ref. [2] is zero due to B_3 = 0, but tree nr. 17 is not zero, but build from the tree nr. 7.
             for t1, t2 in product(tree_groups[q], tree_groups[p]):
+                trees_equal = t1 == t2 # n.B. if q != p, then this will not go deep into the trees but return False immediately.
+                
                 t12 = tree(t1, t2)
+                # t12.index == j + 1 with p + q == j - 1, so that t12.index == p + q + 2 == t1.index + t2.index
                 t12.set_factor(factors)
-                if t1 != t2:
+                t12._set_time_power(trees_equal)
+                treesj.append(t12)
+                    
+                if not trees_equal:
                     t21 = tree(t2, t1)
                     t21.set_factor(factors)
-                    time_power_12 = t1.time_power + t2.time_power + 1 # keep track of the power in time, see e.g. Ref. [2], Thm. 19
-                    t21.time_power = time_power_12
-                    t12.time_power = time_power_12
+                    t21._set_time_power(trees_equal)
                     treesj.append(t21)
-                else:
-                    t12.time_power = t1.time_power + t2.time_power + 2 # keep track of the power in time, see e.g. Ref. [2], Thm. 19
-                treesj.append(t12)
+
         tree_groups[j] = treesj
             
     time_powers = np.unique([t.time_power for tg in tree_groups.values() for t in tg])

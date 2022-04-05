@@ -9,7 +9,7 @@ from njet import derive
 
 from bnf import __version__
 from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lieoperator
-from bnf.lieop.lienf import homological_eq
+from bnf.lieop.nf import homological_eq
 from bnf.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
 from bnf.linalg.nf import symplectic_takagi
 

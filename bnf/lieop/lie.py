@@ -9,7 +9,7 @@ class liepoly:
     '''
     Class to model the Lie operator :p:, where p is a polynomial given in terms of
     complex (xi, eta)-coordinates. For the notation of these coordinates see Ref.
-    "Malte Titze: Space Charge Modeling at the Integer Resonance for the CERN PS and SPS" (2019),
+    "M. Titze: Space Charge Modeling at the Integer Resonance for the CERN PS and SPS" (2019),
     p. 33 onwards.
     
     Parameters
