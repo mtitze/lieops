@@ -28,13 +28,13 @@ class hard_edge_model:
         values: list
             A list of values, where the values[k] denotes the value of the hard edge between position[k + 1] and position[k].
         '''
-        assert len(values) + 1 == len(positions)
+        assert len(values) + 1 == len(positions), f'len(values) = {len(values)}, len(positions) = {len(positions)}.'
         self.positions = positions # Attention: It is assumed that positions[i] < positions[j] hold.
         self.values = [[v] for v in values] # values[k] = [2, 0, -5] corresponds to f(x) = 2 + 0*x**1 - 5*x**2 later on etc.
         self.lengths = {(k, 1): self.positions[k + 1] - self.positions[k] for k in range(len(self.positions) - 1)} # self.lengths[(k, l)] = (s[k] - s[k - 1])**l
         
     def copy(self):
-        result = self.__class__(positions=self.positions, values=[0]*(len(self.positions) - 1))
+        result = self.__class__(positions=self.positions, values=range(len(self.positions) - 1))
         # overwrite/copy default
         result.values = [v for v in self.values]
         result.lengths = {k: v for k, v in self.lengths.items()}
@@ -42,7 +42,7 @@ class hard_edge_model:
     
     def __mul__(self, other):
         '''
-        Multiply a given hard-edge function by a different one.
+        Multiply a given hard-edge function with another one.
 
         Attention: It is assumed that the positions of both hard-edge models agree.
         '''
@@ -256,17 +256,24 @@ class tree:
             integration_levels.append(level)
         return order, integration_levels[:-1]
     
-    def hard_edge_integral(self, positions, values):
+    def hard_edge_integral(self, *args, **kwargs):
         '''
         Compute the nested chain of integrals in case the underlying Hamiltonian is given by a hard-edge model.
-        '''
         
-        hamiltonian = hard_edge_model(positions=positions, values=values)        
+        Parameters
+        ----------
+        *args:
+            Arguments passed to hard_edge_model.
+            
+        **kwargs:
+            Keyworded arguments passed to hard_edge_model.
+        '''
+        hamiltonian = hard_edge_model(*args, **kwargs)        
         integrands = {k: hamiltonian for k in range(self.index)}
         ic, _ = self.integration_chain()
         for var, bound in ic[::-1]:
             integral_functions, I = integrands[var].integral()
-            if bound == -1:
+            if bound == self._upper_bound_default:
                 break
             integrands[bound] *= integral_functions
         return I
