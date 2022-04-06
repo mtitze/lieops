@@ -13,22 +13,32 @@ References:
 '''
 
 
-class hard_edge_coeff:
+class hard_edge:
     '''
     Class to model a polynomial describing a single hard-edge element. Intended to be used
     as values of a liepoly class.
     '''
     
-    def __init__(self, values: list):
-        self.values = values
+    def __init__(self, values: list, lengths={}, integral_constant=0):
+        self.values = values # a list to keep track of the coefficients of the s-polynomial. E.g. [1, 3, -2] corresponds to 1 + 3*s - 2*s**2.
         self.order = len(self.values)
+        
+        # to be used in self.integral
+        self._integral_constant = integral_constant
+        self._integral_lengths = lengths # to store the integral length and their powers.
+        
+    def _copy_integral_fields_to(self, other):
+        other._integral_constant = self._integral_constant
+        other._integral_lengths = self._integral_lengths
         
     def _convert(self, other):
         '''
         Convert argument to self.__class__.
         '''
         if not other.__class__.__name__ == self.__class__.__name__:
-            return self.__class__(values=[other])
+            result = self.__class__(values=[other])
+            self._copy_integral_fields_to(result)
+            return result
         else:
             return other
         
@@ -55,7 +65,9 @@ class hard_edge_coeff:
                     continue
                 vals_mult[order1 + order2] += value1*value2
                 max_used = max([max_used, order1 + order2])
-        return self.__class__(values=vals_mult[:max_used + 1])
+        result = self.__class__(values=vals_mult[:max_used + 1])
+        self._copy_integral_fields_to(result)
+        return result
     
     def __add__(self, other):
         other = self._convert(other)
@@ -68,10 +80,14 @@ class hard_edge_coeff:
             for k in range(self.order):
                 vals_add.append(self.values[k] + other.values[k])
             vals_add += other.values[self.order:]
-        return self.__class__(values=vals_add)
+        result = self.__class__(values=vals_add)
+        self._copy_integral_fields_to(result)
+        return result
     
     def __neg__(self):
-        return self.__class__(values=[-v for v in self.values])
+        result = self.__class__(values=[-v for v in self.values])
+        self._copy_integral_fields_to(result)
+        return result
     
     def __sub__(self, other):
         return self + -other
@@ -83,45 +99,60 @@ class hard_edge_coeff:
         return self*other
     
     def __matmul__(self, other):
-        # Used to have a common syntax in the case that we may have two liepoly classes with hard_edge_coeff as values,
-        # see multiplication in hard_edge_model class below.
+        # Used to have a common syntax in the case that we may have two liepoly classes with hard_edge as values,
+        # see multiplication in hard_edge_chain class below.
         return self*other
+    
+    def integral(self, **kwargs):
+        '''
+        Integrate the given polynomial within a given interval.
+        
+        Parameters
+        ----------
+        lengths: dict
+            A dictionary containing the powers of the length within which we want to integrate.
+            It is assumed that length_powers contains all the powers of length up to max(1, self.order - 1).
+            
+        constant: float
+            An optional constant for the integral over zero. May be required if the integration
+            corresponds to a piecewise integration over a larger region.
+            
+        Returns
+        -------
+        
+        '''
+        constant = kwargs.get('constant', self._integral_constant)
+        new_values = [constant] + [self.values[k - 1]/k for k in range(1, self.order + 1)]
+            
+        # n.B. len(new_values) == self.order + 1
+        constant += sum([new_values[mu]*self._integral_lengths.get(mu, self._integral_lengths[1]**self.order) for mu in range(1, self.order + 1)])
+        return self.__class__(values=new_values, lengths=self._integral_lengths, integral_constant=constant) # Attention: self._integral_lengths will be modified in the original object, by the additional key. This is intended to avoid unecessary calculations.
     
     def __str__(self):
         return str(self.values)
         
     def _repr_html_(self):
-        return f'<samp>{self.__str__()}</samp>' 
+        return f'<samp>{self.__str__()}</samp>'
 
 
-class hard_edge_model:
+class hard_edge_chain:
     
     '''
     Class to model hard-edge functions, given by piecewise polynomial functions, and their respective integrals.
     '''
     
-    def __init__(self, positions, values):
+    def __init__(self, values):
         '''
         Parameters
         ----------
-        positions: list
-            A list of start and end positions of the hard edge values.
-            
         values: list
-            A list of values, where the values[k] denotes the value of the hard edge between position[k + 1] and position[k].
+            A list of values, where values[k] denote the value of the hard edge between position[k + 1] and position[k].
         '''
         assert len(values) > 0
-        assert len(values) + 1 == len(positions), f'len(values) = {len(values)}, len(positions) = {len(positions)}.'
-        self.positions = positions # Attention: It is assumed that positions[i] < positions[j] hold.
-        self.values = values # values[k] should be a list of hard_edge_coeff or a lie-polynomial with values being hard_edge_coeff objects. 
-        self.lengths = {(k, 1): self.positions[k + 1] - self.positions[k] for k in range(len(self.positions) - 1)} # self.lengths[(k, l)] = (s[k] - s[k - 1])**l
+        self.values = values # values[k] should be a list of hard_edge or a lie-polynomial with values being hard_edge objects.
         
     def copy(self):
-        result = self.__class__(positions=self.positions, values=range(len(self.positions) - 1))
-        # overwrite/copy default
-        result.values = [v for v in self.values]
-        result.lengths = {k: v for k, v in self.lengths.items()}
-        return result
+        return self.__class__(values=[v for v in self.values]) # TODO: may check deep copy here
     
     def __mul__(self, other):
         '''
@@ -129,12 +160,14 @@ class hard_edge_model:
 
         Attention: It is assumed that the positions of both hard-edge models agree.
         '''
-        assert len(self.positions) == len(other.positions) # We assume that all positions equal for the time being (no extensive check at the moment)
-        
+        assert len(self.values) == len(other.values) # We assume that all positions equal for the time being (no check at the moment!)
         product = self.copy()
         for k in range(len(self.values)):
             product.values[k] = self.values[k]@other.values[k]
         return product
+    
+    def __matmul__(self, other):
+        return self*other
         
     def integral(self):
         '''
@@ -156,22 +189,29 @@ class hard_edge_model:
         float
             The result of the entire integration over the given range [self.positions[0], self.positions[-1]].
         '''
-        result = self.copy()
+        result_values = []
+        inp = {'constant': 0}
+        for X in self.values:
+            if X.__class__.__name__ == 'hard_edge':
+                IX = X.integral(**inp)
+                inp = {'constant': IX._integral_constant} # use individual constants to be added to the integral for the next hard-edge functions
+            else:
+                # X expected to be a Lie-polynomial with hard_edge values. 
+                # All of these Lie-polynomials must share the same keys (since they originate from the same Hamiltonian).
+                # However, their values (coefficients) are not necessarily identical and will differ from hard-edge to hard-edge.
+                IX = X.apply('integral', **inp)
+                inp = {'cargs': {k: {'constant': IX[k]._integral_constant} for k in IX.keys()}} # use individual constant(s) to be added to the integral for the next hard-edge function(s)
+            result_values.append(IX)
+        return self.__class__(values=result_values), inp['cargs']
+    
+    def __str__(self):
+        out = ''
+        for p in self.values:
+            out += f'{str(p)} \n'
+        return out[:-2]
         
-        n_values = len(result.values)
-        pos0 = result.positions[0]
-        additional_summand = 0
-        for i in range(n_values):            
-            n_coeffs = len(result.values[i])
-            new_values_i = [additional_summand] + [result.values[i][k - 1]/k for k in range(1, n_coeffs + 1)]
-            result.values[i] = new_values_i
-            
-            if (i, n_coeffs) not in result.lengths.keys():
-                result.lengths[(i, n_coeffs)] = result.lengths[(i, 1)]**n_coeffs
-            # n.B. len(new_values_i) == n_coeffs + 1
-            additional_summand += sum([new_values_i[mu]*result.lengths[(i, mu)] for mu in range(1, n_coeffs + 1)])
-
-        return result, additional_summand
+    def _repr_html_(self):
+        return f'<samp>{self.__str__()}</samp>'
     
     
 class fourier_model:
@@ -343,19 +383,19 @@ class tree:
         Parameters
         ----------
         *args:
-            Arguments passed to hard_edge_model.
+            Arguments passed to hard_edge_chain.
             
         **kwargs:
-            Keyworded arguments passed to hard_edge_model.
+            Keyworded arguments passed to hard_edge_chain.
         '''
-        hamiltonian = hard_edge_model(*args, **kwargs)        
-        integrands = {k: hamiltonian for k in range(self.index)}
+        hamiltonian = hard_edge_chain(*args, **kwargs)        
+        integrands = {k: hamiltonian.copy() for k in range(self.index)}
         ic, _ = self.integration_chain()
         for var, bound in ic[::-1]:
             integral_functions, I = integrands[var].integral()
             if bound == self._upper_bound_default:
                 break
-            integrands[bound] *= integral_functions
+            integrands[bound] @= integral_functions
         return I
     
     def fourier_integral_terms(self, consistency_checks=False):

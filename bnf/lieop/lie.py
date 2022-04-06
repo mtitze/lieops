@@ -266,6 +266,9 @@ class liepoly:
             else:
                 return self.values.get((0, 0), 0) == other
             
+    def keys(self):
+        return self.values.keys()
+            
     def __getitem__(self, key):
         return self.values[key]
         
@@ -320,7 +323,13 @@ class liepoly:
         return all_results
     
     def __str__(self):
-        return self.values.__str__()
+        out = ''
+        for k, v in self.values.items():
+            out += f'{k}: {str(v)} '
+        if len(out) > 0:
+            return out[:-1]
+        else:
+            return '0'
 
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>'
@@ -407,7 +416,7 @@ class liepoly:
         
         Returns
         -------
-        p: jetpoly
+        jetpoly
             A jetpoly class of self.dim*2 variables, representing the current Lie polynomial.
         '''
         # N.B. self.dim corresponds to the number of xi (or eta) variables.
@@ -424,6 +433,37 @@ class liepoly:
                 continue
             jpvalues[frozenset([(j, key[j]) for j in range(self.dim*2) if key[j] != 0])] = v
         return jetpoly(values=jpvalues)
+    
+    def apply(self, name, cargs={}, *args, **kwargs):
+        '''
+        Apply a class function of the coefficients of the current Lie-polynomial.
+        
+        Parameters
+        ----------
+        name: str
+            The name of the class function 'name'.
+            
+        cargs: dict
+            Dictionary of keywords which may depend on self.values.keys(). This means that the keys of
+            cargs must correspond to self.values.keys(). The items of cargs correspond to a set of keyworded
+            arguments for the class function 'name'.
+            
+        *args:
+            Arguments of the class function 'name'.
+            
+        **kwargs:
+            Keyworded arguments of the class function 'name'.
+            
+        Returns
+        -------
+        liepoly
+            A Lie-polynomial in which every entry in its values contain the result of the requested class function.
+        '''
+        if len(cargs) > 0:
+            out = {key: getattr(v, name)(*args, **cargs[key]) for key, v in self.values.items()}
+        else:
+            out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.values.items()}
+        return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
             
     
 def create_coords(dim, **kwargs):
