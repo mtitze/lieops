@@ -197,7 +197,7 @@ class liepoly:
                         continue
                     new_power = tuple([a[j] + c[j] if j != k else a[j] + c[j] - 1 for j in range(self.dim)] + \
                                 [b[j] + d[j] if j != k else b[j] + d[j] - 1 for j in range(self.dim)])
-                    new_value = poisson_values.get(new_power, 0) - 1j*det*v1*v2
+                    new_value = v1*v2*det*-1j + poisson_values.get(new_power, 0)
                     if not check_zero(new_value):
                         poisson_values[new_power] = new_value
                     else:

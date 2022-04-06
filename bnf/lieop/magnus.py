@@ -12,6 +12,88 @@ References:
 [3]: A. Iserles: Magnus expansions and beyond (2008)
 '''
 
+
+class hard_edge_coeff:
+    '''
+    Class to model a polynomial describing a single hard-edge element. Intended to be used
+    as values of a liepoly class.
+    '''
+    
+    def __init__(self, values: list):
+        self.values = values
+        self.order = len(self.values)
+        
+    def _convert(self, other):
+        '''
+        Convert argument to self.__class__.
+        '''
+        if not other.__class__.__name__ == self.__class__.__name__:
+            return self.__class__(values=[other])
+        else:
+            return other
+        
+    def __mul__(self, other):
+        '''
+        Multiply two hard-edge coefficients with each other.
+        
+        Example:
+        If [0, 2, 1] are the values of self and [1, 1] are the values of
+        the other object, then the result would be:
+        (0 + 2*s + 1*s**2)*(1 + 1*s) = 0 + 2*s + 3*s**2 + 1*s**3
+        corresponding to [0, 2, 3, 1].
+        '''
+        other = self._convert(other)
+        vals_mult = [0]*(self.order + other.order)
+        max_used = 0 # to drop unecessary zeros later on
+        for order1 in range(self.order):
+            value1 = self.values[order1]
+            if value1 == 0:
+                continue
+            for order2 in range(other.order):
+                value2 = other.values[order2]
+                if value2 == 0:
+                    continue
+                vals_mult[order1 + order2] += value1*value2
+                max_used = max([max_used, order1 + order2])
+        return self.__class__(values=vals_mult[:max_used + 1])
+    
+    def __add__(self, other):
+        other = self._convert(other)
+        vals_add = []
+        if self.order >= other.order:
+            for k in range(other.order):
+                vals_add.append(self.values[k] + other.values[k])
+            vals_add += self.values[other.order:]
+        else:
+            for k in range(self.order):
+                vals_add.append(self.values[k] + other.values[k])
+            vals_add += other.values[self.order:]
+        return self.__class__(values=vals_add)
+    
+    def __neg__(self):
+        return self.__class__(values=[-v for v in self.values])
+    
+    def __sub__(self, other):
+        return self + -other
+    
+    def __radd__(self, other):
+        return self + other
+    
+    def __rmul__(self, other):
+        return self*other
+    
+    def __matmul__(self, other):
+        # Used to have a common syntax in the case that we may have two liepoly classes with hard_edge_coeff as values,
+        # see multiplication in hard_edge_model class below.
+        return self*other
+    
+    def __str__(self):
+        return str(self.values)
+        
+    def _repr_html_(self):
+        return f'<samp>{self.__str__()}</samp>' 
+
+
 class hard_edge_model:
     
     '''
@@ -28,9 +110,10 @@ class hard_edge_model:
         values: list
             A list of values, where the values[k] denotes the value of the hard edge between position[k + 1] and position[k].
         '''
+        assert len(values) > 0
         assert len(values) + 1 == len(positions), f'len(values) = {len(values)}, len(positions) = {len(positions)}.'
         self.positions = positions # Attention: It is assumed that positions[i] < positions[j] hold.
-        self.values = [[v] for v in values] # values[k] = [2, 0, -5] corresponds to f(x) = 2 + 0*x**1 - 5*x**2 later on etc.
+        self.values = values # values[k] should be a list of hard_edge_coeff or a lie-polynomial with values being hard_edge_coeff objects. 
         self.lengths = {(k, 1): self.positions[k + 1] - self.positions[k] for k in range(len(self.positions) - 1)} # self.lengths[(k, l)] = (s[k] - s[k - 1])**l
         
     def copy(self):
@@ -42,36 +125,16 @@ class hard_edge_model:
     
     def __mul__(self, other):
         '''
-        Multiply a given hard-edge function with another one.
+        Multiply two hard-edge functions with another one.
 
         Attention: It is assumed that the positions of both hard-edge models agree.
         '''
-        assert len(self.positions) == len(other.positions) # for the time being...
-        # and all positions equal (no check at the moment)
+        assert len(self.positions) == len(other.positions) # We assume that all positions equal for the time being (no extensive check at the moment)
         
         product = self.copy()
         for k in range(len(self.values)):
-            vals1 = self.values[k]
-            vals2 = other.values[k]
-            
-            max_order1, max_order2 = len(vals1), len(vals2)
-            vals_mult = [0]*(max_order1 + max_order2)
-
-            max_used = 1 # to drop unecessary zeros later on
-            for order1 in range(len(vals1)):
-                value1 = vals1[order1]
-                if value1 == 0:
-                    continue
-                for order2 in range(len(vals2)):
-                    value2 = vals2[order2]
-                    if value2 == 0:
-                        continue
-                    vals_mult[order1 + order2] += value1*value2
-                    max_used = max([max_used, order1 + order2])
-                    
-            product.values[k] = vals_mult[:max_used]
+            product.values[k] = self.values[k]@other.values[k]
         return product
-                
         
     def integral(self):
         '''
@@ -98,7 +161,7 @@ class hard_edge_model:
         n_values = len(result.values)
         pos0 = result.positions[0]
         additional_summand = 0
-        for i in range(n_values):
+        for i in range(n_values):            
             n_coeffs = len(result.values[i])
             new_values_i = [additional_summand] + [result.values[i][k - 1]/k for k in range(1, n_coeffs + 1)]
             result.values[i] = new_values_i
