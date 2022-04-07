@@ -443,7 +443,7 @@ class liepoly:
         name: str
             The name of the class function 'name'.
             
-        cargs: dict
+        cargs: dict, optional
             Dictionary of keywords which may depend on self.values.keys(). This means that the keys of
             cargs must correspond to self.values.keys(). The items of cargs correspond to a set of keyworded
             arguments for the class function 'name'.

@@ -20,7 +20,18 @@ class hard_edge:
     '''
     
     def __init__(self, values: list, lengths={}, integral_constant=0):
-        self.values = values # a list to keep track of the coefficients of the s-polynomial. E.g. [1, 3, -2] corresponds to 1 + 3*s - 2*s**2.
+        '''
+        Parameters
+        ----------
+        values: list
+            A list of floats indicating the s-powers of the hard-edge element. For example,
+            [1, 3, -2] has the interpretation: 1 + 3*s - 2*s**2.
+        
+        lengths: dict, optional
+            A dictionary containing the powers of the length within which we want to integrate.
+            The dictionary should preferably contain all the powers up to max(1, len(values) - 1).
+        '''
+        self.values = values # a list to keep track of the coefficients of the s-polynomial. 
         self.order = len(self.values)
         
         # to be used in self.integral
@@ -109,17 +120,14 @@ class hard_edge:
         
         Parameters
         ----------
-        lengths: dict
-            A dictionary containing the powers of the length within which we want to integrate.
-            It is assumed that length_powers contains all the powers of length up to max(1, self.order - 1).
-            
-        constant: float
+        constant: float, optional
             An optional constant for the integral over zero. May be required if the integration
             corresponds to a piecewise integration over a larger region.
             
         Returns
         -------
-        
+        hard_edge
+            A hard_edge object, containing the coefficients of the integral as their new values.
         '''
         constant = kwargs.get('constant', self._integral_constant)
         new_values = [constant] + [self.values[k - 1]/k for k in range(1, self.order + 1)]
@@ -202,7 +210,11 @@ class hard_edge_chain:
                 IX = X.apply('integral', **inp)
                 inp = {'cargs': {k: {'constant': IX[k]._integral_constant} for k in IX.keys()}} # use individual constant(s) to be added to the integral for the next hard-edge function(s)
             result_values.append(IX)
-        return self.__class__(values=result_values), inp['cargs']
+            
+        if 'cargs' in inp.keys(): # remove that key again
+            inp = inp['cargs']
+            
+        return self.__class__(values=result_values), inp
     
     def __str__(self):
         out = ''
@@ -387,16 +399,31 @@ class tree:
             
         **kwargs:
             Keyworded arguments passed to hard_edge_chain.
+            
+        Returns
+        -------
+        float or dict
+            Depending on the input, either a single value will be returned, which correspond to the integral over
+            self.integration_chain()[0], or a dictionary with the individual integrals as elements.
         '''
-        hamiltonian = hard_edge_chain(*args, **kwargs)        
-        integrands = {k: hamiltonian.copy() for k in range(self.index)}
+        hamiltonian = hard_edge_chain(*args, **kwargs)
+        integrands = {k: hamiltonian for k in range(self.index)}
         ic, _ = self.integration_chain()
         for var, bound in ic[::-1]:
             integral_functions, I = integrands[var].integral()
+            # bound will be the next element in the integration chain for this specific element.
+            # therefore we have to seek out the integrand there and apply the commutator with
+            # the hamiltonian at that place
             if bound == self._upper_bound_default:
                 break
-            integrands[bound] @= integral_functions
-        return I
+            assert bound > var # This should be the case by construction of the trees; otherwise the following commutator may have to be reversed.
+            integrands[bound] = integral_functions@integrands[bound]
+            
+        # remove 'constant'-key from output
+        if 'constant' in I.keys():
+            return I['constant']
+        else:
+            return {k: v['constant'] for k, v in I.items()}
     
     def fourier_integral_terms(self, consistency_checks=False):
         '''
