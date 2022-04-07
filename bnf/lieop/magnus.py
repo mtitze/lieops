@@ -149,7 +149,7 @@ class hard_edge_chain:
     Class to model hard-edge functions, given by piecewise polynomial functions, and their respective integrals.
     '''
     
-    def __init__(self, values):
+    def __init__(self, values, **kwargs):
         '''
         Parameters
         ----------
@@ -169,10 +169,10 @@ class hard_edge_chain:
         Attention: It is assumed that the positions of both hard-edge models agree.
         '''
         assert len(self.values) == len(other.values) # We assume that all positions equal for the time being (no check at the moment!)
-        product = self.copy()
+        prod = self.copy()
         for k in range(len(self.values)):
-            product.values[k] = self.values[k]@other.values[k]
-        return product
+            prod.values[k] = self.values[k]@other.values[k]
+        return prod
     
     def __matmul__(self, other):
         return self*other
@@ -277,7 +277,7 @@ class tree:
     A tree according to Refs. [1, 2, 3]
     '''
     
-    def __init__(self, *branches, time_power=0):
+    def __init__(self, *branches, time_power=0, **kwargs):
         '''
         self.integration_scheme
         
@@ -340,6 +340,12 @@ class tree:
             # put all together to define the integration scheme of the current tree
             self.integration_bounds = bounds1 + bounds2
             
+        if 'factors' in kwargs.keys():
+            self.set_factor(factors=kwargs['factors'])
+            
+        if 'integrand' in kwargs.keys(): # perform live integration
+            self.hard_edge_live_integral(**kwargs)
+            
     def _set_time_power(self, eb=None):
         '''
         Set the time power of the tree.
@@ -388,9 +394,31 @@ class tree:
             integration_levels.append(level)
         return order, integration_levels[:-1]
     
+    def hard_edge_live_integral(self, **kwargs):
+        '''
+        Perform an integration over the first branch of the tree in case the Hamiltonian is given
+        in terms of hard_edge_chain(s). 
+        
+        This routine is intended to be called when building trees, and will compute the sucessive integrals 
+        when attaching them to other trees.
+        '''
+        if len(self.branches) > 0:# and not hasattr(self, '_integral'): # the second may ensure that any previous calculation is not done again.
+            self._integrand = self.branches[0]._integral@self.branches[1]._integrand
+            self._integral, I = self._integrand.integral()
+        else: # self.index == 1
+            self._integrand = kwargs.get('integrand')
+            self._integral, I = self._integrand.integral()
+
+        if type(I) == dict: # the integration result emerged by using Lie-polynomials.
+            self._I = {k: v['constant'] for k, v in I.items()}
+        else:
+            self._I = I
+    
     def hard_edge_integral(self, *args, **kwargs):
         '''
         Compute the nested chain of integrals in case the underlying Hamiltonian is given by a hard-edge model.
+        
+        This routine is intended to be called on the final tree of the problem.
         
         Parameters
         ----------
@@ -488,7 +516,7 @@ class tree:
         return non_zero_terms
             
             
-    def set_factor(self, b=[]):
+    def set_factor(self, factors=[]):
         '''
         Set the factor associated with the coefficient of the tree.
         The factor will be given in self.factor.
@@ -502,10 +530,10 @@ class tree:
             it must hold len(b) >= len(self.pivot_branches)
         '''
         n = len(self.pivot_branches)
-        if len(b) == 0:
+        if len(factors) == 0:
             f0 = bernoulli(n)[-1]/factorials(n)[-1]
         else:
-            f0 = b[n]
+            f0 = factors[n]
             
         self.factor = f0
         for pbranch in self.pivot_branches:
@@ -529,7 +557,7 @@ class tree:
         return f'<samp>{self.__str__()}</samp>' 
     
     
-def forests(k, time_power=0):
+def forests(k, time_power=0, **kwargs):
     '''
     Construct a set of trees with respect to a given index, according to Refs. [1, 2, 3].
     
@@ -541,6 +569,9 @@ def forests(k, time_power=0):
     time_power: int, optional
         Optional initial order of time, of the first Taylor coefficient of the given operator.
         
+    **kwargs
+        Optional arguments given to the tree instantiation.
+        
     Returns
     -------
     dict
@@ -551,10 +582,10 @@ def forests(k, time_power=0):
         (up to k*(time_power + 1) + 2, see the discussion in this code below).
     '''
     factors = bernoulli(k)/factorials(k)
-    tree_groups = {0: [tree(time_power=time_power)]} # Representing the sets T_k in Refs. [1, 2, 3].
-    forest_groups = [tree_groups[0]] # Representing the sets F_k in Refs. [1, 2, 3].
+    tree_groups = {0: [tree(time_power=time_power, **kwargs)]} # Representing the sets T_k in Refs. [1, 2, 3].
     for j in range(1, k + 1):
-        # construct the set of trees with respect to index j from trees of indices q < j and p < j so that q + p = j
+        # construct the set of trees with respect to index j from trees of indices q < j and p < j so that q + p = j.
+        # (note that later on the indices are shifted by one, due to our convention to start with index 1.)
         treesj = []
         for q in range((j - 1)//2 + 1): # We don't have to iterate from 0 up to j - 1, but only half the way: The case j - q - 1 < q is already covered by some q later on (elements of trees_q and trees_p are exchanged and added, if they provide a new unique tree).
             p = j - q - 1
@@ -567,15 +598,13 @@ def forests(k, time_power=0):
             for t1, t2 in product(tree_groups[q], tree_groups[p]):
                 trees_equal = t1 == t2 # n.B. if q != p, then this will not go deep into the trees but return False immediately.
                 
-                t12 = tree(t1, t2)
+                t12 = tree(t1, t2, factors=factors, **kwargs)
                 # t12.index == j + 1 with p + q == j - 1, so that t12.index == p + q + 2 == t1.index + t2.index
-                t12.set_factor(factors)
                 t12._set_time_power(trees_equal)
                 treesj.append(t12)
                     
                 if not trees_equal:
-                    t21 = tree(t2, t1)
-                    t21.set_factor(factors)
+                    t21 = tree(t2, t1, factors=factors, **kwargs)
                     t21._set_time_power(trees_equal)
                     treesj.append(t21)
 
