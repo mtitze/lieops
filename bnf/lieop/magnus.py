@@ -6,6 +6,8 @@ from njet.jet import factorials
 import numpy as np
 
 '''
+Collection of scripts to deal with the Magnus expansion.
+
 References:
 [1]: S. P. Norsett, A. Iserles, H. Z. Munth-Kaas and A. Zanna: Lie Group Methods (2000).
 [2]: T. Carlson: Magnus expansion as an approximation tool for ODEs (2005)
@@ -149,7 +151,7 @@ class hard_edge_chain:
     Class to model hard-edge functions, given by piecewise polynomial functions, and their respective integrals.
     '''
     
-    def __init__(self, values, **kwargs):
+    def __init__(self, values):
         '''
         Parameters
         ----------
@@ -157,7 +159,7 @@ class hard_edge_chain:
             A list of values, where values[k] denote the value of the hard edge between position[k + 1] and position[k].
         '''
         assert len(values) > 0
-        self.values = values # values[k] should be a list of hard_edge or a lie-polynomial with values being hard_edge objects.
+        self.values = values # values[k] should be a list of hard_edge or lie-polynomial objects with hard_edge objects as values.
         
     def copy(self):
         return self.__class__(values=[v for v in self.values]) # TODO: may check deep copy here
@@ -219,8 +221,8 @@ class hard_edge_chain:
     def __str__(self):
         out = ''
         for p in self.values:
-            out += f'{str(p)} \n'
-        return out[:-2]
+            out += f'{str(p)} |\n'
+        return out[:-3]
         
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>'
@@ -400,9 +402,11 @@ class tree:
         in terms of hard_edge_chain(s). 
         
         This routine is intended to be called when building trees, and will compute the sucessive integrals 
-        when attaching them to other trees.
+        when attaching them to other trees. It may be slower than self.hard_edge_integral + norsett_iserles,
+        because in the latter case we can drop those forests (s-forests) with higher-order -- as well
+        as those with factor 0 -- before integrating.
         '''
-        if len(self.branches) > 0:# and not hasattr(self, '_integral'): # the second may ensure that any previous calculation is not done again.
+        if len(self.branches) > 0:
             self._integrand = self.branches[0]._integral@self.branches[1]._integrand
             self._integral, I = self._integrand.integral()
         else: # self.index == 1
@@ -414,7 +418,7 @@ class tree:
         else:
             self._I = I
     
-    def hard_edge_integral(self, *args, **kwargs):
+    def hard_edge_integral(self, hamiltonian: hard_edge_chain):
         '''
         Compute the nested chain of integrals in case the underlying Hamiltonian is given by a hard-edge model.
         
@@ -422,19 +426,15 @@ class tree:
         
         Parameters
         ----------
-        *args:
-            Arguments passed to hard_edge_chain.
-            
-        **kwargs:
-            Keyworded arguments passed to hard_edge_chain.
-            
+        hamiltonian: hard_edge_chain
+            A series of hard_edge elements or liepoly classes containing hard_edge elements as values.
+
         Returns
         -------
         float or dict
             Depending on the input, either a single value will be returned, which correspond to the integral over
             self.integration_chain()[0], or a dictionary with the individual integrals as elements.
         '''
-        hamiltonian = hard_edge_chain(*args, **kwargs)
         integrands = {k: hamiltonian for k in range(self.index)}
         ic, _ = self.integration_chain()
         for var, bound in ic[::-1]:
@@ -617,5 +617,4 @@ def forests(k, time_power=0, **kwargs):
     # N.B. in Ref. [2] it appears that the term belonging to "F_5" with coeff -1/24 is not correctly assigned. It should be in F_6. This code also predicts that it is in F_6. To be checked: In Ref. [1] #T_6 = 132 and #F_6 = 21, while here #T_6 = 136 and #F_6 = 21. Given the fact that there is agreement with #F_6, I am not sure whether there was a miscalculation of #T_6 in Ref. [1].
         
     return tree_groups, forest_groups
-
 
