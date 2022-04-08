@@ -132,11 +132,31 @@ class hard_edge:
             A hard_edge object, containing the coefficients of the integral as their new values.
         '''
         constant = kwargs.get('constant', self._integral_constant)
-        new_values = [constant] + [self.values[k - 1]/k for k in range(1, self.order + 1)] # the actual integration step
-            
-        # n.B. len(new_values) == self.order + 1
-        constant += sum([new_values[mu]*self._integral_lengths.get(mu, self._integral_lengths[1]**self.order) for mu in range(1, self.order + 1)])
-        return self.__class__(values=new_values, lengths=self._integral_lengths, integral_constant=constant) # Attention: self._integral_lengths will be modified in the original object, by the additional key. This is intended to avoid unecessary calculations.
+        
+        # to prevent that we add unecessary zeros to the new values, we may have to shift the maximum index
+        n_max = self.order + 1
+        if self.order == 1 and self.values[0] == 0:
+            n_max -= 1
+
+        # now put the new values
+        new_values = [constant] + [self.values[k - 1]/k for k in range(1, n_max)] # the actual integration step
+        constant += sum([new_values[mu]*self._integral_lengths.get(mu, self._integral_lengths[1]**self.order) for mu in range(1, n_max)])
+        return self.__class__(values=new_values, lengths=self._integral_lengths, integral_constant=constant) # Attention: self._integral_lengths may be modified in the original object, by the additional key. This is intended to avoid unecessary calculations.
+    
+    def __eq__(self, other):
+        if self.__class__.__name__ != other.__class__.__name__:
+            return self.values[0] == other and self.order == 1
+        elif self.order != other.order:
+            return False
+        else: # check conditions in successive order of complexity
+            if self._integral_constant != other._integral_constant:
+                return False
+            if not all([self.values[k] == other.values[k] for k in range(self.order)]):
+                return False
+            if self._integral_lengths != other._integral_lengths:
+                return False
+            else:
+                return True
     
     def __str__(self):
         return str(self.values)
@@ -216,7 +236,7 @@ class hard_edge_chain:
                 # All of these Lie-polynomials must share the same keys (since they originate from the same Hamiltonian).
                 # However, their values (coefficients) are not necessarily identical and will differ from hard-edge to hard-edge.
                 IX = X.apply('integral', **inp)
-                inp = {'cargs': {k: {'constant': IX[k]._integral_constant} for k in IX.keys()}} # use individual constant(s) to be added to the integral for the next hard-edge function(s)
+                inp = {'cargs': {k: {'constant': IX[k]._integral_constant} for k in IX.keys()}} # extract individual constant(s) to be added to the integral for the next hard-edge function(s) X.
             result_values.append(IX)
             
         if 'cargs' in inp.keys(): # remove that key again
@@ -665,6 +685,8 @@ def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True, **kwargs)
         for tr in forest_oi[l]:
             if tr.factor == 0:
                 continue
-            result_l.append(tr.hard_edge_integral(hamiltonian=hamiltonian, factor=tr.factor))
+            I = tr.hard_edge_integral(hamiltonian=hamiltonian, factor=tr.factor)
+            if len(I) > 0:
+                result_l.append(I)
         result[l] = result_l
     return result

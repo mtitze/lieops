@@ -182,7 +182,8 @@ class liepoly:
         '''
         Compute the Poisson-bracket {self, other}
         '''
-        assert self.__class__.__name__ == other.__class__.__name__
+        if self.__class__.__name__ != other.__class__.__name__:
+            raise TypeError(f"unsupported operand type(s) for poisson: '{self.__class__.__name__}' and '{other.__class__.__name__}'.")
         assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
         max_power = min([self.max_power, other.max_power])
         poisson_values = {}
@@ -853,7 +854,7 @@ class lieoperator:
             The resulting Lie operator of the composition.
         '''
         kwargs['power'] = kwargs.get('power', self._compose_power_default)
-        comb, _ = combine(self.argument, other.argument, **kwargs)
+        comb, _ = combine(self.argument, other.argument, max_power=self.argument.max_power, **kwargs)
         return self.__class__(sum(comb.values()))
     
     def __matmul__(self, other):
