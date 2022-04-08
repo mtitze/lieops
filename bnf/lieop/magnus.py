@@ -148,7 +148,7 @@ class hard_edge:
 class hard_edge_chain:
     
     '''
-    Class to model hard-edge functions, given by piecewise polynomial functions, and their respective integrals.
+    Class to handle a chain of hard-edge elements, given by piecewise polynomial functions, and their respective integrals.
     '''
     
     def __init__(self, values):
@@ -156,7 +156,7 @@ class hard_edge_chain:
         Parameters
         ----------
         values: list
-            A list of values, where values[k] denote the value of the hard edge between position[k + 1] and position[k].
+            A list of hard edge elements.
         '''
         assert len(values) > 0
         self.values = values # values[k] should be a list of hard_edge or lie-polynomial objects with hard_edge objects as values.
@@ -627,9 +627,9 @@ def forests(k, time_power=0, **kwargs):
     return tree_groups, forest_groups
 
 
-def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True):
+def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True, **kwargs):
     '''
-    Compute an expansion of the Magnus series, given by Norsett and Iserles (see Ref. [1] in magnus.py) using binary trees, here in case of hard-edge elements.
+    Compute an expansion of the Magnus series, given by Norsett and Iserles (see Ref. [1] in magnus.py) using rooted trees, here in case of hard-edge elements.
     
     Parameters
     ----------

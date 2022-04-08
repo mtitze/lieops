@@ -130,7 +130,6 @@ def check_2nd_orders(hdict, dim, tol=1e-14):
     # the remaining values must be smaller than the given tolerance
     return all([abs(v) < tol for v in he2.values()])
 
-
 def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     # Test the exponential operator on Lie maps for the case of a 2nd order Hamiltonian (rotation) and
     # the linear map K to (first-order) normal form.
@@ -142,16 +141,16 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     xieta = create_coords(1)
 
     # first apply K, then exp_ad:
-    xy_mapped = Kinv@np.array([xieta], dtype=object).transpose()
-    xy_final_mapped = exp_ad(HLie, xy_mapped[:, 0], power=power, t=mu) # (x, y) final in terms of xi and eta 
+    xy_mapped = [xieta[0]*Kinv[0, 0] + xieta[1]*Kinv[0, 1], xieta[0]*Kinv[1, 0] + xieta[1]*Kinv[1, 1]]
+    xy_final_mapped = exp_ad(HLie, xy_mapped, power=power, t=mu) # (x, y) final in terms of xi and eta 
     
     # first apply exp_ad, then K:
     xy_fin = exp_ad(HLie, xieta, power=power, t=mu)
-    xy_final = Kinv@np.array([xy_fin], dtype=object).transpose() # (x, y) final in terms of xi and eta
+    xy_final = [xy_fin[0]*Kinv[0, 0] + xy_fin[1]*Kinv[0, 1], xy_fin[0]*Kinv[1, 0] + xy_fin[1]*Kinv[1, 1]]
     
     # Both results must be equal.
     for k in range(len(xy_final)):
-        d1 = xy_final[k][0].values
+        d1 = xy_final[k].values
         d2 = xy_final_mapped[k].values
         for key, v1 in d1.items():
             v2 = d2[key]

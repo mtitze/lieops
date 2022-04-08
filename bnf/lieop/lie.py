@@ -118,7 +118,7 @@ class liepoly:
         '''
         # prepare input vector
         if len(z) == self.dim:
-            z = z + [e.conjugate() for e in z]
+            z = [e for e in z] + [e.conjugate() for e in z]
         assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim}'
         
         # compute the occuring powers ahead of evaluation
@@ -271,6 +271,10 @@ class liepoly:
             
     def keys(self):
         return self.values.keys()
+    
+    def __iter__(self):
+        for key in self.values.keys():
+            yield self.values[key]
             
     def __getitem__(self, key):
         return self.values[key]
@@ -304,7 +308,8 @@ class liepoly:
         list
             List [x**k(y) for k in range(n + 1)], if n is the power requested.
         '''
-        assert self.__class__.__name__ == y.__class__.__name__
+        if self.__class__.__name__ != y.__class__.__name__:
+            raise TypeError(f"unsupported operand type(s) for adjoint: '{self.__class__.__name__}' on '{y.__class__.__name__}'.")
         assert power >= 0
         
         # Adjust requested power if max_power makes this necessary, see comment above.
@@ -584,7 +589,7 @@ def exp_ad(x, y, power, **kwargs):
     if not 't' in kwargs.keys():
         kwargs['t'] = 1
         
-    if y.__class__.__name__ == 'liepoly': # if the input is a Lie polynomial, also return a Lie polynomial
+    if y.__class__.__name__ == 'liepoly':
         return lieoperator(x, generator=genexp(power), components=[y], **kwargs).flow[0]
     else:
         return lieoperator(x, generator=genexp(power), components=y, **kwargs).flow
@@ -838,6 +843,9 @@ class lieoperator:
         power: int, optional
             The power in the integration variable, to control the degree of accuracy of the result.
             See also lie.combine routine. If nothing specified, self._compose_power_default will be used.
+            
+        **kwargs
+            Additional parameters sent to lie.combine routine.
             
         Returns
         -------
