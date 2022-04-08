@@ -469,7 +469,7 @@ class liepoly:
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
             
     
-def create_coords(dim, **kwargs):
+def create_coords(dim, cartesian=False, **kwargs):
     '''
     Create a set of complex (xi, eta)-Lie polynomials for a given dimension.
     
@@ -477,6 +477,13 @@ def create_coords(dim, **kwargs):
     ----------
     dim: int
         The requested dimension.
+        
+    cartesian: boolean, optional
+        If true, create cartesian coordinates q and p instead. 
+        
+        Note that it holds:
+        q = (xi + eta)/sqrt(2)
+        p = (xi - eta)/sqrt(2)/1j
         
     **kwargs
         Optional arguments passed to liepoly class.
@@ -490,8 +497,17 @@ def create_coords(dim, **kwargs):
     resultx, resulty = [], []
     for k in range(dim):
         ek = [0 if i != k else 1 for i in range(dim)]
-        xi_k = liepoly(a=ek, b=[0]*dim, dim=dim, **kwargs)
-        eta_k = liepoly(a=[0]*dim, b=ek, dim=dim, **kwargs)
+        if not cartesian:
+            xi_k = liepoly(a=ek, b=[0]*dim, dim=dim, **kwargs)
+            eta_k = liepoly(a=[0]*dim, b=ek, dim=dim, **kwargs)
+        else:
+            sqrt2 = float(np.sqrt(2))
+            xi_k = liepoly(values={tuple(ek + [0]*dim): 1/sqrt2,
+                                   tuple([0]*dim + ek): 1/sqrt2},
+                                   dim=dim, **kwargs)
+            eta_k = liepoly(values={tuple(ek + [0]*dim): -1j/sqrt2,
+                                    tuple([0]*dim + ek): 1j/sqrt2},
+                                    dim=dim, **kwargs)
         resultx.append(xi_k)
         resulty.append(eta_k)
     return resultx + resulty
@@ -828,8 +844,8 @@ class lieoperator:
         lieoperator
             The resulting Lie operator of the composition.
         '''
-        power = kwargs.get('power', self._compose_power_default)
-        comb, _ = combine(power, self.argument, other.argument, **kwargs)
+        kwargs['power'] = kwargs.get('power', self._compose_power_default)
+        comb, _ = combine(self.argument, other.argument, **kwargs)
         return self.__class__(sum(comb.values()))
     
     def __matmul__(self, other):
@@ -893,7 +909,7 @@ class lieoperator:
         return out
 
     
-def combine(power: int, *args, **kwargs):
+def combine(*args, power: int, **kwargs):
     '''
     Compute a Lie polynomial using Magnus expansion, up to a given order.
     
