@@ -643,8 +643,8 @@ def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True):
     Returns
     -------
     dict
-        A dictionary :H: describing the combined Hamiltonian. If values=[p1, p2, ..., pk] is the input, with lie-polynomials
-        pj, then exp(:H:) = exp(:p1:) exp(:p2:) ... exp(:pk:) up to the given order.
+        A dictionary mapping integer values (the orders) to lists, which contain the results of
+        integrating the given hard-edge Hamiltonian with respect to the individual trees.
     '''
     forest, tforest = forests(order)
     if tp:

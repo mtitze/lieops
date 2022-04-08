@@ -140,6 +140,8 @@ class liepoly:
         return result
         
     def __add__(self, other):
+        if other == 0:
+            return self
         add_values = {k: v for k, v in self.values.items()}
         if self.__class__.__name__ != other.__class__.__name__:
             # Treat other object as constant.
@@ -153,7 +155,7 @@ class liepoly:
             max_power = self.max_power
             return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
         else:
-            assert other.dim == self.dim
+            assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
             for k, v in other.values.items():
                 new_v = add_values.get(k, 0) + v
                 if not check_zero(new_v):
@@ -181,7 +183,7 @@ class liepoly:
         Compute the Poisson-bracket {self, other}
         '''
         assert self.__class__.__name__ == other.__class__.__name__
-        assert other.dim == self.dim
+        assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
         max_power = min([self.max_power, other.max_power])
         poisson_values = {}
         for t1, v1 in self.values.items():
@@ -585,6 +587,7 @@ class lieoperator:
         Optional arguments may be passed to self.set_generator, self.calcOrbits and self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
+        self._compose_power_default = 3 # the default power when composing two Lie-operators (used in self.compose)
         self.init_kwargs = kwargs
         self.flow_parameter = kwargs.get('t', 1) # can be changed in self.calcFlow
         self.set_argument(x, **kwargs)
@@ -679,29 +682,21 @@ class lieoperator:
             
         **kwargs
             Optional arguments passed to lie.create_coords.
+            
+        Returns
+        -------
+        list
+            A list containing lists of exponents [g[k]*:x:**k (y) for k in (...)], 
+            where y is running over the Lie-operator components.
         '''
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
-        elif not hasattr(self, 'components'):
-            self.components = create_coords(dim=self.argument.dim, **kwargs)[:self.argument.dim]
+        elif not hasattr(self, 'components'): # then use the xi-polynomials as components.
+            self.components = create_coords(dim=self.argument.dim, **kwargs)[:self.argument.dim] 
         orbits = [self.action(y) for y in self.components]
         if kwargs.get('store', True):
             self.orbits = orbits
         return orbits
-    
-    def __matmul__(self, other):
-        '''
-        Compute a composition of Lie operators.
-        If g(:x:) denote the current Lie operator and :y: is another Lie operator,
-        then this operation will compute
-        [g(:x:):y:] z ,
-        where z are the components of the current Lie operator.
-        '''
-        assert hasattr(self, 'components') and hasattr(self, 'generator')
-        assert other.__class__.__name__ == 'liepoly'
-        return self.__class__(self.argument, t=self.flow_parameter, 
-                             generator=self.generator, components=[other@y for y in self.components])
-            
     
     def flowFunc(self, t, z):
         '''
@@ -730,6 +725,11 @@ class lieoperator:
             
         **kwargs
             Optional arguments passed to self.calcOrbits, if the orbits were not yet computed.
+            
+        Returns
+        -------
+        list
+            A list containing the flow of every component function of the Lie-operator.
         '''
         if 'orbits' in kwargs.keys():
             orbits = kwargs['orbits']
@@ -808,7 +808,7 @@ class lieoperator:
             _ = self.calcOrbits(components=z, **kwargs)
             return self.calcFlow(**kwargs)
     
-    def compose(self, z, power=3, **kwargs):
+    def compose(self, other, **kwargs):
         '''
         Compute the composition of the current Lie operator g(:x:) with another one f(:y:), 
         to return the Lie operator h(:z:) given as
@@ -819,17 +819,21 @@ class lieoperator:
         z: lieoperator
             The Lie operator z = f(:y:) to be composed with the current Lie operator from the right.
             
-        power: int
+        power: int, optional
             The power in the integration variable, to control the degree of accuracy of the result.
-            See also lie.combine routine.
+            See also lie.combine routine. If nothing specified, self._compose_power_default will be used.
             
         Returns
         -------
         lieoperator
             The resulting Lie operator of the composition.
         '''
-        comb, _ = combine(power, self.argument, z.argument, **kwargs)
+        power = kwargs.get('power', self._compose_power_default)
+        comb, _ = combine(power, self.argument, other.argument, **kwargs)
         return self.__class__(sum(comb.values()))
+    
+    def __matmul__(self, other):
+        return self.compose(other)
 
     def __call__(self, z, **kwargs):
         '''
@@ -887,7 +891,7 @@ class lieoperator:
         if hasattr(self, 'flow'):
             out.flow = [l.copy() for l in self.flow]
         return out
-    
+
     
 def combine(power: int, *args, **kwargs):
     '''
