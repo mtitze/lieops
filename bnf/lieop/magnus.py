@@ -418,7 +418,7 @@ class tree:
         else:
             self._I = I
     
-    def hard_edge_integral(self, hamiltonian: hard_edge_chain):
+    def hard_edge_integral(self, hamiltonian: hard_edge_chain, factor=1):
         '''
         Compute the nested chain of integrals in case the underlying Hamiltonian is given by a hard-edge model.
         
@@ -428,6 +428,9 @@ class tree:
         ----------
         hamiltonian: hard_edge_chain
             A series of hard_edge elements or liepoly classes containing hard_edge elements as values.
+            
+        factor: float, optional
+            An additional factor to multiply the final outcome with.
 
         Returns
         -------
@@ -447,11 +450,11 @@ class tree:
             assert bound > var # This should be the case by construction of the trees; otherwise the following commutator may have to be reversed.
             integrands[bound] = integral_functions@integrands[bound]
             
-        # remove 'constant'-key from output
+        # multiply with factor & remove 'constant'-key from output
         if 'constant' in I.keys():
-            return I['constant']
+            return I['constant']*factor
         else:
-            return {k: v['constant'] for k, v in I.items()}
+            return {k: v['constant']*factor for k, v in I.items()}
     
     def fourier_integral_terms(self, consistency_checks=False):
         '''
@@ -618,3 +621,45 @@ def forests(k, time_power=0, **kwargs):
         
     return tree_groups, forest_groups
 
+
+def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True):
+    '''
+    Compute an expansion of the Magnus series, given by Norsett and Iserles (see Ref. [1] in magnus.py) using binary trees, here in case of hard-edge elements.
+    
+    Parameters
+    ----------
+    order: int
+        The maximal order to be considered in the expansion. This order corresponds to the accuracy in powers
+        of s (the integration variable) of the resulting Hamiltonian.
+        
+    hamiltonian: hard_edge_chain
+        A hard-edge chain of liepoly objects, having values in hard_edge objects. Each liepoly object must have the same amount of keys,
+        but their coefficients may differ (or can be set to zero).
+        
+    tp: boolean, optional
+        A switch whether to use forests according to the number of involved commutators (tp = False) or
+        according to the power in s (tp = True).
+        
+    Returns
+    -------
+    dict
+        A dictionary :H: describing the combined Hamiltonian. If values=[p1, p2, ..., pk] is the input, with lie-polynomials
+        pj, then exp(:H:) = exp(:p1:) exp(:p2:) ... exp(:pk:) up to the given order.
+    '''
+    forest, tforest = forests(order)
+    if tp:
+        forest_oi = tforest
+    else:
+        forest_oi = forest
+        
+    result = {}
+    for l in forest_oi.keys():
+        if l > order: # the time_power of trees may exceed the maximal index given by the order, therefore we drop these forests.
+            continue
+        result_l = [] # in general there are several trees for a specific order l
+        for tr in forest_oi[l]:
+            if tr.factor == 0:
+                continue
+            result_l.append(tr.hard_edge_integral(hamiltonian=hamiltonian, factor=tr.factor))
+        result[l] = result_l
+    return result

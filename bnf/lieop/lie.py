@@ -4,7 +4,7 @@ from njet.jet import factorials, check_zero
 from njet import derive, jetpoly
 
 from .genfunc import genexp
-from .magnus import hard_edge, hard_edge_chain, forests
+from .magnus import hard_edge, hard_edge_chain, norsett_iserles
 
 class liepoly:
     '''
@@ -829,7 +829,7 @@ class lieoperator:
             The resulting Lie operator of the composition.
         '''
         comb, _ = combine(power, self.argument, z.argument, **kwargs)
-        return self.__class__(comb)
+        return self.__class__(sum(comb.values()))
 
     def __call__(self, z, **kwargs):
         '''
@@ -889,43 +889,6 @@ class lieoperator:
         return out
     
     
-def norsett_iserles(order: int, hamiltonian: hard_edge_chain, **kwargs):
-    '''
-    Compute an expansion of the Magnus series, given by Norsett and Iserles (see Ref. [1] in magnus.py) using binary trees, here in case of hard-edge elements.
-    
-    Parameters
-    ----------
-    order: int
-        The maximal order to be considered in the expansion. This order corresponds to the accuracy in powers
-        of s (the integration variable) of the resulting Hamiltonian.
-        
-    hamiltonian: hard_edge_chain
-        A hard-edge chain of liepoly objects, having values in hard_edge objects. Each liepoly object must have the same amount of keys,
-        but their coefficients may differ (or can be set to zero).
-        
-    **kwargs
-        Optional keyworded arguments passed to the magnus.tree.hard_edge_integral and liepoly.__init__ functions.
-        (For example: the 'max_power' variable)
-        
-    Returns
-    -------
-    liepoly
-        A lie polynomial :H: describing the combined Hamiltonian. If values=[p1, p2, ..., pk] is the input, with lie-polynomials
-        pj, then exp(:H:) = exp(:p1:) exp(:p2:) ... exp(:pk:) up to the given order.
-    '''
-    _, tforest = forests(order)
-    result = 0
-    for l in tforest.keys():
-        if l > order: # the time_power of trees may exceed the maximal index given by the order, therefore we drop these forests.
-            continue
-        for tr in tforest[l]:
-            if tr.factor == 0:
-                continue
-            I = tr.hard_edge_integral(hamiltonian=hamiltonian)
-            result += liepoly(values=I, **kwargs)*tr.factor
-    return result
-
-    
 def combine(power: int, *args, **kwargs):
     '''
     Compute a Lie polynomial using Magnus expansion, up to a given order.
@@ -936,20 +899,22 @@ def combine(power: int, *args, **kwargs):
         The power in s (s: the variable of integration) up to which we consider the Magnus expansion.
         
     *args
-        A series of liepoly objects p_j, j = 1, 2, ..., k which to be combined. They may represent 
+        A series of liepoly objects p_j, j = 0, 1, ..., k which to be combined. They may represent 
         the exponential operators exp(:p_j:).
         
     lengths: list, optional
         An optional list of lengths. If nothing specified, the lengths are assumed to be 1.
         
     **kwargs
-        Optional keyworded arguments passed to norsett_iserles routine.
+        Optional keyworded arguments passed to liepoly instantiation and norsett_iserles routine.
         
     Returns
     -------
-    liepoly
-        The resulting Lie-polynomial z so that exp((L1 + ... + Lk):z:) = exp(L1:p1:) exp(L2:p2:) ... exp(Lk:pk:),
-        accurate up to the requested power. Hereby lengths = [L1, L2, ..., Lk].
+    dict
+        The resulting Lie-polynomials z_j, j \in \{0, 1, ..., r\}, r := power, so that 
+        z := z_0 + z_1 + ... z_r satisfies exp((L0 + ... + Lk):z:) = exp(L0:p_0:) exp(L1:p_1:) ... exp(Lk:p_k:),
+        accurately up to the requested power r. Hereby it holds: lengths = [L0, L1, ..., Lk].
+        Every z_j belongs to Norsett & Iserles approach to the Magnus series.
         
     hard_edge_chain
         The s-dependent Hamiltonian used to construct z.
@@ -977,6 +942,6 @@ def combine(power: int, *args, **kwargs):
         
     # Now perform the integration up to the requested power.
     hamiltonian = hard_edge_chain(values=hard_edges)
-    Z = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs) # todo: flow parameter...?
-    return Z, hamiltonian
+    z_series = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs) # todo: flow parameter...?
+    return {k: sum([liepoly(values=w, **kwargs) for w in z_series[k]]) for k in z_series.keys()}, hamiltonian
 
