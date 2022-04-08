@@ -132,7 +132,7 @@ class hard_edge:
             A hard_edge object, containing the coefficients of the integral as their new values.
         '''
         constant = kwargs.get('constant', self._integral_constant)
-        new_values = [constant] + [self.values[k - 1]/k for k in range(1, self.order + 1)]
+        new_values = [constant] + [self.values[k - 1]/k for k in range(1, self.order + 1)] # the actual integration step
             
         # n.B. len(new_values) == self.order + 1
         constant += sum([new_values[mu]*self._integral_lengths.get(mu, self._integral_lengths[1]**self.order) for mu in range(1, self.order + 1)])
@@ -164,17 +164,23 @@ class hard_edge_chain:
     def copy(self):
         return self.__class__(values=[v for v in self.values]) # TODO: may check deep copy here
     
+    def __getitem__(self, index):
+        return self.values[index]
+    
+    def __len__(self):
+        return len(self.values)
+    
     def __mul__(self, other):
         '''
         Multiply two hard-edge functions with another one.
 
         Attention: It is assumed that the positions of both hard-edge models agree.
         '''
-        assert len(self.values) == len(other.values) # We assume that all positions equal for the time being (no check at the moment!)
-        prod = self.copy()
-        for k in range(len(self.values)):
-            prod.values[k] = self.values[k]@other.values[k]
-        return prod
+        assert len(self) == len(other) # We assume that all positions equal for the time being (no check at the moment!)
+        result = []
+        for k in range(len(self)):
+            result.append(self[k]@other[k])
+        return self.__class__(result)
     
     def __matmul__(self, other):
         return self*other
@@ -517,7 +523,6 @@ class tree:
             
         # prepare output; only factors are required for the full information
         return non_zero_terms
-            
             
     def set_factor(self, factors=[]):
         '''
