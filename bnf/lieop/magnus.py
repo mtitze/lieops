@@ -33,6 +33,7 @@ class hard_edge:
             A dictionary containing the powers of the length within which we want to integrate.
             The dictionary should preferably contain all the powers up to max(1, len(values) - 1).
         '''
+        assert len(values) > 0
         self.values = values # a list to keep track of the coefficients of the s-polynomial. 
         self.order = len(self.values)
         
@@ -43,6 +44,11 @@ class hard_edge:
     def _copy_integral_fields_to(self, other):
         other._integral_constant = self._integral_constant
         other._integral_lengths = self._integral_lengths
+        
+    def copy(self):
+        result = self.__class__(values=[v for v in self.values])
+        self._copy_integral_fields_to(result)
+        return result
         
     def _convert(self, other):
         '''
@@ -154,7 +160,11 @@ class hard_edge:
     
     def __eq__(self, other):
         if self.__class__.__name__ != other.__class__.__name__:
-            return self.values[0] == other and self.order == 1
+            # In this case there may be a check of 'self' against a float like zero.
+            # we have to return False here, otherwise e.g. liepoly elements containing hard_edge elements may lose some keys
+            # (as they will not keep track of keys containing zeros) and eventually drop out.
+            # Only under the condition that there were also no integral lengths given we return True.
+            return self.order == 1 and len(self._integral_lengths) == 0 and self.values[0] == other
         elif self.order != other.order:
             return False
         else: # check the fields, based on successive complexity
@@ -191,7 +201,7 @@ class hard_edge_chain:
         self.values = values # values[k] should be a list of hard_edge or lie-polynomial objects with hard_edge objects as values.
         
     def copy(self):
-        return self.__class__(values=[v for v in self.values]) # TODO: may check deep copy here
+        return self.__class__(values=[v.copy() for v in self.values])
     
     def __getitem__(self, index):
         return self.values[index]

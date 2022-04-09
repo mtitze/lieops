@@ -70,7 +70,12 @@ class liepoly:
             return min([sum(k) for k, v in self.values.items()])
         
     def copy(self):
-        return self.__class__(values={k: v for k, v in self.values.items()}, dim=self.dim, max_power=self.max_power)
+        new_values = {}
+        for k, v in self.values.items():
+            if hasattr(v, 'copy'):
+                v = v.copy()
+            new_values[k] = v
+        return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
     
     def extract(self, condition):
         '''
@@ -920,7 +925,7 @@ class lieoperator:
     
 def combine(*args, power: int, **kwargs):
     '''
-    Compute a Lie polynomial using Magnus expansion, up to a given order.
+    Compute Lie polynomials using Magnus expansion, up to a given order.
     
     Parameters
     ----------
@@ -956,6 +961,13 @@ def combine(*args, power: int, **kwargs):
     assert type(power) == int and power > 0
     dim = args[0].dim
     assert all([op.dim == dim for op in args]), 'The number of variables of the individual Lie-operators are different.'
+    
+    # The given Lie-polynomials p_1, p_2, ... are representing the chain exp(:p_1:) exp(:p_2:) ... exp(:p_k:) of Lie operators.
+    # This means that the last entry p_k is the operator which is executed first. In the hard-edge model, the first entry
+    # belongs to the s-dependent Hamiltonian representing the entire chain of the above operators. Therefore, p_k must come first and so
+    # the lists have to be reversed:
+    args = args[::-1] 
+    lengths = lengths[::-1]
     
     # Build the hard_edge Hamiltonian model.
     # 1) The values of every liepoly object will now be transformed to hard_edge objects. 
