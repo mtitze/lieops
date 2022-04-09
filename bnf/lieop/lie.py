@@ -117,10 +117,14 @@ class liepoly:
         Parameters
         ----------
         z: subscriptable
-            The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim
-            (the components of z correspond to the xi-values). Otherwise, it is assumed that len(z) == 2*self.dim,
+            The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim,
+            in which case the components of z are assumed to be xi-values. Otherwise, it is assumed that len(z) == 2*self.dim,
             where z = (xi, eta) denote a set of complex conjugated coordinates.
         '''
+        # some consistency check
+        if z.__class__.__name__ == self.__class__.__name__:
+            raise TypeError(f"Input of type '{self.__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for liepoly objects.
+        
         # prepare input vector
         if len(z) == self.dim:
             z = [e for e in z] + [e.conjugate() for e in z]
@@ -925,7 +929,7 @@ class lieoperator:
     
 def combine(*args, power: int, **kwargs):
     '''
-    Compute Lie polynomials using Magnus expansion, up to a given order.
+    Compute the Lie polynomials of the Magnus expansion, up to a given order.
     
     Parameters
     ----------
