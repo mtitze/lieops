@@ -85,11 +85,19 @@ class hard_edge:
     def __add__(self, other):
         other = self._convert(other)
         vals_add = []
-        if self.order >= other.order:
+        if self.order == other.order:
+            max_used = 0 # to remove possible trailing zeros
+            for k in range(other.order):
+                value_k = self.values[k] + other.values[k]
+                if value_k != 0:
+                    max_used = k
+                vals_add.append(value_k)
+            vals_add = vals_add[:max_used + 1]
+        elif self.order > other.order:
             for k in range(other.order):
                 vals_add.append(self.values[k] + other.values[k])
-            vals_add += self.values[other.order:]
-        else:
+            vals_add += self.values[other.order:] 
+        else: # self.order < other.order; not that there must bee higher-order non-zero values in 'other' which will have no counterpart.
             for k in range(self.order):
                 vals_add.append(self.values[k] + other.values[k])
             vals_add += other.values[self.order:]
@@ -133,12 +141,13 @@ class hard_edge:
         '''
         constant = kwargs.get('constant', self._integral_constant)
         
-        # to prevent that we add unecessary zeros to the new values, we may have to shift the maximum index
+        # In order to prevent that we add unecessary zeros to the new values, we may have to shift the maximum index by one.
+        # This will be taken into account only at the 'start', where the hard-edges are expected to have no higher-order components.
         n_max = self.order + 1
         if self.order == 1 and self.values[0] == 0:
             n_max -= 1
 
-        # now put the new values
+        # now put the new values and update the integration constant
         new_values = [constant] + [self.values[k - 1]/k for k in range(1, n_max)] # the actual integration step
         constant += sum([new_values[mu]*self._integral_lengths.get(mu, self._integral_lengths[1]**self.order) for mu in range(1, n_max)])
         return self.__class__(values=new_values, lengths=self._integral_lengths, integral_constant=constant) # Attention: self._integral_lengths may be modified in the original object, by the additional key. This is intended to avoid unecessary calculations.
@@ -148,7 +157,7 @@ class hard_edge:
             return self.values[0] == other and self.order == 1
         elif self.order != other.order:
             return False
-        else: # check conditions in successive order of complexity
+        else: # check the fields, based on successive complexity
             if self._integral_constant != other._integral_constant:
                 return False
             if not all([self.values[k] == other.values[k] for k in range(self.order)]):
