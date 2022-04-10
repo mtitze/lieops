@@ -620,7 +620,7 @@ class lieoperator:
     def __init__(self, x, **kwargs):
         self._compose_power_default = 3 # the default power when composing two Lie-operators (used in self.compose)
         self.init_kwargs = kwargs
-        self.flow_parameter = kwargs.get('t', 1) # can be changed in self.calcFlow
+        self.flow_parameter = kwargs.get('t', -1) # can be changed in self.calcFlow
         self.set_argument(x, **kwargs)
         if not 'generator' in kwargs.keys() and 'power' in kwargs.keys(): 
             # if only a power argument is given, and no generator specified, 
@@ -731,21 +731,24 @@ class lieoperator:
     
     def flowFunc(self, t, z):
         '''
-        Return the flow function phi(t, z) = [g(t:x:) y](z) .
+        Return the flow function phi(t, z) = [g(-t:x:) y](z).
         
         Parameters
         ----------
-        **kwargs
-            Optional arguments passed to self.calcOrbits
+        t: float
+            The requested t-value of the flow.
+            
+        z: subscriptable
+            The point at which to evaluate the flow.
         
         Returns
         -------
         phi: callable
             The flow of the current Lie operator, as described above.
         '''
-        return [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+        return [sum([self.orbits[k][j](z)*(-t)**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
      
-    def calcFlow(self, t=1, **kwargs):
+    def calcFlow(self, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
         
@@ -762,6 +765,8 @@ class lieoperator:
         list
             A list containing the flow of every component function of the Lie-operator.
         '''
+        t = kwargs.get('t', self.flow_parameter)
+        
         if 'orbits' in kwargs.keys():
             orbits = kwargs['orbits']
         elif not hasattr(self, 'orbits'):
@@ -773,6 +778,7 @@ class lieoperator:
         # Instead, we want to put the numpy arrays into our liepoly class.
         flow = [sum([orbits[k][j]*t**j for j in range(len(orbits[k]))]) for k in range(len(orbits))]
         if kwargs.get('store', True):
+            self.orbits = orbits
             self.flow = flow
             self.flow_parameter = t
         return flow
@@ -791,10 +797,10 @@ class lieoperator:
         list
             The values (g(:x:)y)(z) for y in self.components.
         '''
-        assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
         if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
             flow = self.calcFlow(**kwargs)
         else:
+            assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
             flow = self.flow
             
         if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'):

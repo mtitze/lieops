@@ -666,7 +666,7 @@ def forests(k, time_power=0, **kwargs):
     return tree_groups, forest_groups
 
 
-def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True, **kwargs):
+def norsett_iserles(order: int, hamiltonian: hard_edge_chain, time=True, **kwargs):
     '''
     Compute an expansion of the Magnus series, given by Norsett and Iserles (see Ref. [1] in magnus.py) using rooted trees, here in case of hard-edge elements.
     
@@ -680,9 +680,9 @@ def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True, **kwargs)
         A hard-edge chain of liepoly objects, having values in hard_edge objects. Each liepoly object must have the same amount of keys,
         but their coefficients may differ (or can be set to zero).
         
-    tp: boolean, optional
-        A switch whether to use forests according to the number of involved commutators (tp = False) or
-        according to the power in s (tp = True).
+    time: boolean, optional
+        A switch whether to use forests according to the number of involved commutators (time = False) or
+        according to the power in s (time = True).
         
     Returns
     -------
@@ -691,7 +691,7 @@ def norsett_iserles(order: int, hamiltonian: hard_edge_chain, tp=True, **kwargs)
         integrating the given hard-edge Hamiltonian with respect to the individual trees.
     '''
     forest, tforest = forests(order)
-    if tp:
+    if time:
         forest_oi = tforest
     else:
         forest_oi = forest
