@@ -41,6 +41,8 @@ class hard_edge:
         self._integral_constant = integral_constant
         self._integral_lengths = lengths # to store the integral length and their powers.
         
+        self._default_tolerance = 1e-15 # values smaller than this value are considered to be zero. This is used to avoid the proliferation of larger and larger lists containing zeros.
+        
     def _copy_integral_fields_to(self, other):
         other._integral_constant = self._integral_constant
         other._integral_lengths = self._integral_lengths
@@ -76,11 +78,11 @@ class hard_edge:
         max_used = 0 # to drop unecessary zeros later on
         for order1 in range(self.order):
             value1 = self.values[order1]
-            if value1 == 0:
+            if abs(value1) < self._default_tolerance:
                 continue
             for order2 in range(other.order):
                 value2 = other.values[order2]
-                if value2 == 0:
+                if abs(value2) < self._default_tolerance:
                     continue
                 vals_mult[order1 + order2] += value1*value2
                 max_used = max([max_used, order1 + order2])
@@ -95,7 +97,7 @@ class hard_edge:
             max_used = 0 # to remove possible trailing zeros
             for k in range(other.order):
                 value_k = self.values[k] + other.values[k]
-                if value_k != 0:
+                if abs(value_k) > self._default_tolerance:
                     max_used = k
                 vals_add.append(value_k)
             vals_add = vals_add[:max_used + 1]
@@ -151,7 +153,7 @@ class hard_edge:
         # This will be taken into account only at the 'start', where the hard-edges are expected to have no higher-order components.
         n_max = self.order + 1
         if self.order == 1 and self.values[0] == 0:
-            n_max -= 1
+            n_max = 1
 
         # now put the new values and update the integration constant
         new_values = [constant] + [self.values[k - 1]/k for k in range(1, n_max)] # the actual integration step
@@ -164,13 +166,13 @@ class hard_edge:
             # we have to return False here, otherwise e.g. liepoly elements containing hard_edge elements may lose some keys
             # (as they will not keep track of keys containing zeros) and eventually drop out.
             # Only under the condition that there were also no integral lengths given we return True.
-            return self.order == 1 and len(self._integral_lengths) == 0 and self.values[0] == other
+            return self.order == 1 and len(self._integral_lengths) == 0 and abs(self.values[0] - other) < self._default_tolerance
         elif self.order != other.order:
             return False
         else: # check the fields, based on successive complexity
-            if self._integral_constant != other._integral_constant:
+            if abs(self._integral_constant - other._integral_constant) < self._default_tolerance:
                 return False
-            if not all([self.values[k] == other.values[k] for k in range(self.order)]):
+            if not all([abs(self.values[k] - other.values[k]) < self._default_tolerance for k in range(self.order)]):
                 return False
             if self._integral_lengths != other._integral_lengths:
                 return False

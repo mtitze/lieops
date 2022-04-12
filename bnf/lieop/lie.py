@@ -618,7 +618,7 @@ class lieoperator:
         Optional arguments may be passed to self.set_generator, self.calcOrbits and self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
-        self._compose_power_default = 3 # the default power when composing two Lie-operators (used in self.compose)
+        self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
         self.init_kwargs = kwargs
         self.flow_parameter = kwargs.get('t', -1) # can be changed in self.calcFlow
         self.set_argument(x, **kwargs)
@@ -993,6 +993,6 @@ def combine(*args, power: int, **kwargs):
         
     # Now perform the integration up to the requested power.
     hamiltonian = hard_edge_chain(values=hard_edges)
-    z_series = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs) # todo: flow parameter...?
-    return {k: sum([liepoly(values=w, **kwargs) for w in z_series[k]]) for k in z_series.keys()}, hamiltonian
+    z_series, fi = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs) # todo: flow parameter...?
+    return {k: sum([liepoly(values=w, **kwargs) for w in z_series[k]]) for k in z_series.keys()}, hamiltonian, z_series, fi
 
