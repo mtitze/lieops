@@ -162,7 +162,6 @@ class liepoly:
                 else:
                     _ = add_values.pop(zero_tpl, None)
             max_power = self.max_power
-            return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
         else:
             assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
             for k, v in other.values.items():
@@ -172,7 +171,7 @@ class liepoly:
                 else:
                     _ = add_values.pop(k, None)
             max_power = min([self.max_power, other.max_power])
-            return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
+        return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
     
     def __radd__(self, other):
         return self + other
@@ -237,8 +236,8 @@ class liepoly:
                         _ = mult_values.pop(prod_tpl, None)
             return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)
         else:
-            return self.__class__(values={k: other*v for k, v in self.values.items() if not check_zero(other)}, 
-                                          dim=self.dim, max_power=self.max_power)
+            return self.__class__(values={k: v*other for k, v in self.values.items() if not check_zero(other)}, 
+                                          dim=self.dim, max_power=self.max_power) # need to use v*other; not other*v here: If type(other) = numpy.float64, then it may cause unpredicted results of it stands on the left.
         
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -281,6 +280,12 @@ class liepoly:
             
     def keys(self):
         return self.values.keys()
+    
+    def get(self, *args, **kwargs):
+        return self.values.get(*args, **kwargs)
+    
+    def items(self):
+        return self.values.items()
     
     def __iter__(self):
         for key in self.values.keys():
@@ -979,20 +984,19 @@ def combine(*args, power: int, **kwargs):
     args = args[::-1] 
     lengths = lengths[::-1]
     
-    # Build the hard_edge Hamiltonian model.
-    # 1) The values of every liepoly object will now be transformed to hard_edge objects. 
-    # 2) It must be ensured that every liepoly object has the same number of keys. Otherwise the integration routines in norsett_iserles will not work.
+    # Build the hard-edge Hamiltonian model.
     all_powers = set([k for op in args for k in op.keys()])
-    hard_edges = []
-    for m in range(n_operators):
-        lp = args[m].copy()
-        lpv = lp.values
-        lpv.update({k: hard_edge([lpv[k]], lengths={1: lengths[m]}) for k in lpv.keys()})
-        lpv.update({k: hard_edge([0], lengths={1: lengths[m]}) for k in all_powers if k not in lpv.keys()}) # dimensions are equal, ensured above.
-        hard_edges.append(lp)
+    hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args[m].get(k, 0)], lengths={1: lengths[m]}) for m in range(n_operators)]) for k in all_powers}
+    hamiltonian = liepoly(values=hamiltonian_values, **kwargs)
         
     # Now perform the integration up to the requested power.
-    hamiltonian = hard_edge_chain(values=hard_edges)
-    z_series, fi = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs) # todo: flow parameter...?
-    return {k: sum([liepoly(values=w, **kwargs) for w in z_series[k]]) for k in z_series.keys()}, hamiltonian, z_series, fi
-
+    z_series = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
+    out = {}
+    for order, trees in z_series.items():
+        out_order = 0
+        for tpl in trees: # index corresponds to an enumeration of the trees for the specific order
+            lp, factor = tpl
+            # lp is a liepoly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:            
+            out_order += liepoly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
+        out[order] = out_order
+    return out, hamiltonian

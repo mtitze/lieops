@@ -21,7 +21,7 @@ class hard_edge:
     as values of a liepoly class.
     '''
     
-    def __init__(self, values: list, lengths={}, integral_constant=0):
+    def __init__(self, values: list, lengths):
         '''
         Parameters
         ----------
@@ -29,37 +29,32 @@ class hard_edge:
             A list of floats indicating the s-powers of the hard-edge element. For example,
             [1, 3, -2] has the interpretation: 1 + 3*s - 2*s**2.
         
-        lengths: dict, optional
+        lengths: dict
             A dictionary containing the powers of the length within which we want to integrate.
             The dictionary should preferably contain all the powers up to max(1, len(values) - 1).
         '''
         assert len(values) > 0
         self.values = values # a list to keep track of the coefficients of the s-polynomial. 
         self.order = len(self.values)
-        
-        # to be used in self.integral
-        self._integral_constant = integral_constant
-        self._integral_lengths = lengths # to store the integral length and their powers.
-        
         self._default_tolerance = 1e-15 # values smaller than this value are considered to be zero. This is used to avoid the proliferation of larger and larger lists containing zeros.
         
-    def _copy_integral_fields_to(self, other):
-        other._integral_constant = self._integral_constant
-        other._integral_lengths = self._integral_lengths
-        
+        # init lengths
+        assert 1 in lengths.keys()
+        self._integral_lengths = lengths
+        for mu in range(self.order):
+            if mu not in lengths.keys():
+                self._integral_lengths[mu] = lengths[1]**mu
+    
     def copy(self):
-        result = self.__class__(values=[v for v in self.values])
-        self._copy_integral_fields_to(result)
-        return result
+        return self.__class__(values=[v for v in self.values], lengths=self._integral_lengths)
         
-    def _convert(self, other):
+    def _convert(self, other, **kwargs):
         '''
         Convert argument to self.__class__.
         '''
-        if not other.__class__.__name__ == self.__class__.__name__:
-            result = self.__class__(values=[other])
-            self._copy_integral_fields_to(result)
-            return result
+        if other.__class__.__name__ != self.__class__.__name__:
+            kwargs['lengths'] = kwargs.get('lengths', self._integral_lengths)
+            return self.__class__(values=[other], **kwargs)
         else:
             return other
         
@@ -73,50 +68,53 @@ class hard_edge:
         (0 + 2*s + 1*s**2)*(1 + 1*s) = 0 + 2*s + 3*s**2 + 1*s**3
         corresponding to [0, 2, 3, 1].
         '''
-        other = self._convert(other)
-        vals_mult = [0]*(self.order + other.order)
-        max_used = 0 # to drop unecessary zeros later on
-        for order1 in range(self.order):
-            value1 = self.values[order1]
-            if abs(value1) < self._default_tolerance:
-                continue
-            for order2 in range(other.order):
-                value2 = other.values[order2]
-                if abs(value2) < self._default_tolerance:
+        if self.__class__.__name__ == other.__class__.__name__:
+            assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad            
+            vals_mult = [0]*(self.order + other.order)
+            max_power_used = 0 # to drop unecessary zeros later on
+            for order1 in range(self.order):
+                value1 = self.values[order1]
+                if abs(value1) <= self._default_tolerance:
                     continue
-                vals_mult[order1 + order2] += value1*value2
-                max_used = max([max_used, order1 + order2])
-        result = self.__class__(values=vals_mult[:max_used + 1])
-        self._copy_integral_fields_to(result)
+                for order2 in range(other.order):
+                    value2 = other.values[order2]
+                    if abs(value2) <= self._default_tolerance:
+                        continue
+                    vals_mult[order1 + order2] += value1*value2
+                    max_power_used = max([max_power_used, order1 + order2])
+            result = self.__class__(values=vals_mult[:max_power_used + 1], lengths=self._integral_lengths)
+        else:
+            result = self.__class__(values=[v*other for v in self.values], lengths=self._integral_lengths)
         return result
     
     def __add__(self, other):
-        other = self._convert(other)
-        vals_add = []
-        if self.order == other.order:
-            max_used = 0 # to remove possible trailing zeros
-            for k in range(other.order):
-                value_k = self.values[k] + other.values[k]
-                if abs(value_k) > self._default_tolerance:
-                    max_used = k
-                vals_add.append(value_k)
-            vals_add = vals_add[:max_used + 1]
-        elif self.order > other.order:
-            for k in range(other.order):
-                vals_add.append(self.values[k] + other.values[k])
-            vals_add += self.values[other.order:] 
-        else: # self.order < other.order; not that there must bee higher-order non-zero values in 'other' which will have no counterpart.
-            for k in range(self.order):
-                vals_add.append(self.values[k] + other.values[k])
-            vals_add += other.values[self.order:]
-        result = self.__class__(values=vals_add)
-        self._copy_integral_fields_to(result)
+        if self.__class__.__name__ == other.__class__.__name__:
+            assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad
+            vals_add = []
+            if self.order == other.order:
+                max_used = 0 # to remove possible trailing zeros
+                for k in range(other.order):
+                    value_k = self.values[k] + other.values[k]
+                    if abs(value_k) > self._default_tolerance:
+                        max_used = k
+                    vals_add.append(value_k)
+                vals_add = vals_add[:max_used + 1]
+            elif self.order > other.order:
+                for k in range(other.order):
+                    vals_add.append(self.values[k] + other.values[k])
+                vals_add += self.values[other.order:]
+            else: # self.order < other.order; not that there must be higher-order non-zero values in 'other' which will have no counterpart.
+                for k in range(self.order):
+                    vals_add.append(self.values[k] + other.values[k])
+                vals_add += other.values[self.order:]
+            result = self.__class__(values=vals_add, lengths=self._integral_lengths)
+        else:
+            result = self.__class__(values=[self.values[0] + other] + [v for v in self.values[1:]],
+                                   lengths=self._integral_lengths)
         return result
     
     def __neg__(self):
-        result = self.__class__(values=[-v for v in self.values])
-        self._copy_integral_fields_to(result)
-        return result
+        return self.__class__(values=[-v for v in self.values], lengths=self._integral_lengths)
     
     def __sub__(self, other):
         return self + -other
@@ -127,19 +125,14 @@ class hard_edge:
     def __rmul__(self, other):
         return self*other
     
-    def __matmul__(self, other):
-        # Used to have a common syntax in the case that we may have two liepoly classes with hard_edge as values,
-        # see multiplication in hard_edge_chain class below.
-        return self*other
-    
-    def integral(self, **kwargs):
+    def _integrate(self, constant=0):
         '''
-        Integrate the given polynomial within a given interval.
+        Integrate the given polynomial from zero to self._integral_lengths[1]
         
         Parameters
         ----------
         constant: float, optional
-            An optional constant for the integral over zero. May be required if the integration
+            An optional integration constant. May be required if the integration
             corresponds to a piecewise integration over a larger region.
             
         Returns
@@ -147,18 +140,22 @@ class hard_edge:
         hard_edge
             A hard_edge object, containing the coefficients of the integral as their new values.
         '''
-        constant = kwargs.get('constant', self._integral_constant)
-        
         # In order to prevent that we add unecessary zeros to the new values, we may have to shift the maximum index by one.
         # This will be taken into account only at the 'start', where the hard-edges are expected to have no higher-order components.
         n_max = self.order + 1
-        if self.order == 1 and self.values[0] == 0:
+        if self.order == 1 and abs(self.values[0]) <= self._default_tolerance:
             n_max = 1
-
+        else:
+            self._integral_lengths[n_max] = self._integral_lengths[n_max - 1]*self._integral_lengths[1]
+            
         # now put the new values and update the integration constant
-        new_values = [constant] + [self.values[k - 1]/k for k in range(1, n_max)] # the actual integration step
-        constant += sum([new_values[mu]*self._integral_lengths.get(mu, self._integral_lengths[1]**self.order) for mu in range(1, n_max)])
-        return self.__class__(values=new_values, lengths=self._integral_lengths, integral_constant=constant) # Attention: self._integral_lengths may be modified in the original object, by the additional key. This is intended to avoid unecessary calculations.
+        power_coeffs = [constant] + [self.values[k - 1]/k for k in range(1, n_max)]
+        integral = constant + sum([power_coeffs[mu]*self._integral_lengths[mu] for mu in range(1, n_max)])
+        return power_coeffs, integral
+    
+    def integrate(self, **kwargs):
+        power_coeffs, integral = self._integrate(**kwargs)
+        return self.__class__(values=power_coeffs, lengths=self._integral_lengths), integral # self._integral_lengths may be modified in the original object, by the additional key. This is intended to avoid unecessary calculations.
     
     def __eq__(self, other):
         if self.__class__.__name__ != other.__class__.__name__:
@@ -166,15 +163,13 @@ class hard_edge:
             # we have to return False here, otherwise e.g. liepoly elements containing hard_edge elements may lose some keys
             # (as they will not keep track of keys containing zeros) and eventually drop out.
             # Only under the condition that there were also no integral lengths given we return True.
-            return self.order == 1 and len(self._integral_lengths) == 0 and abs(self.values[0] - other) < self._default_tolerance
+            return self.order == 1 and abs(self.values[0] - other) <= self._default_tolerance # and len(self._integral_lengths) == 0
         elif self.order != other.order:
             return False
         else: # check the fields, based on successive complexity
-            if abs(self._integral_constant - other._integral_constant) < self._default_tolerance:
+            if not all([abs(self.values[k] - other.values[k]) <= self._default_tolerance for k in range(self.order)]):
                 return False
-            if not all([abs(self.values[k] - other.values[k]) < self._default_tolerance for k in range(self.order)]):
-                return False
-            if self._integral_lengths != other._integral_lengths:
+            if self._integral_lengths[1] != other._integral_lengths[1]:
                 return False
             else:
                 return True
@@ -192,7 +187,7 @@ class hard_edge_chain:
     Class to handle a chain of hard-edge elements, given by piecewise polynomial functions, and their respective integrals.
     '''
     
-    def __init__(self, values):
+    def __init__(self, values, **kwargs):
         '''
         Parameters
         ----------
@@ -201,9 +196,10 @@ class hard_edge_chain:
         '''
         assert len(values) > 0
         self.values = values # values[k] should be a list of hard_edge or lie-polynomial objects with hard_edge objects as values.
+        self._integral = kwargs.get('integral', None)
         
     def copy(self):
-        return self.__class__(values=[v.copy() for v in self.values])
+        return self.__class__(values=[v.copy() for v in self.values], integral=self._integral)
     
     def __getitem__(self, index):
         return self.values[index]
@@ -212,21 +208,61 @@ class hard_edge_chain:
         return len(self.values)
     
     def __mul__(self, other):
-        '''
-        Multiply two hard-edge functions with another one.
-
-        Attention: It is assumed that the positions of both hard-edge models agree.
-        '''
-        assert len(self) == len(other) # We assume that all positions equal for the time being (no check at the moment!)
         result = []
-        for k in range(len(self)):
-            result.append(self[k]@other[k])
-        return self.__class__(result)
+        if self.__class__.__name__ == other.__class__.__name__:
+            assert len(self) == len(other)
+            for k in range(len(self)): 
+                result.append(self[k]*other[k])
+        else:
+            for k in range(len(self)):
+                result.append(self[k]*other)
+        return self.__class__(result, integral=self._integral)
     
-    def __matmul__(self, other):
+    def __rmul__(self, other):
         return self*other
+    
+    def __add__(self, other):
+        '''
+        Add two hard_edge_chain's. 
         
-    def integral(self):
+        Attention: It is not checked (but assumed) that the respective element names of the hard_edge objects are equal.
+        '''
+        result = []
+        if self.__class__.__name__ == other.__class__.__name__:
+            assert len(self) == len(other)
+            # the integral lengths of power 1 must be equal; we drop this check for the time being (to improve performance)
+            #assert all([self.values[k]._integral_lengths[1] == other.values[k]._integral_lengths[1] for k in range(len(self))])
+            for k in range(len(self)):
+                result.append(self[k] + other[k])
+        else:
+            for k in range(len(self)):
+                result.append(self[k] + other)
+        return self.__class__(values=result, integral=self._integral)
+    
+    def __radd__(self, other):
+        return self + other
+    
+    def __neg__(self):
+        return self.__class__(values=[-v for v in self.values], integral=self._integral)
+    
+    def __sub__(self, other):
+        return self + -other
+    
+    def __eq__(self, other):
+        '''
+        Check if the hard_edge_model contains the same values.
+        
+        Attention: No check regarding self._integral_constant.
+        '''
+        if self.__class__.__name__ == other.__class__.__name__:
+            if len(self.values) != len(other.values):
+                return False
+            else:
+                return all([self.values[k] == other.values[k] for k in range(len(self.values))])
+        else:
+            return all([self.values[k] == other for k in range(len(self.values))])
+        
+    def integrate(self):
         '''
         Compute the integral
         
@@ -242,34 +278,20 @@ class hard_edge_chain:
         -------
         integral: hard_edge
             A hard_edge object, representing the section-wise integrand of the current hard_edge object.
-            
-        float
-            The result of the entire integration over the given range [self.positions[0], self.positions[-1]].
         '''
         result_values = []
-        inp = {'constant': 0}
+        constant = 0
         for X in self.values:
-            if X.__class__.__name__ == 'hard_edge':
-                IX = X.integral(**inp)
-                inp = {'constant': IX._integral_constant} # use individual constants to be added to the integral for the next hard-edge functions
-            else:
-                # X expected to be a Lie-polynomial with hard_edge values. 
-                # All of these Lie-polynomials must share the same keys (since they originate from the same Hamiltonian).
-                # However, their values (coefficients) are not necessarily identical and will differ from hard-edge to hard-edge.
-                IX = X.apply('integral', **inp)
-                inp = {'cargs': {k: {'constant': IX[k]._integral_constant} for k in IX.keys()}} # extract individual constant(s) to be added to the integral for the next hard-edge function(s) X.
+            IX, constant_last = X.integrate(constant=constant)
             result_values.append(IX)
-            
-        if 'cargs' in inp.keys(): # remove that key again
-            inp = inp['cargs']
-            
-        return self.__class__(values=result_values), inp
+            constant += constant_last # use individual constants to be added to the integral for the next hard-edge functions
+        return self.__class__(values=result_values, integral=constant_last)
     
     def __str__(self):
         out = ''
         for p in self.values:
-            out += f'{str(p)} |\n'
-        return out[:-3]
+            out += f'{str(p)} -- '
+        return out[:-4]
         
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>'
@@ -392,9 +414,6 @@ class tree:
         if 'factors' in kwargs.keys():
             self.set_factor(factors=kwargs['factors'])
             
-        if 'integrand' in kwargs.keys(): # perform live integration
-            self.hard_edge_live_integral(**kwargs)
-            
     def _set_time_power(self, eb=None):
         '''
         Set the time power of the tree.
@@ -443,29 +462,7 @@ class tree:
             integration_levels.append(level)
         return order, integration_levels[:-1]
     
-    def hard_edge_live_integral(self, **kwargs):
-        '''
-        Perform an integration over the first branch of the tree in case the Hamiltonian is given
-        in terms of hard_edge_chain(s). 
-        
-        This routine is intended to be called when building trees, and will compute the sucessive integrals 
-        when attaching them to other trees. It may be slower than self.hard_edge_integral + norsett_iserles,
-        because in the latter case we can drop those forests (s-forests) with higher-order -- as well
-        as those with factor 0 -- before integrating.
-        '''
-        if len(self.branches) > 0:
-            self._integrand = self.branches[0]._integral@self.branches[1]._integrand
-            self._integral, I = self._integrand.integral()
-        else: # self.index == 1
-            self._integrand = kwargs.get('integrand')
-            self._integral, I = self._integrand.integral()
-
-        if type(I) == dict: # the integration result emerged by using Lie-polynomials.
-            self._I = {k: v['constant'] for k, v in I.items()}
-        else:
-            self._I = I
-    
-    def hard_edge_integral(self, hamiltonian: hard_edge_chain, factor=1):
+    def hard_edge_integral(self, hamiltonian):
         '''
         Compute the nested chain of integrals in case the underlying Hamiltonian is given by a hard-edge model.
         
@@ -473,35 +470,26 @@ class tree:
         
         Parameters
         ----------
-        hamiltonian: hard_edge_chain
-            A series of hard_edge elements or liepoly classes containing hard_edge elements as values.
-            
-        factor: float, optional
-            An additional factor to multiply the final outcome with.
+        hamiltonian
+            A liepoly object having of hard_edge_chain elements as values.
 
         Returns
         -------
-        float or dict
-            Depending on the input, either a single value will be returned, which correspond to the integral over
-            self.integration_chain()[0], or a dictionary with the individual integrals as elements.
+        liepoly
+            A liepoly object where every value corresponds to the integral of the given hard_edge_chains over the nested integration.
         '''
         integrands = {k: hamiltonian for k in range(self.index)}
         ic, _ = self.integration_chain()
         for var, bound in ic[::-1]:
-            integral_functions, I = integrands[var].integral()
+            Iham = integrands[var].apply('integrate')
             # bound will be the next element in the integration chain for this specific element.
             # therefore we have to seek out the integrand there and apply the commutator with
             # the hamiltonian at that place
             if bound == self._upper_bound_default:
                 break
             assert bound > var # This should be the case by construction of the trees; otherwise the following commutator may have to be reversed.
-            integrands[bound] = integral_functions@integrands[bound]
-            
-        # multiply with factor & remove 'constant'-key from output
-        if 'constant' in I.keys():
-            return I['constant']*factor
-        else:
-            return {k: v['constant']*factor for k, v in I.items()}
+            integrands[bound] = Iham@integrands[bound]
+        return Iham
     
     def fourier_integral_terms(self, consistency_checks=False):
         '''
@@ -706,8 +694,8 @@ def norsett_iserles(order: int, hamiltonian: hard_edge_chain, time=True, **kwarg
         for tr in forest_oi[l]:
             if tr.factor == 0:
                 continue
-            I = tr.hard_edge_integral(hamiltonian=hamiltonian, factor=tr.factor)
+            I = tr.hard_edge_integral(hamiltonian=hamiltonian)
             if len(I) > 0:
-                result_l.append(I)
+                result_l.append((I, tr.factor))
         result[l] = result_l
     return result
