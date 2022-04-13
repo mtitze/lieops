@@ -237,7 +237,7 @@ class liepoly:
             return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)
         else:
             return self.__class__(values={k: v*other for k, v in self.values.items() if not check_zero(other)}, 
-                                          dim=self.dim, max_power=self.max_power) # need to use v*other; not other*v here: If type(other) = numpy.float64, then it may cause unpredicted results of it stands on the left.
+                                          dim=self.dim, max_power=self.max_power) # need to use v*other; not other*v here: If type(other) = numpy.float64, then it may cause unpredicted results if it stands on the left.
         
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -253,7 +253,7 @@ class liepoly:
         
     
     def __pow__(self, other):
-        assert type(other) == int 
+        assert type(other) == int
         assert other >= 0
         if other == 0:
             return self.__class__(values={(0,)*self.dim*2: 1}, 

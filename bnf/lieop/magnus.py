@@ -69,7 +69,8 @@ class hard_edge:
         corresponding to [0, 2, 3, 1].
         '''
         if self.__class__.__name__ == other.__class__.__name__:
-            assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad            
+            assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad
+            self._integral_lengths.update(other._integral_lengths)
             vals_mult = [0]*(self.order + other.order)
             max_power_used = 0 # to drop unecessary zeros later on
             for order1 in range(self.order):
@@ -90,6 +91,7 @@ class hard_edge:
     def __add__(self, other):
         if self.__class__.__name__ == other.__class__.__name__:
             assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad
+            self._integral_lengths.update(other._integral_lengths)
             vals_add = []
             if self.order == other.order:
                 max_used = 0 # to remove possible trailing zeros
