@@ -10,8 +10,9 @@ Collection of scripts to deal with the Magnus expansion.
 
 References:
 [1]: S. P. Norsett, A. Iserles, H. Z. Munth-Kaas and A. Zanna: Lie Group Methods (2000).
-[2]: T. Carlson: Magnus expansion as an approximation tool for ODEs (2005)
-[3]: A. Iserles: Magnus expansions and beyond (2008)
+[2]: T. Carlson: Magnus expansion as an approximation tool for ODEs (2005).
+[3]: A. Iserles: Magnus expansions and beyond (2008).
+[4]: A. Iserles, S. P. Norsett: On the solution of linear differential equations in Lie groups, Phil. Trans. R. Soc. Lond. A, no 357, pp 983 -- 1019 (1999).
 '''
 
 
@@ -41,9 +42,6 @@ class hard_edge:
         # init lengths
         assert 1 in lengths.keys()
         self._integral_lengths = lengths
-        for mu in range(self.order):
-            if mu not in lengths.keys():
-                self._integral_lengths[mu] = lengths[1]**mu
     
     def copy(self):
         return self.__class__(values=[v for v in self.values], lengths=self._integral_lengths)
@@ -70,7 +68,6 @@ class hard_edge:
         '''
         if self.__class__.__name__ == other.__class__.__name__:
             assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad
-            self._integral_lengths.update(other._integral_lengths)
             vals_mult = [0]*(self.order + other.order)
             max_power_used = 0 # to drop unecessary zeros later on
             for order1 in range(self.order):
@@ -91,7 +88,6 @@ class hard_edge:
     def __add__(self, other):
         if self.__class__.__name__ == other.__class__.__name__:
             assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad
-            self._integral_lengths.update(other._integral_lengths)
             vals_add = []
             if self.order == other.order:
                 max_used = 0 # to remove possible trailing zeros
@@ -147,12 +143,10 @@ class hard_edge:
         n_max = self.order + 1
         if self.order == 1 and abs(self.values[0]) <= self._default_tolerance:
             n_max = 1
-        else:
-            self._integral_lengths[n_max] = self._integral_lengths[n_max - 1]*self._integral_lengths[1]
             
         # now put the new values and update the integration constant
         power_coeffs = [constant] + [self.values[k - 1]/k for k in range(1, n_max)]
-        integral = constant + sum([power_coeffs[mu]*self._integral_lengths[mu] for mu in range(1, n_max)])
+        integral = constant + sum([power_coeffs[mu]*self._integral_lengths.get(mu, self._integral_lengths[1]**mu) for mu in range(1, n_max)])
         return power_coeffs, integral
     
     def integrate(self, **kwargs):
@@ -635,17 +629,18 @@ def forests(k, time_power=0, **kwargs):
             # is not zero. So for building the forest we need to take all trees into account even if their factors may be zero.
             # For example: Tree nr. 7 in Ref. [2] is zero due to B_3 = 0, but tree nr. 17 is not zero, but build from the tree nr. 7.
             for t1, t2 in product(tree_groups[q], tree_groups[p]):
-                trees_equal = t1 == t2 # n.B. if q != p, then this will not go deep into the trees but return False immediately.
+                branches_equal = t1 == t2 # n.B. if q != p, then this will not go deep into the trees but return False immediately.
                 
                 t12 = tree(t1, t2, factors=factors, **kwargs)
                 # t12.index == j + 1 with p + q == j - 1, so that t12.index == p + q + 2 == t1.index + t2.index
-                t12._set_time_power(trees_equal)
+                t12._set_time_power(branches_equal)
                 treesj.append(t12)
                     
-                if not trees_equal:
-                    t21 = tree(t2, t1, factors=factors, **kwargs)
-                    t21._set_time_power(trees_equal)
-                    treesj.append(t21)
+                if not branches_equal:
+                    if t1.index != t2.index: # otherwise it holds q == p and so tree(t2, t1) was already added above.
+                        t21 = tree(t2, t1, factors=factors, **kwargs)
+                        t21._set_time_power(branches_equal)
+                        treesj.append(t21)
 
         tree_groups[j] = treesj
             
@@ -653,7 +648,8 @@ def forests(k, time_power=0, **kwargs):
     max_power = k*(time_power + 1) + 2 # Trees of index k can only contribute to forests of k + 2 at most (if multiplied by a tree with index 1).
     # Each additional time_power can be extracted out of the brackets and therefore acts as a flat addition to this value. So we have max_power = k + 2 + k*time_power = k*(1 + time_power) + 2. We do not include forests beyond this value.
     forest_groups = {power: [t for tg in tree_groups.values() for t in tg if t.time_power == power] for power in time_powers if power <= max_power}
-    # N.B. in Ref. [2] it appears that the term belonging to "F_5" with coeff -1/24 is not correctly assigned. It should be in F_6. This code also predicts that it is in F_6. To be checked: In Ref. [1] #T_6 = 132 and #F_6 = 21, while here #T_6 = 136 and #F_6 = 21. Given the fact that there is agreement with #F_6, I am not sure whether there was a miscalculation of #T_6 in Ref. [1].
+    # N.B. in Ref. [2] it appears that the term belonging to "F_5" with coeff -1/24 is not correctly assigned. It should be in F_6.
+    # Furthermore, from [4] #T_k = (2k)!/k!/(k + 1)!.
         
     return tree_groups, forest_groups
 
