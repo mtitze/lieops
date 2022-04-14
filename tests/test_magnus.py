@@ -3,7 +3,7 @@ import numpy as np
 from njet.jet import factorials
 
 from bnf.lieop.magnus import forests
-from bnf.lieop.lie import combine, create_coords
+from bnf.lieop.lie import combine, create_coords, lieoperator, liepoly
 
 
 def number_of_graphs(order):
@@ -140,6 +140,16 @@ def test_bch_symmetry_c(request, tol=1e-10):
     
     bch_vs_reference(x, y, r1)
     bch_vs_reference(x, z, r2)
+    
+def test_rotation_addition(mu=-0.43, tol=1e-15):
+    '''
+    A simple test concerning the addition of angles when combining three Lie-operators.
+    '''
+    o1 = lieoperator(liepoly(a=[1], b=[1], value=mu), power=10)
+    mu2 = mu/3
+    o2 = lieoperator(liepoly(a=[1], b=[1], value=mu2), power=10)
+    o222 = o2@o2@o2
+    assert (o222.argument[(1, 1)] - mu) < tol
     
 
     
