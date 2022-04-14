@@ -6,7 +6,7 @@ from njet.jet import check_zero
 from njet import derive
 
 from .lie import liepoly, exp_ad, create_coords
-from .lie import lieoperator as _lieoperator
+from .lie import lexp as _lexp
 from bnf.linalg.nf import normal_form
 from bnf.linalg.matrix import matrix_from_dict
 
@@ -262,7 +262,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
 
 
 # We now extend the lieoperator class with the normal form analysis functionality
-class lieoperator(_lieoperator):
+class lexp(_lexp):
     
     def __init__(self, *args, **kwargs):
         self.code = kwargs.get('code', 'numpy')
@@ -270,7 +270,7 @@ class lieoperator(_lieoperator):
         # they are used to conveniently switch the representation of a Lie operator between
         # certain coordinate systems.
         self.transform('default') # to set self._inp and self._out to be used in self.evaluate.
-        _lieoperator.__init__(self, *args, **kwargs)
+        _lexp.__init__(self, *args, **kwargs)
             
     def set_argument(self, H, **kwargs):
         if not H.__class__.__name__ == 'liepoly':
@@ -278,9 +278,9 @@ class lieoperator(_lieoperator):
             self.order = kwargs['order']
             # obtain an expansion of H in terms of complex first-order normal form coordinates
             taylor_coeffs, self.nfdict = first_order_nf_expansion(H, code=self.code, **kwargs)
-            _lieoperator.set_argument(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
+            _lexp.set_argument(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
         else: # original behavior
-            _lieoperator.set_argument(self, x=H, **kwargs)
+            _lexp.set_argument(self, x=H, **kwargs)
             
     def transform(self, label='', inp=True, out=True, **kwargs):
         '''
@@ -386,6 +386,6 @@ class lieoperator(_lieoperator):
                 
     def evaluate(self, z, **kwargs):
         z = self._inp(z)
-        return self._out(_lieoperator.evaluate(self, z=z, **kwargs))
+        return self._out(_lexp.evaluate(self, z=z, **kwargs))
 
         

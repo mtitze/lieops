@@ -8,7 +8,7 @@ from njet.functions import cos, sin, exp
 from njet import derive
 
 from bnf import __version__
-from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lieoperator
+from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lexp
 from bnf.lieop.nf import homological_eq
 from bnf.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
 from bnf.linalg.nf import symplectic_takagi
@@ -406,7 +406,7 @@ def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
     xieta = create_coords(1)
     
     t_ref = 1
-    L1 = lieoperator(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, max_power=max_power)
+    L1 = lexp(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, max_power=max_power)
     # check Symplecticity of the flow of L1 at position p:
     dL1flow = derive(lambda x: L1.flowFunc(t_ref, x), order=1, n_args=2)
     ep, epc = dL1flow.eval(p + p) # N.B. ep contains x0-terms, while ecp contains x1-terms
@@ -438,7 +438,7 @@ def test_construct(a: int=3, b: int=5, k: int=7):
     assert exp_eps**k@eps_ab == k*exp_eps**k*eps_ab
     
     
-def test_lieoperator_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
+def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     # Check if the flow function of a Lie-polynomial gives the same result as the
     # flow of the Lie-operator, having this polynomial as argument (exponent).
     
@@ -454,7 +454,7 @@ def test_lieoperator_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30)
     H_accu_f = lambda z: H_accu([(z[0] + 1j*z[1])/np.sqrt(2),
                                  (z[0] - 1j*z[1])/np.sqrt(2)])
     
-    L1 = lieoperator(H_accu_f, t=1, order=order, power=power, n_args=2)
+    L1 = lexp(H_accu_f, t=1, order=order, power=power, n_args=2)
     argflow = L1.argument.flow(power=L1.power) 
     assert argflow(z) == L1(z)
     

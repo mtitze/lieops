@@ -612,7 +612,7 @@ def exp_ad(x, y, power, **kwargs):
 
 class lieoperator:
     '''
-    Class to construct and work with a Lie operator of the form g(:x:).
+    Class to construct and work with an operator of the form g(:x:).
     
     Parameters
     ----------
@@ -623,14 +623,10 @@ class lieoperator:
         Optional arguments may be passed to self.set_generator, self.calcOrbits and self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
-        self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
         self.init_kwargs = kwargs
         self.flow_parameter = kwargs.get('t', -1) # can be changed in self.calcFlow
         self.set_argument(x, **kwargs)
-        if not 'generator' in kwargs.keys() and 'power' in kwargs.keys(): 
-            # if only a power argument is given, and no generator specified, 
-            # the default Lie operator will be the exponential Lie operator.
-            kwargs['generator'] = genexp(kwargs['power'])    
+        
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
         if 'components' in kwargs.keys():
@@ -849,36 +845,6 @@ class lieoperator:
         else:
             _ = self.calcOrbits(components=z, **kwargs)
             return self.calcFlow(**kwargs)
-    
-    def compose(self, other, **kwargs):
-        '''
-        Compute the composition of the current Lie operator g(:x:) with another one f(:y:), 
-        to return the Lie operator h(:z:) given as
-           h(:z:) = g(:x:) f(:y:).
-           
-        Parameters
-        ----------
-        z: lieoperator
-            The Lie operator z = f(:y:) to be composed with the current Lie operator from the right.
-            
-        power: int, optional
-            The power in the integration variable, to control the degree of accuracy of the result.
-            See also lie.combine routine. If nothing specified, self._compose_power_default will be used.
-            
-        **kwargs
-            Additional parameters sent to lie.combine routine.
-            
-        Returns
-        -------
-        lieoperator
-            The resulting Lie operator of the composition.
-        '''
-        kwargs['power'] = kwargs.get('power', self._compose_power_default)
-        comb, _ = combine(self.argument, other.argument, max_power=self.argument.max_power, **kwargs)
-        return self.__class__(sum(comb.values()))
-    
-    def __matmul__(self, other):
-        return self.compose(other)
 
     def __call__(self, z, **kwargs):
         '''
@@ -907,7 +873,10 @@ class lieoperator:
         if z.__class__.__name__ == 'liepoly':
             return self.apply(z, **kwargs)
         elif z.__class__.__name__ == self.__class__.__name__:
-            return self.compose(z, **kwargs)
+            if hasattr(self, 'compose'):
+                return self.compose(z, **kwargs)
+            else:
+                raise NotImplementedError(f"A composition of two objects of type '{self.__class__.__name__}' is not supported.")
         else:
             assert hasattr(z, '__getitem__'), 'Input needs to be subscriptable.'
             if z[0].__class__.__name__ == 'liepoly':
@@ -936,7 +905,54 @@ class lieoperator:
         if hasattr(self, 'flow'):
             out.flow = [l.copy() for l in self.flow]
         return out
+    
+class lexp(lieoperator):  
+    '''
+    Class to describe Lie operators of the form
+      exp(:x:),
+    where :x: is a liepoly class.
+    
+    In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
+    '''
 
+    def __init__(self, x, power, **kwargs):
+        
+        self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
+        kwargs['generator'] = genexp(power)   
+        lieoperator.__init__(self, x=x, **kwargs)
+        
+    def compose(self, other, **kwargs):
+        '''
+        Compute the composition of the current Lie operator exp(:x:) with another one exp(:y:), 
+        to return the Lie operator exp(:z:) given as
+           exp(:z:) = exp(:x:) exp(:y:).
+           
+        Parameters
+        ----------
+        z: lieoperator
+            The Lie operator z = exp(:y:) to be composed with the current Lie operator from the right.
+            
+        power: int, optional
+            The power in the integration variable, to control the degree of accuracy of the result.
+            See also lie.combine routine. If nothing specified, self._compose_power_default will be used.
+            
+        **kwargs
+            Additional parameters sent to lie.combine routine.
+            
+        Returns
+        -------
+        lieoperator
+            The resulting Lie operator of the composition.
+        '''
+        assert self.__class__.__name__ == other.__class__.__name__
+        kwargs['power'] = kwargs.get('power', self._compose_power_default)
+        comb, _ = combine(self.argument, other.argument, max_power=self.argument.max_power, **kwargs)
+        return self.__class__(sum(comb.values()), power=self.power)
+    
+    def __matmul__(self, other):
+        return self.compose(other)
+    
+    
     
 def combine(*args, power: int, **kwargs):
     '''
