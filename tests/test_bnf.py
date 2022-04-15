@@ -484,3 +484,34 @@ def test_bnf_performance(threshold=1.1, tol=1e-15):
         v1, v2 = chifinal_ref.values[key], chifinal.values[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
     
+def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=1e-16):
+    '''
+    Test of Hadamard's lemma. Let H0 denote a basic rotation and Hs a sextupole. Then it must hold:
+      exp(:H0/2:) exp(:Hs:) exp(:H0/2:) = exp(:H0:) exp(:exp(:-H0/2:)Hs:)
+    '''
+
+    mu0 = mu0*2*np.pi
+    
+    xi, eta = create_coords(1, max_power=max_power)
+    X, _ = create_coords(1, cartesian=True, max_power=max_power)
+
+    H0 = -mu0*xi*eta
+    w = 1
+    Hs = w/3*X**3
+    
+    o0 = lexp(H0, power=lo_power)
+    ohalf = lexp(H0/2, power=lo_power)
+    os = lexp(Hs, power=lo_power)
+    
+    hadamard1 = ohalf(os(ohalf(xi)))
+    hadamard2 = o0(lexp(lexp(-H0/2, power=lo_power)(Hs), power=lo_power)(xi))
+    
+    base = np.linspace(0, 0.5, 30)
+    phi = -0.1
+    q_insert = np.cos(phi)*base
+    p_insert = np.sin(phi)*base
+    xi_insert = (q_insert + p_insert*1j)/np.sqrt(2)
+        
+    assert max(np.abs(hadamard2([xi_insert]) - hadamard1([xi_insert]))) < tol
+    
+    

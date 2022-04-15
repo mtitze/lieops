@@ -261,7 +261,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
     return out
 
 
-# We now extend the lieoperator class with the normal form analysis functionality
+# We now extend the lexp class with the normal form analysis functionality
 class lexp(_lexp):
     
     def __init__(self, *args, **kwargs):
@@ -281,6 +281,20 @@ class lexp(_lexp):
             _lexp.set_argument(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
         else: # original behavior
             _lexp.set_argument(self, x=H, **kwargs)
+            
+    def bnf(self, order, output=True, **kwargs):
+        '''
+        Compute the Birkhoff normal form of the current Lie exponential operator.
+        
+        Parameters
+        ----------
+        order: int
+            Order up to which the normal form should be computed.
+            
+        **kwargs
+            Optional arguments passed to 'bnf' routine.
+        '''
+        out = bnf(self.argument.values, order=order, **kwargs)
             
     def transform(self, label='', inp=True, out=True, **kwargs):
         '''

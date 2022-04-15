@@ -873,10 +873,10 @@ class lieoperator:
         if z.__class__.__name__ == 'liepoly':
             return self.apply(z, **kwargs)
         elif z.__class__.__name__ == self.__class__.__name__:
-            if hasattr(self, 'compose'):
-                return self.compose(z, **kwargs)
+            if hasattr(self, 'bch'):
+                return self.bch(z, **kwargs)
             else:
-                raise NotImplementedError(f"A composition of two objects of type '{self.__class__.__name__}' is not supported.")
+                raise NotImplementedError(f"Composition of two objects of type '{self.__class__.__name__}' not supported.")
         else:
             assert hasattr(z, '__getitem__'), 'Input needs to be subscriptable.'
             if z[0].__class__.__name__ == 'liepoly':
@@ -921,7 +921,7 @@ class lexp(lieoperator):
         kwargs['generator'] = genexp(power)   
         lieoperator.__init__(self, x=x, **kwargs)
         
-    def compose(self, other, **kwargs):
+    def bch(self, other, **kwargs):
         '''
         Compute the composition of the current Lie operator exp(:x:) with another one exp(:y:), 
         to return the Lie operator exp(:z:) given as
@@ -950,7 +950,7 @@ class lexp(lieoperator):
         return self.__class__(sum(comb.values()), power=self.power)
     
     def __matmul__(self, other):
-        return self.compose(other)
+        return self.bch(other)
     
     
     
