@@ -26,22 +26,22 @@ class liepoly:
     def __init__(self, max_power=float('inf'), **kwargs):
         # self.dim denotes the number of xi (or eta)-factors.
         if 'values' in kwargs.keys():
-            self.values = kwargs['values']
+            self._values = kwargs['values']
         elif 'a' in kwargs.keys() or 'b' in kwargs.keys():
             self.set_monomial(**kwargs)
         else:
-            self.values = {}
+            self._values = {}
             
-        if len(self.values) == 0:
+        if len(self._values) == 0:
             self.dim = kwargs.get('dim', 0)
         else:
-            self.dim = kwargs.get('dim', len(next(iter(self.values)))//2)
+            self.dim = kwargs.get('dim', len(next(iter(self._values)))//2)
             
         self.set_max_power(max_power)
         
     def set_max_power(self, max_power):
         self.max_power = max_power
-        self.values = {k: v for k, v in self.values.items() if sum(k) <= max_power}
+        self._values = {k: v for k, v in self.items() if sum(k) <= max_power}
         
     def set_monomial(self, a=[], b=[], value=1, **kwargs):
         dim = max([len(a), len(b)])
@@ -49,29 +49,29 @@ class liepoly:
             a += [0]*(dim - len(a))
         if len(b) < dim:
             b += [0]*(dim - len(b))
-        self.values = {tuple(a + b): value}
+        self._values = {tuple(a + b): value}
         
     def maxdeg(self):
         '''
         Obtain the maximal degree of the current Lie polynomial. 
         '''
-        if len(self.values) == 0:
+        if len(self._values) == 0:
             return 0
         else:
-            return max([sum(k) for k, v in self.values.items()])
+            return max([sum(k) for k, v in self.items()])
     
     def mindeg(self):
         '''
         Obtain the minimal degree of the current Lie polynomial. 
         '''
-        if len(self.values) == 0:
+        if len(self._values) == 0:
             return 0
         else:
-            return min([sum(k) for k, v in self.values.items()])
+            return min([sum(k) for k, v in self.items()])
         
     def copy(self):
         new_values = {}
-        for k, v in self.values.items():
+        for k, v in self.items():
             if hasattr(v, 'copy'):
                 v = v.copy()
             new_values[k] = v
@@ -92,7 +92,7 @@ class liepoly:
         liepoly
             The extracted Lie polynomial.
         '''
-        return self.__class__(values={key: value for key, value in self.values.items() if condition(key)}, dim=self.dim, max_power=self.max_power)
+        return self.__class__(values={key: value for key, value in self.items() if condition(key)}, dim=self.dim, max_power=self.max_power)
     
     def homogeneous_part(self, k: int):
         '''
@@ -133,14 +133,14 @@ class liepoly:
         # compute the occuring powers ahead of evaluation
         z_powers = {}
         j = 0
-        for we in zip(*self.values.keys()):
+        for we in zip(*self.keys()):
             z_powers[j] = {k: z[j]**int(k) for k in np.unique(we)} # need to convert k to int, 
             # otherwise we get a conversion to some numpy array if z is not a float (e.g. an njet).
             j += 1
             
         # evaluate polynomial at requested point
         result = 0
-        for k, v in self.values.items():
+        for k, v in self.items():
             prod = 1
             for j in range(self.dim):
                 prod *= z_powers[j][k[j]]*z_powers[j + self.dim][k[j + self.dim]]
@@ -151,7 +151,7 @@ class liepoly:
     def __add__(self, other):
         if other == 0:
             return self
-        add_values = {k: v for k, v in self.values.items()}
+        add_values = {k: v for k, v in self.items()}
         if self.__class__.__name__ != other.__class__.__name__:
             # Treat other object as constant.
             if not check_zero(other):
@@ -164,7 +164,7 @@ class liepoly:
             max_power = self.max_power
         else:
             assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
-            for k, v in other.values.items():
+            for k, v in other.items():
                 new_v = add_values.get(k, 0) + v
                 if not check_zero(new_v):
                     add_values[k] = new_v
@@ -177,7 +177,7 @@ class liepoly:
         return self + other
     
     def __neg__(self):
-        return self.__class__(values={k: -v for k, v in self.values.items()}, 
+        return self.__class__(values={k: -v for k, v in self.items()}, 
                               dim=self.dim, max_power=self.max_power)
     
     def __sub__(self, other):
@@ -195,9 +195,9 @@ class liepoly:
         assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
         max_power = min([self.max_power, other.max_power])
         poisson_values = {}
-        for t1, v1 in self.values.items():
+        for t1, v1 in self.items():
             power1 = sum(t1)
-            for t2, v2 in other.values.items():
+            for t2, v2 in other.items():
                 power2 = sum(t2)
                 if power1 + power2 - 2 > max_power:
                     continue
@@ -222,9 +222,9 @@ class liepoly:
             dim2 = 2*self.dim
             max_power = min([self.max_power, other.max_power])
             mult_values = {}
-            for t1, v1 in self.values.items():
+            for t1, v1 in self.items():
                 power1 = sum(t1)
-                for t2, v2 in other.values.items():
+                for t2, v2 in other.items():
                     power2 = sum(t2)
                     if power1 + power2 > max_power:
                         continue
@@ -236,7 +236,7 @@ class liepoly:
                         _ = mult_values.pop(prod_tpl, None)
             return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)
         else:
-            return self.__class__(values={k: v*other for k, v in self.values.items() if not check_zero(other)}, 
+            return self.__class__(values={k: v*other for k, v in self.items() if not check_zero(other)}, 
                                           dim=self.dim, max_power=self.max_power) # need to use v*other; not other*v here: If type(other) = numpy.float64, then it may cause unpredicted results if it stands on the left.
         
     def __rmul__(self, other):
@@ -246,7 +246,7 @@ class liepoly:
         # implement '/' operator
         if self.__class__.__name__ != other.__class__.__name__:
             # Attention: If other is a NumPy array, there is no check if one of the entries is zero.
-            return self.__class__(values={k: v/other for k, v in self.values.items() if not check_zero(other)}, 
+            return self.__class__(values={k: v/other for k, v in self.items() if not check_zero(other)}, 
                                           dim=self.dim, max_power=self.max_power)
         else:
             raise NotImplementedError('Division by Lie polynomial not supported.')
@@ -271,32 +271,38 @@ class liepoly:
                               dim=self.dim, max_power=self.max_power)
         
     def __len__(self):
-        return len(self.values)
+        return len(self._values)
     
     def __eq__(self, other):
         if self.__class__.__name__ == other.__class__.__name__:
-            return self.values == other.values
+            return self._values == other._values
         else:
             if self.maxdeg() != 0:
                 return False
             else:
-                return self.values.get((0, 0), 0) == other
+                return self.get((0, 0), 0) == other
             
     def keys(self):
-        return self.values.keys()
+        return self._values.keys()
     
     def get(self, *args, **kwargs):
-        return self.values.get(*args, **kwargs)
+        return self._values.get(*args, **kwargs)
     
     def items(self):
-        return self.values.items()
+        return self._values.items()
+    
+    def values(self):
+        return self._values.values()
     
     def __iter__(self):
-        for key in self.values.keys():
-            yield self.values[key]
+        for key in self._values.keys():
+            yield self._values[key]
             
     def __getitem__(self, key):
-        return self.values[key]
+        return self._values[key]
+    
+    def __setitem__(self, key, other):
+        self._values[key] = other
         
     def ad(self, y, power: int=1):
         '''
@@ -338,7 +344,7 @@ class liepoly:
             mindeg_y = y.mindeg()
             power = min([(max_power - mindeg_y)//(mindeg_x - 2), power]) # N.B. // works as floor division
             
-        result = self.__class__(values={k: v for k, v in y.values.items()}, 
+        result = self.__class__(values={k: v for k, v in y.items()}, 
                                 dim=y.dim, max_power=max_power)
         all_results = [result]
         # N.B.: We can not set values = self.values, otherwise result.values will get changed if self.values is changing.
@@ -351,7 +357,7 @@ class liepoly:
     
     def __str__(self):
         out = ''
-        for k, v in self.values.items():
+        for k, v in self.items():
             out += f'{k}: {str(v)} '
         if len(out) > 0:
             return out[:-1]
@@ -453,9 +459,9 @@ class liepoly:
 
         constant_key = (0,)*self.dim*2
         jpvalues = {}
-        if constant_key in self.values.keys():
-            jpvalues[frozenset([(0, 0)])] = self.values[constant_key]
-        for key, v in self.values.items():
+        if constant_key in self.keys():
+            jpvalues[frozenset([(0, 0)])] = self._values[constant_key]
+        for key, v in self.items():
             if sum(key) == 0: # we already dealt with the constant term.
                 continue
             jpvalues[frozenset([(j, key[j]) for j in range(self.dim*2) if key[j] != 0])] = v
@@ -487,9 +493,9 @@ class liepoly:
             A Lie-polynomial in which every entry in its values contain the result of the requested class function.
         '''
         if len(cargs) > 0:
-            out = {key: getattr(v, name)(*args, **cargs[key]) for key, v in self.values.items()}
+            out = {key: getattr(v, name)(*args, **cargs[key]) for key, v in self.items()}
         else:
-            out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.values.items()}
+            out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.items()}
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
             
     

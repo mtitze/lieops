@@ -60,12 +60,12 @@ def homological_eq(mu, Z, **kwargs):
         Polynomial of degree n with the above property.
     '''
     chi, Q = liepoly(values={}, dim=Z.dim, **kwargs), liepoly(values={}, dim=Z.dim, **kwargs)
-    for powers, value in Z.values.items():
+    for powers, value in Z.items():
         om = Omega(mu, powers[:Z.dim], powers[Z.dim:])
         if om != 0:
-            chi.values[powers] = 1j/om*value
+            chi[powers] = 1j/om*value
         else:
-            Q.values[powers] = value
+            Q[powers] = value
     return chi, Q
 
 
@@ -221,7 +221,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
     # to the original problem. By default, the user will be informed if there is a non-zero gradient 
     # in 'first_order_nf_expansion' routine.
-    H_values = {k: v for k, v in H0.values.items()}
+    H_values = {k: v for k, v in H0.items()}
     H_values.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     H = liepoly(values=H_values, dim=dim, max_power=max_power)
     
@@ -234,7 +234,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
     Zk_all, Qk_all = [], []
     for k in range(3, order + 1):
         chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
-        if len(chi.values) == 0:
+        if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
         Hk = exp_ad(-chi, Hk, power=exp_power)

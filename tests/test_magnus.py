@@ -104,7 +104,7 @@ def bch_vs_reference(x, y, result, tol=1e-11):
         if r > 7:
             break
         diff = reference[r] - result[r - 1]
-        hh = np.abs(list(diff.values.values()))
+        hh = np.abs(list(diff.values()))
         if len(hh) > 0:
             hh = max(hh)
         else:

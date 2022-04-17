@@ -76,7 +76,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
     # to the original problem. By default, the user will be informed if there is a non-zero gradient 
     # in 'first_order_nf_expansion' routine.
-    H_values = {k: v for k, v in H0.values.items()}
+    H_values = {k: v for k, v in H0.items()}
     H_values.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     H = liepoly(values=H_values, dim=dim, max_power=max_power)
     
@@ -89,7 +89,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     Zk_all, Qk_all = [], []
     for k in range(3, order + 1):
         chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
-        if len(chi.values) == 0:
+        if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
         Hk = exp_ad(-chi, Hk, power=exp_power)
@@ -150,8 +150,8 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     
     # Both results must be equal.
     for k in range(len(xy_final)):
-        d1 = xy_final[k].values
-        d2 = xy_final_mapped[k].values
+        d1 = xy_final[k]._values
+        d2 = xy_final_mapped[k]._values
         for key, v1 in d1.items():
             v2 = d2[key]
             assert abs(v1 - v2) < tol
@@ -218,8 +218,8 @@ def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32,
     
     # Both results must be relatively close (and every entry non-zero).
     for k in range(len(xy_final)):
-        d1 = xy_final[k].values
-        d2 = xy_final_mapped[k].values
+        d1 = xy_final[k]._values
+        d2 = xy_final_mapped[k]._values
         for key, v1 in d1.items():
             v2 = d2[key]
             assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol
@@ -271,9 +271,9 @@ def test_jacobi():
     p2 = liepoly(a=[2, 0, 1], b=[1, 1, 0])
     p3 = liepoly(a=[9, 1, 4], b=[2, 5, 3])
     
-    assert {} == (p3@p3).values
+    assert {} == (p3@p3)._values
     # check Jacobi-Identity
-    assert {} == (p1@(p2@p3) - (p1@p2)@p3 - p2@(p1@p3)).values
+    assert {} == (p1@(p2@p3) - (p1@p2)@p3 - p2@(p1@p3))._values
     
     
 def test_poisson(tol=1e-15):
@@ -287,17 +287,17 @@ def test_poisson(tol=1e-15):
     # check 1
     p1 = p@(q*h)
     p2 = (p@q)*h + (p@h)*q
-    assert p1.values.keys() == p2.values.keys()
-    for key in p1.values.keys():
-        v1, v2 = p1.values[key], p2.values[key]
+    assert p1.keys() == p2.keys()
+    for key in p1.keys():
+        v1, v2 = p1[key], p2[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
     
     # check 2
     p1 = (q**3)@p
     p2 = 3*q**2*(q@p)
-    assert p1.values.keys() == p2.values.keys()
-    for key in p1.values.keys():
-        v1, v2 = p1.values[key], p2.values[key]
+    assert p1.keys() == p2.keys()
+    for key in p1.keys():
+        v1, v2 = p1[key], p2[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
         
     
@@ -372,18 +372,18 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     term1 = exp_ad(H_accu, lp1@lp2, power=power) 
     term2 = exp_ad(H_accu, lp1, power=power)@exp_ad(H_accu, lp2, power=power)
     
-    sk1 = set(term1.values.keys())
-    sk2 = set(term2.values.keys())
+    sk1 = set(term1.keys())
+    sk2 = set(term2.keys())
 
     k1m2 = list(sk1.difference(sk2))
     k2m1 = list(sk2.difference(sk1))
     for key in k1m2:
-        assert abs(term1.values[key]) < tol
+        assert abs(term1[key]) < tol
     for key in k2m1:
-        assert abs(term2.values[key]) < tol
+        assert abs(term2[key]) < tol
         
     common_keys = list(sk1.intersection(sk2))
-    assert all([abs(term1.values[k] - term2.values[k]) < tol for k in common_keys])
+    assert all([abs(term1[k] - term2[k]) < tol for k in common_keys])
     
     
 def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
@@ -479,9 +479,9 @@ def test_bnf_performance(threshold=1.1, tol=1e-15):
     # check on equality
     chifinal_ref = tcref['chi'][-1]
     chifinal = tc['chi'][-1]
-    assert chifinal_ref.values.keys() == chifinal.values.keys()
-    for key in chifinal_ref.values.keys():
-        v1, v2 = chifinal_ref.values[key], chifinal.values[key]
+    assert chifinal_ref.keys() == chifinal.keys()
+    for key in chifinal_ref.keys():
+        v1, v2 = chifinal_ref[key], chifinal[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
     
 def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=1e-16):
