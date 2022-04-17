@@ -304,6 +304,11 @@ class liepoly:
     def __setitem__(self, key, other):
         self._values[key] = other
         
+    def update(self, d):
+        new_values = {k: v for k, v in self.items()}
+        new_values.update(d)
+        return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
+        
     def ad(self, y, power: int=1):
         '''
         Compute repeated Poisson-brackets.

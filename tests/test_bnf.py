@@ -76,9 +76,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
     # to the original problem. By default, the user will be informed if there is a non-zero gradient 
     # in 'first_order_nf_expansion' routine.
-    H_values = {k: v for k, v in H0.items()}
-    H_values.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
-    H = liepoly(values=H_values, dim=dim, max_power=max_power)
+    H = H0.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     
     # Indution start (k = 2); get P_3 and R_4. Z_2 is set to zero.
     Zk = liepoly(dim=dim, max_power=max_power) # Z_2
@@ -150,8 +148,8 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     
     # Both results must be equal.
     for k in range(len(xy_final)):
-        d1 = xy_final[k]._values
-        d2 = xy_final_mapped[k]._values
+        d1 = xy_final[k]
+        d2 = xy_final_mapped[k]
         for key, v1 in d1.items():
             v2 = d2[key]
             assert abs(v1 - v2) < tol
@@ -218,8 +216,8 @@ def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32,
     
     # Both results must be relatively close (and every entry non-zero).
     for k in range(len(xy_final)):
-        d1 = xy_final[k]._values
-        d2 = xy_final_mapped[k]._values
+        d1 = xy_final[k]
+        d2 = xy_final_mapped[k]
         for key, v1 in d1.items():
             v2 = d2[key]
             assert abs(v1 - v2)/min([abs(v1), abs(v2)]) < tol

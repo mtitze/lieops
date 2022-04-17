@@ -221,9 +221,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
     # to the original problem. By default, the user will be informed if there is a non-zero gradient 
     # in 'first_order_nf_expansion' routine.
-    H_values = {k: v for k, v in H0.items()}
-    H_values.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
-    H = liepoly(values=H_values, dim=dim, max_power=max_power)
+    H = H0.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     
     # Induction start (k = 2); get P_3 and R_4. Z_2 is set to zero.
     Zk = liepoly(dim=dim, max_power=max_power) # Z_2
@@ -294,7 +292,7 @@ class lexp(_lexp):
         **kwargs
             Optional arguments passed to 'bnf' routine.
         '''
-        out = bnf(self.argument.values, order=order, **kwargs)
+        out = bnf(self.argument._values, order=order, **kwargs)
         return out
             
     def transform(self, label='', inp=True, out=True, **kwargs):
