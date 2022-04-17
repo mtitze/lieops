@@ -266,6 +266,10 @@ class liepoly:
         else:
             return half*half
         
+    def conjugate(self):
+        return self.__class__(values={k[self.dim:] + k[:self.dim]: v.conjugate() for k, v in self.items()},
+                              dim=self.dim, max_power=self.max_power)
+        
     def __len__(self):
         return len(self.values)
     
@@ -989,7 +993,7 @@ def combine(*args, power: int, **kwargs):
 
     # some consistency checks
     assert n_operators > 0
-    assert type(power) == int and power > 0
+    assert type(power) == int
     dim = args[0].dim
     assert all([op.dim == dim for op in args]), 'The number of variables of the individual Lie-operators are different.'
     

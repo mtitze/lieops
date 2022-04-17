@@ -295,6 +295,7 @@ class lexp(_lexp):
             Optional arguments passed to 'bnf' routine.
         '''
         out = bnf(self.argument.values, order=order, **kwargs)
+        return out
             
     def transform(self, label='', inp=True, out=True, **kwargs):
         '''
