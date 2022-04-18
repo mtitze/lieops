@@ -1000,13 +1000,15 @@ def combine(*args, power: int, **kwargs):
         The s-dependent Hamiltonian used to construct z.
     '''
     n_operators = len(args)
-    lengths = kwargs.get('lengths', [1]*n_operators)
 
     # some consistency checks
     assert n_operators > 0
-    assert type(power) == int
+    assert type(power) == int and power >= 0
     dim = args[0].dim
     assert all([op.dim == dim for op in args]), 'The number of variables of the individual Lie-operators are different.'
+
+    lengths = kwargs.get('lengths', [1]*n_operators)
+    kwargs['max_power'] = kwargs.get('max_power', min([op.max_power for op in args]))
     
     # The given Lie-polynomials p_1, p_2, ... are representing the chain exp(:p_1:) exp(:p_2:) ... exp(:p_k:) of Lie operators.
     # This means that the last entry p_k is the operator which is executed first. In the hard-edge model, the first entry
@@ -1016,7 +1018,7 @@ def combine(*args, power: int, **kwargs):
     lengths = lengths[::-1]
     
     # Build the hard-edge Hamiltonian model.
-    all_powers = set([k for op in args for k in op.keys()])
+    all_powers = set([k for op in args for k in op.keys()])    
     hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args[m].get(k, 0)], lengths={1: lengths[m]}) for m in range(n_operators)]) for k in all_powers}
     hamiltonian = liepoly(values=hamiltonian_values, **kwargs)
         

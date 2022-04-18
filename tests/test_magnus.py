@@ -89,7 +89,6 @@ def bch_symmetry_c(x, y, order, tol=1e-10):
                 B = z2[key][kk]
             C = A + B
             assert abs(C) < tol
-            
     return z1
 
 def bch_vs_reference(x, y, result, tol=1e-11):
@@ -151,6 +150,47 @@ def test_rotation_addition(mu=-0.43, tol=1e-15, power=10):
     o222 = o2@o2@o2
     assert (o222.argument[(1, 1)] - mu) < tol
     
+def test_associativity_vs_bch(max_power=10, tol=5e-10):
+    '''
+    One can prove that the BCH formula must be (locally) associative. However,
+    due to the lack of sufficient higher-orders, here we prove only the
+    agreement between the difference of a#(b#c) and (a#b)#c of both the
+    results from the 'combine' routine and the one from the BCH up to order 7.
+    '''
+    xi, eta = create_coords(1, max_power=max_power)
+    X, P = create_coords(1, cartesian=True, max_power=max_power)
+    
+    mu0 = 0.206
+    mu1 = 0.372
+    mu0 = mu0*2*np.pi
+    mu1 = mu1*2*np.pi
 
+    w0 = 1.03
+    Hs0 = w0/3*X**3
+    w1 = 0.69
+    Hs1 = w1/3*X**3
+
+    H0 = -mu0*xi*eta
+    H1 = -mu1*xi*eta
+
+    a, b, c, d = H0, Hs1, H1*1j, Hs0
+    
+    power = 6
+    
+    ab, _ = combine(a, b, power=power, time=False)
+    abc_1, _ = combine(sum(ab.values()), c, power=power, time=False)
+    bc, _ = combine(b, c, power=power, time=False)
+    abc_2, _ = combine(a, sum(bc.values()), power=power, time=False)
+    diff = sum(abc_1.values()) - sum(abc_2.values())
+    
+    ref_ab = sum(bch(a, b).values())
+    ref_abc_1 = sum(bch(ref_ab, c).values())
+    ref_bc = sum(bch(b, c).values())
+    ref_abc_2 = sum(bch(a, ref_bc).values())
+    
+    assert abc_1.keys() == abc_2.keys()
+    ref_diff = ref_abc_1 - ref_abc_2
+    assert diff.keys() == ref_diff.keys()
+    assert max([abs(w) for w in diff - ref_diff]) < tol
     
     
