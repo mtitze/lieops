@@ -153,7 +153,7 @@ def test_rotation_addition(mu=-0.43, tol=1e-15, power=10):
 def test_associativity_vs_bch(max_power=10, tol=5e-10):
     '''
     One can prove that the BCH formula must be (locally) associative. However,
-    due to the lack of sufficient higher-orders, here we prove only the
+    due to the lack of sufficient higher-orders, here we check only the
     agreement between the difference of a#(b#c) and (a#b)#c of both the
     results from the 'combine' routine and the one from the BCH up to order 7.
     '''

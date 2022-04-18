@@ -5,7 +5,7 @@ from njet.ad import standardize_function
 from njet.jet import check_zero
 from njet import derive
 
-from .lie import liepoly, exp_ad, create_coords
+from .lie import liepoly, create_coords
 from .lie import lexp as _lexp
 from bnf.linalg.nf import normal_form
 from bnf.linalg.matrix import matrix_from_dict
@@ -235,8 +235,8 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        Hk = exp_ad(-chi, Hk, power=exp_power)
-        # Hk = exp_ad(-chi, Hk, power=k + 1) # faster but likely inaccurate; need tests
+        Hk = lexp(-chi, power=exp_power)(Hk)
+        # Hk = lexp(-chi, power=k + 1)(Hk) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)
         Zk += Q 
         

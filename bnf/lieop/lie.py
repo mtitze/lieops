@@ -590,40 +590,6 @@ def construct(lps, f, power=float('inf')):
         dcomp = derive(construction, order=power, n_args=2*dim_poly)
         taylor_coeffs = dcomp([0]*2*dim_poly, mult_drv=False)
         return liepoly(values=taylor_coeffs, dim=dim_poly, max_power=power)
-    
-
-def exp_ad(x, y, power, **kwargs):
-    '''
-    Compute the exponential Lie operator exp(:x:)y up to a given power.
-
-    Parameters
-    ----------
-    x: liepoly
-        The Lie polynomial in the exponent of exp.
-    
-    y: liepoly or list of liepoly objects
-        The Lie polynomial(s) on which we want to apply the exponential Lie operator.
-        
-    power: int
-        Integer defining the maximal power up to which we want to compute the result.
-        
-    **kwargs
-        Additional arguments passed to the lieoperator class.
-
-    Returns
-    ------- 
-    liepoly or list of liepoly objects
-        Class of type liepoly, representing the result of the exponential Lie operator exp(:x:)y,
-        up to the requested power.
-    '''
-    if not 't' in kwargs.keys():
-        kwargs['t'] = 1
-        
-    if y.__class__.__name__ == 'liepoly':
-        return lieoperator(x, generator=genexp(power), components=[y], **kwargs).flow[0]
-    else:
-        return lieoperator(x, generator=genexp(power), components=y, **kwargs).flow
-
 
 class lieoperator:
     '''

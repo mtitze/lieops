@@ -8,7 +8,7 @@ from njet.functions import cos, sin, exp
 from njet import derive
 
 from bnf import __version__
-from bnf.lieop import liepoly, exp_ad, create_coords, construct, bnf, first_order_nf_expansion, lexp
+from bnf.lieop import liepoly, create_coords, construct, bnf, first_order_nf_expansion, lexp
 from bnf.lieop.nf import homological_eq
 from bnf.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
 from bnf.linalg.nf import symplectic_takagi
@@ -90,8 +90,8 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        Hk = exp_ad(-chi, Hk, power=exp_power)
-        # Hk = exp_ad(-chi, Hk, power=k + 1) # faster but likely inaccurate; need tests
+        Hk = lexp(-chi, power=exp_power)(Hk)
+        # Hk = lexp(-chi, power=k + 1)(Hk) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)
         Zk += Q 
         
@@ -135,15 +135,16 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     H2 = lambda x, px: 0.5*(x**2 + px**2)
     expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy', **kwargs)
     HLie = liepoly(values=expansion)
+    Hop = lexp(HLie, t=mu, power=power)
     Kinv = nfdict['Kinv'] # K(p, q) = (xi, eta)
     xieta = create_coords(1)
 
     # first apply K, then exp_ad:
-    xy_mapped = [xieta[0]*Kinv[0, 0] + xieta[1]*Kinv[0, 1], xieta[0]*Kinv[1, 0] + xieta[1]*Kinv[1, 1]]
-    xy_final_mapped = exp_ad(HLie, xy_mapped, power=power, t=mu) # (x, y) final in terms of xi and eta 
+    xy_mapped = [xieta[0]*Kinv[0, 0] + xieta[1]*Kinv[0, 1], xieta[0]*Kinv[1, 0] + xieta[1]*Kinv[1, 1]]    
+    xy_final_mapped = Hop(xy_mapped)
     
     # first apply exp_ad, then K:
-    xy_fin = exp_ad(HLie, xieta, power=power, t=mu)
+    xy_fin = Hop(xieta)
     xy_final = [xy_fin[0]*Kinv[0, 0] + xy_fin[1]*Kinv[0, 1], xy_fin[0]*Kinv[1, 0] + xy_fin[1]*Kinv[1, 1]]
     
     # Both results must be equal.
@@ -204,10 +205,11 @@ def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32,
     elif code == 'mpmath':
         xy_mapped = [[sum([xieta[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
     xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
-    xy_final_mapped = exp_ad(HLie, xy_mapped, power)    
+    Hop = lexp(HLie, power=power)
+    xy_final_mapped = Hop(xy_mapped) 
     
     # first apply exp_ad, then function:
-    xy_fin = exp_ad(HLie, xieta, power)
+    xy_fin = Hop(xieta)
     if code == 'numpy':
         xy_final = (K@np.array([xy_fin]).transpose()).tolist()
     elif code == 'mpmath':
@@ -367,8 +369,10 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     lp1 = 0.24*xi**2 + 0.824*eta
     lp2 = -0.66*eta**2
     
-    term1 = exp_ad(H_accu, lp1@lp2, power=power) 
-    term2 = exp_ad(H_accu, lp1, power=power)@exp_ad(H_accu, lp2, power=power)
+    Hop = lexp(H_accu, power=power)
+    
+    term1 = Hop(lp1@lp2)
+    term2 = Hop(lp1)@Hop(lp2)
     
     sk1 = set(term1.keys())
     sk2 = set(term2.keys())
@@ -472,7 +476,7 @@ def test_bnf_performance(threshold=1.1, tol=1e-15):
     time_bnf = time.time() - time2
     
     # performance check
-    assert time_bnf*threshold >= time_ref, 'Error: new time*threshold = {} < {} (reference time)'.format(time_bnf*threshold, time_ref)
+    assert time_bnf*threshold > time_ref, 'Error: new time*threshold = {} > {} (reference time)'.format(time_bnf*threshold, time_ref)
 
     # check on equality
     chifinal_ref = tcref['chi'][-1]
