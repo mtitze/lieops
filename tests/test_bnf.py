@@ -30,8 +30,9 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
         denotes the exponents in xi1, xi2, eta1, eta2.
                 
     order: int
-        The order up to which we build the normal form. Results up to this order will provide the exact
-        derivatives.
+        The order up to which we build the normal form. Here order = k means that we compute
+        k homogeneous Lie-polynomials, where the smallest one will have power k + 2 and the 
+        succeeding ones will have increased powers by 1.
     
     z: list, optional
         List of length according to the signature of H. The point around which we are going to 
@@ -45,13 +46,13 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     **kwargs
         Keyword arguments are passed to 'first_order_nf_expansion' routine.
     '''
-    
-    max_power = order # !!! TMP; need to set this very carefully
-    exp_power = order # !!! TMP; need to set this very carefully
+    power = order + 2
+    max_power = power # !!! TMP; need to set this very carefully
+    exp_power = power # !!! TMP; need to set this very carefully
     
     if type(H) != dict:
         # obtain an expansion of H in terms of complex first-order normal form coordinates
-        taylor_coeffs, nfdict = first_order_nf_expansion(H, z=z, order=order, **kwargs)
+        taylor_coeffs, nfdict = first_order_nf_expansion(H, z=z, power=power, **kwargs)
     else:
         taylor_coeffs = H
         nfdict = {}
@@ -85,7 +86,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
         
     chi_all, Hk_all = [], [H]
     Zk_all, Qk_all = [], []
-    for k in range(3, order + 1):
+    for k in range(3, power + 1):
         chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
@@ -460,7 +461,7 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     argflow = L1.argument.flow(power=L1.power) 
     assert argflow(z) == L1(z)
     
-def test_bnf_performance(threshold=1.1, tol=1e-15):
+def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).
     
     H = lambda x, y, z, px, py, pz: 0.24*(x**2 + px**2) + 0.86*(y**2 + py**2) + x**3 + y**3 + z**2 + pz**2 + 0.4*pz*y
@@ -468,11 +469,11 @@ def test_bnf_performance(threshold=1.1, tol=1e-15):
     z1 = [np.pi/2, 0.55, 0.32, 7.13, -0.6311, 2.525]
 
     time1 = time.time()
-    tcref = referencebnf(H, z=z1, order=10, warn=True)
+    tcref = referencebnf(H, z=z1, order=order, warn=True)
     time_ref = time.time() - time1
     
     time2 = time.time()
-    tc = bnf(H, z=z1, order=10, warn=True)
+    tc = bnf(H, z=z1, order=order, warn=True)
     time_bnf = time.time() - time2
     
     # performance check

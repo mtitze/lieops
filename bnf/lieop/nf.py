@@ -69,7 +69,7 @@ def homological_eq(mu, Z, **kwargs):
     return chi, Q
 
 
-def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, 
+def first_order_nf_expansion(H, power: int=2, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, 
                              code='numpy', **kwargs):
     '''
     Return the Taylor-expansion of a Hamiltonian H in terms of first-order complex normal form coordinates
@@ -80,8 +80,8 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     H: callable
         A real-valued function of 2*n parameters (Hamiltonian).
         
-    order: int, optional
-        The maximal order of expansion. Must be >= 2 (default: 2).
+    power: int, optional
+        The maximal polynomial power of expansion. Must be >= 2.
     
     z: subscriptable, optional
         A point of interest around which we want to expand. If nothing specified,
@@ -92,12 +92,11 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
         
     warn: boolean, optional
         Turn on some basic checks:
-        a) Warn if the expansion of the Hamiltonian around z contains first-order terms larger than a specific value. 
+        a) Warn if the expansion of the Hamiltonian around z contains gradient terms larger than a specific value. 
         b) Verify that the 2nd order terms in the expansion of the Hamiltonian agree with those from the linear theory.
-        Default: True.
         
     tol: float, optional
-        An optional tolerance for checks. Default: 1e-14.
+        An optional tolerance for checks.
         
     **kwargs
         Arguments passed to linalg.normal_form routine.
@@ -111,7 +110,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     dict
         The output of linalg.normal_form routine, providing the linear map information at the requested point.
     '''
-    assert order >= 2
+    assert power >= 2
     Hst, dim = standardize_function(H, n_args=n_args)
     assert dim%2 == 0, 'Dimension must be even; try passing n_args argument.'
     
@@ -146,10 +145,10 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     nfdict = normal_form(Hesse_matrix, **kwargs)
     Kinv = nfdict['Kinv'] # Kinv.transpose()@Hesse_matrix@Kinv is in cnf; K(q, p) = (xi, eta)
     
-    # Step 4: Obtain the expansion of the Hamiltonian up to the requested order.
+    # Step 4: Obtain the expansion of the Hamiltonian up to the requested power.
     Kmap = lambda zz: [sum([zz[k]*Kinv[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: Kinv[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
     HK = lambda zz: H(Kmap(zz))
-    dHK = derive(HK, order=order, n_args=dim)
+    dHK = derive(HK, order=power, n_args=dim)
     results = dHK(z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
     
     if warn:
@@ -165,7 +164,7 @@ def first_order_nf_expansion(H, order: int=2, z=[], warn: bool=True, n_args: int
     return results, nfdict
 
 
-def bnf(H, order: int, tol=1e-14, **kwargs):
+def bnf(H, order: int=1, tol=1e-14, **kwargs):
     '''
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
@@ -180,23 +179,46 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
         denotes the exponents in xi1, xi2, eta1, eta2.
                 
     order: int
-        The order up to which we build the normal form. Results up to this order will provide the exact
-        derivatives.
+        The order up to which we build the normal form. Here order = k means that we compute
+        k homogeneous Lie-polynomials, where the smallest one will have power k + 2 and the 
+        succeeding ones will have increased powers by 1.
+        
+    max_power: int, optional
+        An optional maximal power to be taken into consideration when applying ad-operations between Lie-polynomials.
+        
+    power: int, optional
+        A maximal power by which we want to expand any exponential ad-series while evaluating Lie operators.
         
     tol: float, optional
-        Tolerance below which we consider a value as zero and ignore it from calculations. This may
-        improve performance.
+        Tolerance below which we consider a value as zero. This will be used when examining the second-order
+        coefficients of the given Hamiltonian.
         
     **kwargs
         Keyword arguments are passed to .first_order_nf_expansion routine.
+        
+    Returns
+    -------
+    dict
+        A dictionary with the following keys:
+        nfdict: The output of hte first_order_nf_expansion routine.
+        H:      Dictionary denoting the used Hamiltonian.
+        H0:     Dictionary denoting the second-order coefficients of H.
+        mu:     List of the tunes used (coefficients of H0).
+        chi:    List of liepoly objects, denoting the Lie-polynomials which map to normal form.
+        Hk:     List of liepoly objects, corresponding to the transformed Hamiltonians.
+        Zk:     List of liepoly objects, notation see Lem. 1.4.5. in Ref. [1]. 
+        Qk:     List of liepoly objects, notation see Lem. 1.4.5. in Ref. [1].
+        
+    Reference(s):
+    [1]: M. Titze: "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS", PhD Thesis (2019). 
     '''
-    
-    max_power = order # !!! TMP; need to set this very carefully
-    exp_power = order # !!! TMP; need to set this very carefully
+    power = order + 2 # the maximal power of the homogeneous polynomials chi mapping to normal form.
+    max_power = kwargs.get('max_power', order + 2) # the maximal power to be taken into consideration when applying ad-operations between Lie-polynomials. Todo: check default & relation to 'power'
+    lo_power = kwargs.get('power', order + 2) # The maximal power by which we want to expand exponential series when evaluating Lie operators. Todo: check default.
     
     if type(H) != dict:
         # obtain an expansion of H in terms of complex first-order normal form coordinates
-        taylor_coeffs, nfdict = first_order_nf_expansion(H, order=order, **kwargs)
+        taylor_coeffs, nfdict = first_order_nf_expansion(H, power=power, **kwargs)
     else:
         taylor_coeffs = H
         nfdict = {}
@@ -204,7 +226,7 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
     # get the dimension (by looking at one key in the dict)
     dim2 = len(next(iter(taylor_coeffs)))
     dim = dim2//2
-        
+            
     # define mu and H0. For H0 we skip any (small) off-diagonal elements as they must be zero by construction.
     H0 = {}
     mu = []
@@ -230,12 +252,12 @@ def bnf(H, order: int, tol=1e-14, **kwargs):
         
     chi_all, Hk_all = [], [H]
     Zk_all, Qk_all = [], []
-    for k in range(3, order + 1):
+    for k in range(3, power + 1):
         chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        Hk = lexp(-chi, power=exp_power)(Hk)
+        Hk = lexp(-chi, power=lo_power)(Hk)
         # Hk = lexp(-chi, power=k + 1)(Hk) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)
         Zk += Q 
@@ -292,8 +314,8 @@ class lexp(_lexp):
         **kwargs
             Optional arguments passed to 'bnf' routine.
         '''
-        out = bnf(self.argument._values, order=order, **kwargs)
-        return out
+        return bnf(self.argument._values, order=order, power=self.power, 
+                  max_power=self.argument.max_power, **kwargs)
             
     def transform(self, label='', inp=True, out=True, **kwargs):
         '''
