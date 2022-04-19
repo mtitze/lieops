@@ -1,38 +1,37 @@
-# bnf: Birkhoff normal form
+# lieops: Lie operator tools
 
-Compute the Birkhoff normal form of a given Hamiltonian, up to a specific order.
+Perform calculations with Lie operators of the form exp(:f:)
 
 ## Features
 
-- Calculation of higher-order normal form.
-- Arbitrary phase space dimension.
-- All Hamiltonians expressed in form of polynomials and njet.functions are supported.
-- Custom ordering of canonical coordinates possible.
-- Contains a linear algebra package with symplectic diagonalization 
-  and orthogonal anti-diagonalization routine, as well as (linear) first-order normal form.
+- Hamiltonians expressed in form of polynomials and njet.functions supported.
+- Calculation of higher-order Birkhoff normal form.
+- Custom phase space dimension and ordering.
+- Contains a linear algebra package with several symplectic diagonalization routines, 
+  as well as (linear) first-order normal form.
 
 ## Installation
 
 Install this module with pip
 
 ```sh
-pip install bnf
+pip install lieops
 ```
 
 ## Quickstart
 
 An example
 ```python
-from bnf import *
+from lieops import *
 ```
 
 ## Further reading
 
-https://bnf.readthedocs.io/en/latest/index.html
+https://lieops.readthedocs.io/en/latest/index.html
 
 ## License
 
-Copyright (C) 2021  Malte Titze
+Copyright (C) 2021, 2022  Malte Titze
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

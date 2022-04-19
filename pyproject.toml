@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "bnf"
+name = "lieops"
 version = "0.1.0"
-description = "Compute the Birkhoff normal form of a Hamiltonian."
+description = "Lie operator tools."
 authors = [ "Malte Titze <mtitze@users.noreply.github.com>",]
 license = "GPL-3.0-or-later"
-homepage = "https://bnf.readthedocs.io/en/latest/index.html"
-repository = "https://github.com/mtitze/bnf"
-keywords = [ "Birkhoff", "normal", "form",]
+homepage = "https://lieops.readthedocs.io/en/latest/index.html"
+repository = "https://github.com/mtitze/lieops"
+keywords = [ "Birkhoff", "normal", "form", "Lie", "Magnus",]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"

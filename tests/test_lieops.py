@@ -7,11 +7,11 @@ import pytest
 from njet.functions import cos, sin, exp
 from njet import derive
 
-from bnf import __version__
-from bnf.lieop import liepoly, create_coords, construct, bnf, first_order_nf_expansion, lexp
-from bnf.lieop.nf import homological_eq
-from bnf.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
-from bnf.linalg.nf import symplectic_takagi
+from lieops import __version__
+from lieops.ops import liepoly, create_coords, construct, bnf, first_order_nf_expansion, lexp
+from lieops.ops.nf import homological_eq
+from lieops.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
+from lieops.linalg.nf import symplectic_takagi
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''

@@ -7,8 +7,8 @@ from njet import derive
 
 from .lie import liepoly, create_coords
 from .lie import lexp as _lexp
-from bnf.linalg.nf import normal_form
-from bnf.linalg.matrix import matrix_from_dict
+from lieops.linalg.nf import normal_form
+from lieops.linalg.matrix import matrix_from_dict
 
 
 def Omega(mu, a, b):

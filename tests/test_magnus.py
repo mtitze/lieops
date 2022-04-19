@@ -2,8 +2,8 @@ import numpy as np
 
 from njet.jet import factorials
 
-from bnf.lieop.magnus import forests
-from bnf.lieop.lie import combine, create_coords, lexp, liepoly
+from lieops.ops.magnus import forests
+from lieops.ops.lie import combine, create_coords, lexp, liepoly
 
 
 def number_of_graphs(order):

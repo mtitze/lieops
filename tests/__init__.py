@@ -1,2 +1,1 @@
-from .test_bnf import referencebnf
-from .test_bnf import qpqp2qp
+from .test_lieops import referencebnf, qpqp2qp

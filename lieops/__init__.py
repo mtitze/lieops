@@ -1,7 +1,6 @@
 '''    
-    bnf: Birkhoff normal form
-    
-    Copyright (C) 2021  Malte Titze
+    lieops: Lie Operator tools
+    Copyright (C) 2021, 2022  Malte Titze
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,5 +18,5 @@
 
 __version__ = '0.1.0'
 
-from bnf.lieop import *
-from bnf.linalg import *
+from lieops.ops import *
+from lieops.linalg import *
