@@ -8,7 +8,7 @@ from njet.functions import cos, sin, exp
 from njet import derive
 
 from lieops import __version__
-from lieops.ops import liepoly, create_coords, construct, bnf, first_order_nf_expansion, lexp
+from lieops.ops import poly, create_coords, construct, bnf, first_order_nf_expansion, lexp
 from lieops.ops.nf import homological_eq
 from lieops.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
 from lieops.linalg.nf import symplectic_takagi
@@ -71,7 +71,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
         muj = muj.real
         H0[tpl] = muj
         mu.append(muj)
-    H0 = liepoly(values=H0, dim=dim, max_power=max_power)
+    H0 = poly(values=H0, dim=dim, max_power=max_power)
     
     # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
@@ -80,7 +80,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     H = H0.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     
     # Indution start (k = 2); get P_3 and R_4. Z_2 is set to zero.
-    Zk = liepoly(dim=dim, max_power=max_power) # Z_2
+    Zk = poly(dim=dim, max_power=max_power) # Z_2
     Pk = H.homogeneous_part(3) # P_3
     Hk = H.copy() # H_2 = H
         
@@ -116,7 +116,7 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
 
 def check_2nd_orders(hdict, dim, tol=1e-14): 
     '''
-    Check if the 2nd order coefficients of a liepoly-dictionary correspond to a 'diagonal'
+    Check if the 2nd order coefficients of a poly-dictionary correspond to a 'diagonal'
     Hamiltonian, i.e. a Hamiltonian of the form H = mu_1*xi_1*eta_1 + mu_2*xi_2*eta_2 + ...
     '''
     # Attention: The tolerance is quite strong. tol=1e-15 may cause this test to fail.
@@ -135,7 +135,7 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     
     H2 = lambda x, px: 0.5*(x**2 + px**2)
     expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy', **kwargs)
-    HLie = liepoly(values=expansion)
+    HLie = poly(values=expansion)
     Hop = lexp(HLie, t=mu, power=power)
     Kinv = nfdict['Kinv'] # K(p, q) = (xi, eta)
     xieta = create_coords(1)
@@ -196,7 +196,7 @@ def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32,
     
     H2 = lambda x, px: mu*0.5*(x**2 + px**2) + x**3 + x*px**4
     expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, dps=dps, **kwargs)
-    HLie = liepoly(values=expansion, max_power=max_power)
+    HLie = poly(values=expansion, max_power=max_power)
     K = nfdict['K']
     xieta = create_coords(1, max_power=max_power)
     
@@ -266,11 +266,11 @@ def test_version():
     assert __version__ == '0.1.0'
     
 def test_jacobi():
-    # Test the Jacobi-identity for the liepoly class
+    # Test the Jacobi-identity for the poly class
     
-    p1 = liepoly(a=[0, 1, 0], b=[1, 1, 1])
-    p2 = liepoly(a=[2, 0, 1], b=[1, 1, 0])
-    p3 = liepoly(a=[9, 1, 4], b=[2, 5, 3])
+    p1 = poly(a=[0, 1, 0], b=[1, 1, 1])
+    p2 = poly(a=[2, 0, 1], b=[1, 1, 0])
+    p3 = poly(a=[9, 1, 4], b=[2, 5, 3])
     
     assert {} == (p3@p3)._values
     # check Jacobi-Identity
@@ -342,7 +342,7 @@ def test_exp_ad2(mode):
 def test_flow1(mu0=0.43, z=[0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
     # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
     coeff = 1j*mu0/np.sqrt(2)**3
-    H_accu = liepoly(values={(1, 1): -mu0,
+    H_accu = poly(values={(1, 1): -mu0,
                              (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
                              (2, 1): -coeff/(1 - np.exp(1j*mu0)),
                              (1, 2): coeff/(1 - np.exp(-1j*mu0)),
@@ -360,7 +360,7 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     # exp(:H:){x, y} = {exp(:H:)x, exp(:H:)y}
     # holds.
     coeff = 1j*mu0/np.sqrt(2)**3
-    H_accu = liepoly(values={(1, 1): -mu0,
+    H_accu = poly(values={(1, 1): -mu0,
                              (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
                              (2, 1): -coeff/(1 - np.exp(1j*mu0)),
                              (1, 2): coeff/(1 - np.exp(-1j*mu0)),
@@ -397,7 +397,7 @@ def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
     w = -1
     coeff = w*1j*mu0/np.sqrt(2)**3
 
-    H_accu = liepoly(values={(1, 1): -mu0,
+    H_accu = poly(values={(1, 1): -mu0,
                              (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
                              (2, 1): -coeff/(1 - np.exp(1j*mu0)),
                              (1, 2): coeff/(1 - np.exp(-1j*mu0)),
@@ -448,7 +448,7 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     mu0 = 2*np.pi*Q
     w = -1
     coeff = w*1j*mu0/np.sqrt(2)**3
-    H_accu = liepoly(values={(1, 1): -mu0,
+    H_accu = poly(values={(1, 1): -mu0,
                              (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
                              (2, 1): -coeff/(1 - np.exp(1j*mu0)),
                              (1, 2): coeff/(1 - np.exp(-1j*mu0)),

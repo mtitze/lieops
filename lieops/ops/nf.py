@@ -5,7 +5,7 @@ from njet.ad import standardize_function
 from njet.jet import check_zero
 from njet import derive
 
-from .lie import liepoly, create_coords
+from .lie import poly, create_coords
 from .lie import lexp as _lexp
 from lieops.linalg.nf import normal_form
 from lieops.linalg.matrix import matrix_from_dict
@@ -45,21 +45,21 @@ def homological_eq(mu, Z, **kwargs):
     mu: list
         list of floats (tunes).
         
-    Z: liepoly
+    Z: poly
         Polynomial of degree n.
         
     **kwargs
-        Arguments passed to liepoly initialization.
+        Arguments passed to poly initialization.
         
     Returns
     -------
-    chi: liepoly
+    chi: poly
         Polynomial of degree n with the above property.
         
-    Q: liepoly
+    Q: poly
         Polynomial of degree n with the above property.
     '''
-    chi, Q = liepoly(values={}, dim=Z.dim, **kwargs), liepoly(values={}, dim=Z.dim, **kwargs)
+    chi, Q = poly(values={}, dim=Z.dim, **kwargs), poly(values={}, dim=Z.dim, **kwargs)
     for powers, value in Z.items():
         om = Omega(mu, powers[:Z.dim], powers[Z.dim:])
         if om != 0:
@@ -204,10 +204,10 @@ def bnf(H, order: int=1, tol=1e-14, **kwargs):
         H:      Dictionary denoting the used Hamiltonian.
         H0:     Dictionary denoting the second-order coefficients of H.
         mu:     List of the tunes used (coefficients of H0).
-        chi:    List of liepoly objects, denoting the Lie-polynomials which map to normal form.
-        Hk:     List of liepoly objects, corresponding to the transformed Hamiltonians.
-        Zk:     List of liepoly objects, notation see Lem. 1.4.5. in Ref. [1]. 
-        Qk:     List of liepoly objects, notation see Lem. 1.4.5. in Ref. [1].
+        chi:    List of poly objects, denoting the Lie-polynomials which map to normal form.
+        Hk:     List of poly objects, corresponding to the transformed Hamiltonians.
+        Zk:     List of poly objects, notation see Lem. 1.4.5. in Ref. [1]. 
+        Qk:     List of poly objects, notation see Lem. 1.4.5. in Ref. [1].
         
     Reference(s):
     [1]: M. Titze: "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS", PhD Thesis (2019). 
@@ -237,7 +237,7 @@ def bnf(H, order: int=1, tol=1e-14, **kwargs):
         muj = muj.real
         H0[tpl] = muj
         mu.append(muj)
-    H0 = liepoly(values=H0, dim=dim, max_power=max_power)
+    H0 = poly(values=H0, dim=dim, max_power=max_power)
     
     # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
@@ -246,7 +246,7 @@ def bnf(H, order: int=1, tol=1e-14, **kwargs):
     H = H0.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     
     # Induction start (k = 2); get P_3 and R_4. Z_2 is set to zero.
-    Zk = liepoly(dim=dim, max_power=max_power) # Z_2
+    Zk = poly(dim=dim, max_power=max_power) # Z_2
     Pk = H.homogeneous_part(3) # P_3
     Hk = H.copy() # H_2 = H
         
@@ -293,12 +293,12 @@ class lexp(_lexp):
         _lexp.__init__(self, *args, **kwargs)
             
     def set_argument(self, H, **kwargs):
-        if not H.__class__.__name__ == 'liepoly':
+        if not H.__class__.__name__ == 'poly':
             assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
             self.order = kwargs['order']
             # obtain an expansion of H in terms of complex first-order normal form coordinates
             taylor_coeffs, self.nfdict = first_order_nf_expansion(H, code=self.code, **kwargs)
-            _lexp.set_argument(self, x=liepoly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
+            _lexp.set_argument(self, x=poly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
         else: # original behavior
             _lexp.set_argument(self, x=H, **kwargs)
             

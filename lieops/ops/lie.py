@@ -6,7 +6,7 @@ from njet import derive, jetpoly
 from .genfunc import genexp
 from .magnus import hard_edge, hard_edge_chain, norsett_iserles
 
-class liepoly:
+class poly:
     '''
     Class to model the Lie operator :p:, where p is a polynomial given in terms of
     complex (xi, eta)-coordinates. For the notation of these coordinates see Ref.
@@ -89,7 +89,7 @@ class liepoly:
             
         Returns
         -------
-        liepoly
+        poly
             The extracted Lie polynomial.
         '''
         return self.__class__(values={key: value for key, value in self.items() if condition(key)}, dim=self.dim, max_power=self.max_power)
@@ -105,7 +105,7 @@ class liepoly:
             
         Returns
         -------
-        liepoly
+        poly
             The extracted Lie polynomial.
         '''
         return self.extract(condition=lambda x: sum(x) == k)
@@ -123,7 +123,7 @@ class liepoly:
         '''
         # some consistency check
         if z.__class__.__name__ == self.__class__.__name__:
-            raise TypeError(f"Input of type '{self.__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for liepoly objects.
+            raise TypeError(f"Input of type '{self.__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for poly objects.
         
         # prepare input vector
         if len(z) == self.dim:
@@ -326,7 +326,7 @@ class liepoly:
         
         Parameters
         ----------
-        y: liepoly
+        y: poly
             Lie polynomial which we want to evaluate on
 
         power: int, optional
@@ -434,7 +434,7 @@ class liepoly:
             
         Returns
         -------
-        callable or liepoly
+        callable or poly
             The output depends on the optional argument 'power'.
             
             If no argument 'power' has been passed, then it will
@@ -494,7 +494,7 @@ class liepoly:
             
         Returns
         -------
-        liepoly
+        poly
             A Lie-polynomial in which every entry in its values contain the result of the requested class function.
         '''
         if len(cargs) > 0:
@@ -521,26 +521,26 @@ def create_coords(dim, cartesian=False, **kwargs):
         p = (xi - eta)/sqrt(2)/1j
         
     **kwargs
-        Optional arguments passed to liepoly class.
+        Optional arguments passed to poly class.
         
     Returns
     -------
     list
-        List of length 2*dim with liepoly entries, corresponding to the xi_k and eta_k Lie polynomials. Hereby the first
+        List of length 2*dim with poly entries, corresponding to the xi_k and eta_k Lie polynomials. Hereby the first
         dim entries belong to the xi-values, while the last dim entries to the eta-values.
     '''
     resultx, resulty = [], []
     for k in range(dim):
         ek = [0 if i != k else 1 for i in range(dim)]
         if not cartesian:
-            xi_k = liepoly(a=ek, b=[0]*dim, dim=dim, **kwargs)
-            eta_k = liepoly(a=[0]*dim, b=ek, dim=dim, **kwargs)
+            xi_k = poly(a=ek, b=[0]*dim, dim=dim, **kwargs)
+            eta_k = poly(a=[0]*dim, b=ek, dim=dim, **kwargs)
         else:
             sqrt2 = float(np.sqrt(2))
-            xi_k = liepoly(values={tuple(ek + [0]*dim): 1/sqrt2,
+            xi_k = poly(values={tuple(ek + [0]*dim): 1/sqrt2,
                                    tuple([0]*dim + ek): 1/sqrt2},
                                    dim=dim, **kwargs)
-            eta_k = liepoly(values={tuple(ek + [0]*dim): -1j/sqrt2,
+            eta_k = poly(values={tuple(ek + [0]*dim): -1j/sqrt2,
                                     tuple([0]*dim + ek): 1j/sqrt2},
                                     dim=dim, **kwargs)
         resultx.append(xi_k)
@@ -548,7 +548,7 @@ def create_coords(dim, cartesian=False, **kwargs):
     return resultx + resulty
 
 
-def construct(lps, f, power=float('inf')):
+def construct(lps, f, **kwargs):
     r'''
     Let z = [z1, ..., zk] be Lie polynomials and f an analytical function, taking k values.
     Depending on the input, this routine will either return the Lie polynomial :f(z1, ..., zk): or
@@ -556,26 +556,30 @@ def construct(lps, f, power=float('inf')):
     
     Parameters
     ----------
-    lps: liepoly or list of liepoly objects
+    lps: poly or list of poly objects
         The Lie polynomial(s) to be constructed.
         
     f: callable
-        A function on which we want to apply the list of liepoly objects.
+        A function on which we want to apply the list of poly objects.
         It needs to be supported by the njet module.
         
     power: int, optional
         The maximal power of the resulting Lie polynomial (default: float('inf')).
-        If a value is provided, the routine will return a class of type liepoly, representing
+        If a value is provided, the routine will return a class of type poly, representing
         a Lie polynomial. If nothing is provided, the routine will return the function
         f(z1, ..., zk)
         
+    point: list, optional
+        Only relevant if power != inf. A point around f will be expanded. If nothing specified, 
+        zeros will be used.
+        
     Returns
     -------
-    callable or liepoly
+    callable or poly
         As described above, depending on the 'power' input parameter, either the map f(z1, ..., zk) or
         the Lie polynomial :f(z1, ..., zk): is returned.
     '''
-    if lps.__class__.__name__ == 'liepoly':
+    if lps.__class__.__name__ == 'poly':
         lps = [lps]
     n_args_f = len(lps)
     dim_poly = lps[0].dim
@@ -584,12 +588,15 @@ def construct(lps, f, power=float('inf')):
     assert all([lp.dim == dim_poly for lp in lps]), 'Input polynomials not all having the same dimensions.'
 
     construction = lambda z: f(*[lps[k](z) for k in range(n_args_f)])   
+    
+    power = kwargs.get('power', float('inf'))
     if power == float('inf'):
         return construction
     else:
+        point = kwargs.get('point', [0]*2*dim_poly)
         dcomp = derive(construction, order=power, n_args=2*dim_poly)
-        taylor_coeffs = dcomp([0]*2*dim_poly, mult_drv=False)
-        return liepoly(values=taylor_coeffs, dim=dim_poly, max_power=power)
+        taylor_coeffs = dcomp(point, mult_drv=False)
+        return poly(values=taylor_coeffs, dim=dim_poly, max_power=power)
 
 class lieoperator:
     '''
@@ -597,7 +604,7 @@ class lieoperator:
     
     Parameters
     ----------
-    x: liepoly
+    x: poly
         The function in the argument of the Lie operator.
     
     **kwargs
@@ -616,7 +623,7 @@ class lieoperator:
             _ = self.calcFlow(**kwargs)
             
     def set_argument(self, x, **kwargs):
-        assert x.__class__.__name__ == 'liepoly'
+        assert x.__class__.__name__ == 'poly'
         self.argument = x
         self.n_args = 2*self.argument.dim        
         
@@ -659,7 +666,7 @@ class lieoperator:
         
         Parameters
         ----------
-        y: liepoly
+        y: poly
             The Lie polynomial on which the Lie operator should be applied on.
             
         Returns
@@ -687,7 +694,7 @@ class lieoperator:
         Parameters
         ----------
         components: list, optional
-            List of liepoly objects on which the Lie operator g(:x:) should be applied on.
+            List of poly objects on which the Lie operator g(:x:) should be applied on.
             If nothing specified, then the canonical xi-coordinates are used.
             
         store: bool, optinal
@@ -756,8 +763,8 @@ class lieoperator:
         else:
             orbits = self.orbits
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
-        # standing on the left, then numpy would put the liepoly classes into its array, something we do not want. 
-        # Instead, we want to put the numpy arrays into our liepoly class.
+        # standing on the left, then numpy would put the poly classes into its array, something we do not want. 
+        # Instead, we want to put the numpy arrays into our poly class.
         flow = [sum([orbits[k][j]*t**j for j in range(len(orbits[k]))]) for k in range(len(orbits))]
         if kwargs.get('store', True):
             self.orbits = orbits
@@ -806,21 +813,21 @@ class lieoperator:
         
     def apply(self, z, **kwargs):
         '''
-        Apply the current Lie operator g(:x:) onto a single liepoly class or a list of liepoly classes.
+        Apply the current Lie operator g(:x:) onto a single poly class or a list of poly classes.
         This function is basically intended as a shortcut for the successive call of self.calcOrbits and self.calcFlow.
         
         Parameters
         ----------
-        z: liepoly or list of liepoly classes
+        z: poly or list of poly classes
             The Lie polynomial(s) on which to apply the current Lie operator.
             
         Returns
         -------
         self.flow[0] or self.flow
-            Depending on the input, either the liepoly g(:x:)y is returned, or a list g(:x:)y for the given
-            liepoly elements y.
+            Depending on the input, either the poly g(:x:)y is returned, or a list g(:x:)y for the given
+            poly elements y.
         '''
-        if z.__class__.__name__ == 'liepoly':
+        if z.__class__.__name__ == 'poly':
             _ = self.calcOrbits(components=[z], **kwargs)
             return self.calcFlow(**kwargs)[0]
         else:
@@ -836,7 +843,7 @@ class lieoperator:
         
         Parameters
         ----------
-        z: subscriptable or liepoly or lieoperator
+        z: subscriptable or poly or lieoperator
             
         **kwargs
             Optional arguments passed to self.calcFlow. Note that if an additional parameter t is passed, 
@@ -844,14 +851,14 @@ class lieoperator:
             
         Returns
         -------
-        list or liepoly or lieoperator
-            1) If z is a list, then the values (g(:x:)y)(z) for the current liepoly elements y in self.components
+        list or poly or lieoperator
+            1) If z is a list, then the values (g(:x:)y)(z) for the current poly elements y in self.components
             are returned (see self.evaluate).
             2) If z is a Lie polynomial, then the orbit of g(:x:)z will be computed and the flow returned as 
-               liepoly class (see self.apply).
+               poly class (see self.apply).
             3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
         '''
-        if z.__class__.__name__ == 'liepoly':
+        if z.__class__.__name__ == 'poly':
             return self.apply(z, **kwargs)
         elif z.__class__.__name__ == self.__class__.__name__:
             if hasattr(self, 'bch'):
@@ -860,7 +867,7 @@ class lieoperator:
                 raise NotImplementedError(f"Composition of two objects of type '{self.__class__.__name__}' not supported.")
         else:
             assert hasattr(z, '__getitem__'), 'Input needs to be subscriptable.'
-            if z[0].__class__.__name__ == 'liepoly':
+            if z[0].__class__.__name__ == 'poly':
                 return self.apply(z, **kwargs)
             else:
                 return self.evaluate(z, **kwargs)
@@ -891,7 +898,7 @@ class lexp(lieoperator):
     '''
     Class to describe Lie operators of the form
       exp(:x:),
-    where :x: is a liepoly class.
+    where :x: is a poly class.
     
     In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
     '''
@@ -945,14 +952,14 @@ def combine(*args, power: int, **kwargs):
         The power in s (s: the variable of integration) up to which we consider the Magnus expansion.
         
     *args
-        A series of liepoly objects p_j, j = 0, 1, ..., k which to be combined. They may represent 
+        A series of poly objects p_j, j = 0, 1, ..., k which to be combined. They may represent 
         the exponential operators exp(:p_j:).
         
     lengths: list, optional
         An optional list of lengths. If nothing specified, the lengths are assumed to be 1.
         
     **kwargs
-        Optional keyworded arguments passed to liepoly instantiation and norsett_iserles routine.
+        Optional keyworded arguments passed to poly instantiation and norsett_iserles routine.
         
     Returns
     -------
@@ -986,7 +993,7 @@ def combine(*args, power: int, **kwargs):
     # Build the hard-edge Hamiltonian model.
     all_powers = set([k for op in args for k in op.keys()])    
     hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args[m].get(k, 0)], lengths={1: lengths[m]}) for m in range(n_operators)]) for k in all_powers}
-    hamiltonian = liepoly(values=hamiltonian_values, **kwargs)
+    hamiltonian = poly(values=hamiltonian_values, **kwargs)
         
     # Now perform the integration up to the requested power.
     z_series = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
@@ -995,7 +1002,7 @@ def combine(*args, power: int, **kwargs):
         out_order = 0
         for tpl in trees: # index corresponds to an enumeration of the trees for the specific order
             lp, factor = tpl
-            # lp is a liepoly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:            
-            out_order += liepoly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
+            # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:            
+            out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
         out[order] = out_order
     return out, hamiltonian

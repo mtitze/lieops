@@ -7,12 +7,18 @@ license = "GPL-3.0-or-later"
 homepage = "https://lieops.readthedocs.io/en/latest/index.html"
 repository = "https://github.com/mtitze/lieops"
 keywords = [ "Birkhoff", "normal", "form", "Lie", "Magnus",]
+include = [
+    "LICENSE",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
 mpmath = "^1.2.1"
 sympy = "^1.9"
 njet = "^0.2.2"
+Sphinx = {version = "^4.5.0", optional = true}
+sphinx-rtd-theme = {version = "^1.0.0", optional = true}
+sphinxcontrib-napoleon = {version = "^0.7", optional = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
@@ -23,3 +29,6 @@ scipy = "^1.7.3"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.extras]
+docs = ["Sphinx", "sphinx-rtd-theme", "sphinxcontrib-napoleon"]
