@@ -304,6 +304,9 @@ class poly:
     def __setitem__(self, key, other):
         self._values[key] = other
         
+    def pop(self, *args, **kwargs):
+        self._values.pop(*args, **kwargs)
+        
     def update(self, d):
         new_values = {k: v for k, v in self.items()}
         new_values.update(d)
@@ -391,7 +394,7 @@ class poly:
         '''
         return derive(self, n_args=2*self.dim, **kwargs)
     
-    def flow(self, power: int, t=1, **kwargs):
+    def flow(self, t=-1, *args, **kwargs):
         '''
         Let f: R^n -> R be a differentiable function and :x: the current polynomial Lie map. 
         Then this routine will compute the components of M: R^n -> R^n,
@@ -402,12 +405,8 @@ class poly:
 
         Parameters
         ----------
-        power: int
-            The maximal power up to which exp(:x:) should be evaluated.
-        
         t: float, optional
-            An additional parameter to model exp(t*:x:) (default: 1). Note that
-            this parameter can also be changed in the lieoperator class later.
+            Optional parameter t to use exp(t:x:) instaed. 
             
         **kwargs
             Additional arguments are passed to the lieoperator class.
@@ -417,7 +416,7 @@ class poly:
         lieoperator
             Class of type lieoperator, modeling the flow of the current Lie polynomial.
         '''
-        return lieoperator(self, generator=genexp(power), t=t, **kwargs)
+        return lexp(self, t=t, *args, **kwargs)
         
     def construct(self, f, **kwargs):
         '''
@@ -903,11 +902,11 @@ class lexp(lieoperator):
     In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
     '''
 
-    def __init__(self, x, power, **kwargs):
+    def __init__(self, x, power=10, *args, **kwargs):
         
         self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
         kwargs['generator'] = genexp(power)   
-        lieoperator.__init__(self, x=x, **kwargs)
+        lieoperator.__init__(self, x=x, *args, **kwargs)
         
     def bch(self, other, **kwargs):
         '''

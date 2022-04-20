@@ -457,9 +457,10 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     H_accu_f = lambda z: H_accu([(z[0] + 1j*z[1])/np.sqrt(2),
                                  (z[0] - 1j*z[1])/np.sqrt(2)])
     
-    L1 = lexp(H_accu_f, t=1, order=order, power=power, n_args=2)
-    argflow = L1.argument.flow(power=L1.power) 
-    assert argflow(z) == L1(z)
+    t = -1
+    L1 = lexp(H_accu_f, t=t, order=order, power=power, n_args=2)
+    argflow = L1.argument.flow(t=t, power=L1.power)
+    return argflow(z) == L1(z)
     
 def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).
