@@ -1128,7 +1128,23 @@ class lexp(lieoperator):
         return self.__class__(sum(comb.values()), power=self.power)
     
     def __matmul__(self, other):
-        return self.bch(other)
+        if self.__class__.__name__ == other.__class__.__name__:
+            return self.bch(other)
+        else:
+            # we shall assume that 'other' is subscriptable with respect to a tuple of indices (i.e. a matrix)
+            assert hasattr(other, '__iter__') and hasattr(other, '__len__')
+            assert len(other) > 0
+            assert all([hasattr(other[k], '__iter__') and hasattr(other[k], '__len__') for k in range(len(other))])
+            assert all([len(other[k]) == len(self.components) for k in range(len(other))])
+            result = self.copy()
+            new_components = []
+            for k in range(len(other)):
+                sum_k = 0
+                for l in range(len(other[k])):
+                    sum_k += self.components[l]*other[k][l]
+                new_components.append(sum_k)
+            _ = result.apply(z=new_components)
+            return result
     
     def bnf(self, order: int=1, output=True, **kwargs):
         '''
