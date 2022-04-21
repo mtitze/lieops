@@ -5,6 +5,8 @@ import numpy as np
 import mpmath as mp
 import cmath
 
+from sympy import Matrix as sympy_matrix
+
 from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
 from .checks import is_positive_definite, relative_eq
 from .matrix import column_matrix_2_code, create_J, get_package_name
@@ -679,7 +681,7 @@ def _create_umat_xieta(dim, code, **kwargs):
     return column_matrix_2_code(U1 + U2, code=code)
 
     
-def normal_form(H2, T=[], mode='default', **kwargs):
+def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     r'''
     Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
@@ -710,6 +712,9 @@ def normal_form(H2, T=[], mode='default', **kwargs):
         Supported modes are (default: 'default'):
         1) 'default' -- Use symplectic Takagi factorization
         2) 'classic' -- Use (unitary) Williamson diagonalization (works only if H2 is invertible.)
+        
+    check: boolean, optional
+        Perform a consistency check whether GJ is diagonalizable, using sympy.
              
     Returns
     -------
@@ -734,7 +739,6 @@ def normal_form(H2, T=[], mode='default', **kwargs):
     ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
-    
     code = get_package_name(H2)
         
     # Perform symplectic diagonalization
@@ -742,10 +746,19 @@ def normal_form(H2, T=[], mode='default', **kwargs):
         H2 = T@H2@T.transpose()
 
     J = column_matrix_2_code(create_J(dim//2), code=code)
+    
+    if check:
+        # consistency check: GJ must be diagonalizable in order that the normal form can be computed.
+        # Since computing the Jordan normal form is numerically unstable, we use sympy for this.
+        J_symp = sympy_matrix(create_J(dim//2)).transpose()
+        G_symp = sympy_matrix(H2)
+        P_symp, JNF = (G_symp@J_symp).jordan_form()
+        if not JNF.is_diagonal():
+            raise RuntimeError('Jordan normal form of H2@J not diagonal (check: True).')
 
     if mode == 'default':
-        S, D = symplectic_takagi(H2, **kwargs)
-        S = S.transpose()    
+        S, D = symplectic_takagi(H2, check=check, **kwargs)
+        S = S.transpose()
         Sinv = -J@S.transpose()@J
         U = _create_umat_xieta(dim=dim, code=code, **kwargs)
     elif mode == 'classic':
@@ -797,6 +810,5 @@ def normal_form(H2, T=[], mode='default', **kwargs):
     out['K'] = K # K(q, p) = (xi, eta)
     out['Kinv'] = Kinv
     out['cnf'] = Kinv.transpose()@H2@Kinv # the representation of H2 in (xi, eta)-coordinates
-    
     return out
     

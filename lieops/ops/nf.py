@@ -69,7 +69,7 @@ def homological_eq(mu, Z, **kwargs):
     return chi, Q
 
 
-def first_order_nf_expansion(H, power: int=2, z=[], warn: bool=True, n_args: int=0, tol: float=1e-14, 
+def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: int=0, tol: float=1e-14, 
                              code='numpy', **kwargs):
     '''
     Return the Taylor-expansion of a Hamiltonian H in terms of first-order complex normal form coordinates
@@ -90,7 +90,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], warn: bool=True, n_args: int
     n_args: int, optional
         If H takes a single subscriptable as argument, define the number of arguments with this parameter.
         
-    warn: boolean, optional
+    check: boolean, optional
         Turn on some basic checks:
         a) Warn if the expansion of the Hamiltonian around z contains gradient terms larger than a specific value. 
         b) Verify that the 2nd order terms in the expansion of the Hamiltonian agree with those from the linear theory.
@@ -118,6 +118,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], warn: bool=True, n_args: int
     # This step is required, because later on (at point (+)) we want to extract the Taylor coefficients, and
     # this works numerically only if we consider a function around zero.
     if len(z) > 0:
+        assert len(z) == dim, f'Dimension ({len(z)}) of custom point mismatch (expected: {dim})'
         H = lambda x: Hst([x[k] + z[k] for k in range(len(z))])
     else:
         z = dim*[0]
@@ -135,14 +136,14 @@ def first_order_nf_expansion(H, power: int=2, z=[], warn: bool=True, n_args: int
     Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code)
     
     # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
-    if warn:
+    if check:
         gradient = dH.grad()
         if any([abs(gradient[k]) > tol for k in gradient.keys()]) > 0:
             print (f'Warning: H has a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
-            print ([gradient[k] for k in sorted(gradient.keys())])
+            print ([gradient.get((k,), 0) for k in range(dim)])
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
-    nfdict = normal_form(Hesse_matrix, **kwargs)
+    nfdict = normal_form(Hesse_matrix, tol=tol, check=check, **kwargs)
     Kinv = nfdict['Kinv'] # Kinv.transpose()@Hesse_matrix@Kinv is in cnf; K(q, p) = (xi, eta)
     
     # Step 4: Obtain the expansion of the Hamiltonian up to the requested power.
@@ -151,7 +152,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], warn: bool=True, n_args: int
     dHK = derive(HK, order=power, n_args=dim)
     results = dHK(z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
     
-    if warn:
+    if check:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
         # normal form with the values predicted by linear theory.
         HK_hesse_dict = dHK.hess(Df=results)
@@ -174,9 +175,13 @@ def bnf(H, order: int=1, tol=1e-14, **kwargs):
     Parameters
     ----------
     H: callable or dict
-        Defines the Hamiltonian to be normalized. If H is of type dict, then it must be of the
+        Defines the Hamiltonian to be normalized. 
+        I) If H is of type dict, then it must be of the
         form (e.g. for phase space dimension 4): {(i, j, k, l): value}, where the tuple (i, j, k, l)
         denotes the exponents in xi1, xi2, eta1, eta2.
+        Furthermore, H must already be in complex normal form, i.e. its second-order coefficients must
+        be a sum of xi*eta-terms.
+        II) If H is callable, then a transformation to complex normal form is performed beforehand.
                 
     order: int
         The order up to which we build the normal form. Here order = k means that we compute
@@ -218,8 +223,10 @@ def bnf(H, order: int=1, tol=1e-14, **kwargs):
     
     if type(H) != dict:
         # obtain an expansion of H in terms of complex first-order normal form coordinates
-        taylor_coeffs, nfdict = first_order_nf_expansion(H, power=power, **kwargs)
+        kwargs['power'] = power
+        taylor_coeffs, nfdict = first_order_nf_expansion(H, tol=tol, **kwargs)
     else:
+        # Attention: In this case we assume that H is already in complex normal form (CNF): Off-diagonal entries will be ignored (see code below).
         taylor_coeffs = H
         nfdict = {}
         
@@ -302,20 +309,20 @@ class lexp(_lexp):
         else: # original behavior
             _lexp.set_argument(self, x=H, **kwargs)
             
-    def bnf(self, order, output=True, **kwargs):
+    def bnf(self, order: int=1, output=True, **kwargs):
         '''
         Compute the Birkhoff normal form of the current Lie exponential operator.
         
         Parameters
         ----------
-        order: int
+        order: int, optional
             Order up to which the normal form should be computed.
             
         **kwargs
             Optional arguments passed to 'bnf' routine.
         '''
-        return bnf(self.argument._values, order=order, power=self.power, 
-                  max_power=self.argument.max_power, **kwargs)
+        return bnf(self.argument, order=order, power=self.power, 
+                  max_power=self.argument.max_power, n_args=self.argument.dim*2, **kwargs)
             
     def transform(self, label='', inp=True, out=True, **kwargs):
         '''

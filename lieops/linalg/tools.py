@@ -269,8 +269,7 @@ def eig(M, symmetric=False, **kwargs):
         eigenvalues = eigenvalues.tolist()
         eigenvectors = [np.array(eigenvectors)[:, j] for j in range(len(eigenvalues))] # convert the np.matrix objects, which are the result of the
         # numpy eig routine back to np.array's.
-        
-    if code == 'mpmath':
+    elif code == 'mpmath':
         assert M.cols == M.rows
         if 'dps' in kwargs.keys():
             mp.mp.dps = kwargs['dps'] # number of digits defining precision.#
@@ -280,14 +279,28 @@ def eig(M, symmetric=False, **kwargs):
         else:
             eigenvalues, eigenvectors = mp.eigh(mp.matrix(M))
         eigenvectors = [eigenvectors[:, j] for j in range(len(eigenvalues))]
+    else:
+        raise RuntimeError(f"code '{code}' not recognized.")
         
     return eigenvalues, eigenvectors
 
 
 def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
     '''
-    Let M be a square matrix. Then this routine will determine a basis of normalized eigenvectors. Hereby
-    eigenvectors belonging to the same eigenvalues are (complex) orthogonalized.
+    Let M be a square matrix. Then this routine will attempt to determine a basis of normalized eigenvectors. 
+    Hereby eigenvectors belonging to the same eigenvalues are (complex) orthogonalized.
+    
+    !!! Attention !!!
+    Since the diagonalizable matrices with complex entries lay dense within the set of all complex matrices,
+    the code may fail for ill-conditioned matrices. Note that a matrix is diagonalizable if 
+    and only if for each eigenvalue the dimension of the eigenspace is equal to the multiplicity 
+    of the eigenvalue.
+    
+    It may happen that the code will determine a different set of dimension of the eigenspace than
+    the underlying multiplicity of its corresponding eigenvalue. For example, the multiplicity of a 
+    zero-eigenvalue might be 2, the actual dimension of the kernel of the given matrix is 1, 
+    but due to round-off errors the code may still find a 2-dimensional basis of the zero-eigenspace.
+    Therefore check the output (and the input) carefully.
     
     Parameters
     ----------
@@ -348,7 +361,7 @@ def eigenspaces(M, flatten=False, tol=1e-10, check=True, **kwargs):
             dim_kernel = kernel.cols
         # check if tolerance can detect the zero-eigenvalues
         n_zero_eigenvalues = len([e for e in eigenspaces if abs(eigenvalues[e[0]]) < tol])
-        assert dim_kernel == n_zero_eigenvalues, f'The number of zero-eigenvalues ({n_zero_eigenvalues}) is not consistent with the dimension ({dim_kernel}) of the kernel of the input matrix, both determined using a tolerance of {tol}. Check input and/or try to adjust precision.'
+        assert dim_kernel == n_zero_eigenvalues, f'The number of zero-eigenvalues ({n_zero_eigenvalues}) is not consistent with the dimension ({dim_kernel}) of the kernel of the input matrix, both determined using a tolerance of {tol}. Check if input matrix is diagonalizable or try to adjust precision.'
                 
     # orthogonalize vectors within the individual eigenspaces
     eigenvalues_result, eigenvectors_result = [], []

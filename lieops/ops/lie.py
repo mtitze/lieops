@@ -128,7 +128,7 @@ class poly:
         # prepare input vector
         if len(z) == self.dim:
             z = [e for e in z] + [e.conjugate() for e in z]
-        assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim}'
+        assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim} (or {self.dim})'
         
         # compute the occuring powers ahead of evaluation
         z_powers = {}
@@ -939,8 +939,6 @@ class lexp(lieoperator):
     def __matmul__(self, other):
         return self.bch(other)
     
-    
-    
 def combine(*args, power: int, **kwargs):
     '''
     Compute the Lie polynomials of the Magnus expansion, up to a given order.
@@ -981,7 +979,6 @@ def combine(*args, power: int, **kwargs):
 
     lengths = kwargs.get('lengths', [1]*n_operators)
     kwargs['max_power'] = kwargs.get('max_power', min([op.max_power for op in args]))
-    
     # The given Lie-polynomials p_1, p_2, ... are representing the chain exp(:p_1:) exp(:p_2:) ... exp(:p_k:) of Lie operators.
     # This means that the last entry p_k is the operator which is executed first. In the hard-edge model, the first entry
     # belongs to the s-dependent Hamiltonian representing the entire chain of the above operators. Therefore, p_k must come first and so
