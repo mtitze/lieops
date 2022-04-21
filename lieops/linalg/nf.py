@@ -714,7 +714,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         2) 'classic' -- Use (unitary) Williamson diagonalization (works only if H2 is invertible.)
         
     check: boolean, optional
-        Perform a consistency check whether GJ is diagonalizable, using sympy.
+        Perform a consistency check whether H2@J is diagonalizable, using sympy.
              
     Returns
     -------
@@ -748,7 +748,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     J = column_matrix_2_code(create_J(dim//2), code=code)
     
     if check:
-        # consistency check: GJ must be diagonalizable in order that the normal form can be computed.
+        # consistency check: H2@J must be diagonalizable in order that the normal form can be computed.
         # Since computing the Jordan normal form is numerically unstable, we use sympy for this.
         J_symp = sympy_matrix(create_J(dim//2)).transpose()
         G_symp = sympy_matrix(H2)

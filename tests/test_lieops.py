@@ -134,7 +134,7 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     # the linear map K to (first-order) normal form.
     
     H2 = lambda x, px: 0.5*(x**2 + px**2)
-    expansion, nfdict = first_order_nf_expansion(H2, warn=True, code='numpy', **kwargs)
+    expansion, nfdict = first_order_nf_expansion(H2, check=True, code='numpy', **kwargs)
     HLie = poly(values=expansion)
     Hop = lexp(HLie, t=mu, power=power)
     Kinv = nfdict['Kinv'] # K(p, q) = (xi, eta)
@@ -470,11 +470,11 @@ def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     z1 = [np.pi/2, 0.55, 0.32, 7.13, -0.6311, 2.525]
 
     time1 = time.time()
-    tcref = referencebnf(H, z=z1, order=order, warn=True)
+    tcref = referencebnf(H, z=z1, order=order, check=True)
     time_ref = time.time() - time1
     
     time2 = time.time()
-    tc = bnf(H, z=z1, order=order, warn=True)
+    tc = bnf(H, z=z1, order=order, check=True)
     time_bnf = time.time() - time2
     
     # performance check
