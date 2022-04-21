@@ -8,8 +8,8 @@ from njet.functions import cos, sin, exp
 from njet import derive
 
 from lieops import __version__
-from lieops.ops import poly, create_coords, construct, bnf, first_order_nf_expansion, lexp
-from lieops.ops.nf import homological_eq
+from lieops.ops import poly, create_coords, construct, bnf, lexp
+from lieops.ops.lie import homological_eq, first_order_nf_expansion
 from lieops.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
 from lieops.linalg.nf import symplectic_takagi
 
@@ -478,7 +478,7 @@ def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     time_bnf = time.time() - time2
     
     # performance check
-    assert time_bnf*threshold > time_ref, 'Error: new time*threshold = {} > {} (reference time)'.format(time_bnf*threshold, time_ref)
+    assert time_bnf <= time_ref*threshold, 'Error: new time = {} > {} threshold*(reference time)'.format(time_bnf, threshold*time_ref)
 
     # check on equality
     chifinal_ref = tcref['chi'][-1]

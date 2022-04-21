@@ -3,6 +3,8 @@ import numpy as np
 from njet.jet import factorials, check_zero
 from njet import derive, jetpoly
 
+from lieops.linalg.nf import normal_form, first_order_nf_expansion
+
 from .genfunc import genexp
 from .magnus import hard_edge, hard_edge_chain, norsett_iserles
 
@@ -407,7 +409,7 @@ class poly:
         ----------
         t: float, optional
             Optional parameter t to use exp(t:x:) instaed. 
-            
+
         **kwargs
             Additional arguments are passed to the lieoperator class.
 
@@ -624,7 +626,7 @@ class lieoperator:
     def set_argument(self, x, **kwargs):
         assert x.__class__.__name__ == 'poly'
         self.argument = x
-        self.n_args = 2*self.argument.dim        
+        self.n_args = 2*self.argument.dim
         
     def set_generator(self, generator, **kwargs):
         '''
@@ -892,6 +894,185 @@ class lieoperator:
         if hasattr(self, 'flow'):
             out.flow = [l.copy() for l in self.flow]
         return out
+
+def Omega(mu, a, b):
+    '''
+    Compute the scalar product of mu and a - b.
+    
+    Parameters
+    ----------
+    mu: subscriptable
+    a: subscriptable
+    b: subscriptable
+    
+    Returns
+    -------
+    float
+        The scalar product (mu, a - b).
+    '''
+    return sum([mu[k]*(a[k] - b[k]) for k in range(len(mu))])
+
+def homological_eq(mu, Z, **kwargs):
+    '''
+    Let e[k], k = 1, ..., len(mu) be actions, H0 := sum_k mu[k]*e[k] and Z a
+    polynomial of degree n. Then this routine will solve 
+    the homological equation 
+    {H0, chi} + Z = Q with
+    {H0, Q} = 0.
+
+    Attention: No check whether Z is actually homogeneous or real, but if one of
+    these properties hold, then also chi and Q will admit such properties.
+    
+    Parameters
+    ----------
+    mu: list
+        list of floats (tunes).
+        
+    Z: poly
+        Polynomial of degree n.
+        
+    **kwargs
+        Arguments passed to poly initialization.
+        
+    Returns
+    -------
+    chi: poly
+        Polynomial of degree n with the above property.
+        
+    Q: poly
+        Polynomial of degree n with the above property.
+    '''
+    chi, Q = poly(values={}, dim=Z.dim, **kwargs), poly(values={}, dim=Z.dim, **kwargs)
+    for powers, value in Z.items():
+        om = Omega(mu, powers[:Z.dim], powers[Z.dim:])
+        if om != 0:
+            chi[powers] = 1j/om*value
+        else:
+            Q[powers] = value
+    return chi, Q
+
+def bnf(H, order: int=1, tol=1e-12, **kwargs):
+    '''
+    Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
+    
+    Attention: Constants and any gradients of H at z will be ignored. If there is 
+    a non-zero gradient, a warning is issued by default.
+    
+    Parameters
+    ----------
+    H: callable or dict
+        Defines the Hamiltonian to be normalized. 
+        I) If H is of type dict, then it must be of the
+        form (e.g. for phase space dimension 4): {(i, j, k, l): value}, where the tuple (i, j, k, l)
+        denotes the exponents in xi1, xi2, eta1, eta2.
+        Furthermore, H must already be in complex normal form, i.e. its second-order coefficients must
+        be a sum of xi*eta-terms.
+        II) If H is callable, then a transformation to complex normal form is performed beforehand.
+                
+    order: int
+        The order up to which we build the normal form. Here order = k means that we compute
+        k homogeneous Lie-polynomials, where the smallest one will have power k + 2 and the 
+        succeeding ones will have increased powers by 1.
+        
+    max_power: int, optional
+        An optional maximal power to be taken into consideration when applying ad-operations between Lie-polynomials.
+        
+    power: int, optional
+        A maximal power by which we want to expand any exponential ad-series while evaluating Lie operators.
+        
+    tol: float, optional
+        Tolerance below which we consider a value as zero. This will be used when examining the second-order
+        coefficients of the given Hamiltonian.
+        
+    **kwargs
+        Keyword arguments are passed to .first_order_nf_expansion routine.
+        
+    Returns
+    -------
+    dict
+        A dictionary with the following keys:
+        nfdict: The output of hte first_order_nf_expansion routine.
+        H:      Dictionary denoting the used Hamiltonian.
+        H0:     Dictionary denoting the second-order coefficients of H.
+        mu:     List of the tunes used (coefficients of H0).
+        chi:    List of poly objects, denoting the Lie-polynomials which map to normal form.
+        Hk:     List of poly objects, corresponding to the transformed Hamiltonians.
+        Zk:     List of poly objects, notation see Lem. 1.4.5. in Ref. [1]. 
+        Qk:     List of poly objects, notation see Lem. 1.4.5. in Ref. [1].
+        
+    Reference(s):
+    [1]: M. Titze: "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS", PhD Thesis (2019). 
+    '''
+    power = order + 2 # the maximal power of the homogeneous polynomials chi mapping to normal form.
+    max_power = kwargs.get('max_power', order + 2) # the maximal power to be taken into consideration when applying ad-operations between Lie-polynomials. Todo: check default & relation to 'power'
+    lo_power = kwargs.get('power', order + 2) # The maximal power by which we want to expand exponential series when evaluating Lie operators. Todo: check default.
+    
+    if type(H) != dict:
+        # obtain an expansion of H in terms of complex first-order normal form coordinates
+        kwargs['power'] = power
+        taylor_coeffs, nfdict = first_order_nf_expansion(H, tol=tol, **kwargs)
+    else:
+        # Attention: In this case we assume that H is already in complex normal form (CNF): Off-diagonal entries will be ignored (see code below).
+        taylor_coeffs = H
+        nfdict = {}
+        
+    # get the dimension (by looking at one key in the dict)
+    dim2 = len(next(iter(taylor_coeffs)))
+    dim = dim2//2
+            
+    # define mu and H0. For H0 we skip any (small) off-diagonal elements as they must be zero by construction.
+    H0 = {}
+    mu = []
+    for j in range(dim): # add the second-order coefficients (tunes)
+        tpl = tuple([0 if k != j and k != j + dim else 1 for k in range(dim2)])
+        muj = taylor_coeffs[tpl]
+        assert muj.imag < tol
+        muj = muj.real
+        H0[tpl] = muj
+        mu.append(muj)
+    H0 = poly(values=H0, dim=dim, max_power=max_power)
+    
+    # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
+    # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
+    # to the original problem. By default, the user will be informed if there is a non-zero gradient 
+    # in 'first_order_nf_expansion' routine.
+    H = H0.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
+    
+    # Induction start (k = 2); get P_3 and R_4. Z_2 is set to zero.
+    Zk = poly(dim=dim, max_power=max_power) # Z_2
+    Pk = H.homogeneous_part(3) # P_3
+    Hk = H.copy() # H_2 = H
+        
+    chi_all, Hk_all = [], [H]
+    Zk_all, Qk_all = [], []
+    for k in range(3, power + 1):
+        chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
+        if len(chi) == 0:
+            # in this case the canonical transformation will be the identity and so the algorithm stops.
+            break
+        Hk = lexp(-chi, power=lo_power)(Hk)
+        # Hk = lexp(-chi, power=k + 1)(Hk) # faster but likely inaccurate; need tests
+        Pk = Hk.homogeneous_part(k + 1)
+        Zk += Q 
+        
+        chi_all.append(chi)
+        Hk_all.append(Hk)
+        Zk_all.append(Zk)
+        Qk_all.append(Q)
+
+    # assemble output
+    out = {}
+    out['nfdict'] = nfdict
+    out['H'] = H
+    out['H0'] = H0
+    out['mu'] = mu    
+    out['chi'] = chi_all
+    out['Hk'] = Hk_all
+    out['Zk'] = Zk_all
+    out['Qk'] = Qk_all
+        
+    return out
+
     
 class lexp(lieoperator):  
     '''
@@ -905,8 +1086,19 @@ class lexp(lieoperator):
     def __init__(self, x, power=10, *args, **kwargs):
         
         self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
-        kwargs['generator'] = genexp(power)   
+        kwargs['generator'] = genexp(power)
+        self.code = kwargs.get('code', 'numpy')
         lieoperator.__init__(self, x=x, *args, **kwargs)
+        
+    def set_argument(self, H, **kwargs):
+        if not H.__class__.__name__ == 'poly':
+            assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
+            self.order = kwargs['order']
+            # obtain an expansion of H in terms of complex first-order normal form coordinates
+            taylor_coeffs, self.nfdict = first_order_nf_expansion(H, code=self.code, **kwargs)
+            lieoperator.set_argument(self, x=poly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
+        else: # original behavior
+            lieoperator.set_argument(self, x=H, **kwargs)
         
     def bch(self, other, **kwargs):
         '''
@@ -938,6 +1130,21 @@ class lexp(lieoperator):
     
     def __matmul__(self, other):
         return self.bch(other)
+    
+    def bnf(self, order: int=1, output=True, **kwargs):
+        '''
+        Compute the Birkhoff normal form of the current Lie exponential operator.
+        
+        Parameters
+        ----------
+        order: int, optional
+            Order up to which the normal form should be computed.
+            
+        **kwargs
+            Optional arguments passed to 'bnf' routine.
+        '''
+        return bnf(self.argument, order=order, power=self.power, 
+                  max_power=self.argument.max_power, n_args=self.argument.dim*2, **kwargs)
     
 def combine(*args, power: int, **kwargs):
     '''
