@@ -432,11 +432,11 @@ def test_construct(a: int=3, b: int=5, k: int=7):
     assert eps@eps_ab == -1j*(b - a)*eps_ab
     assert eps**k@eps_ab == -1j*k*eps**(k - 1)*(b - a)*eps_ab
     
-    sin_eps = construct(eps, sin, power=20)
-    cos_eps = construct(eps, cos, power=20)
+    sin_eps = construct(sin, eps, power=20)
+    cos_eps = construct(cos, eps, power=20)
     assert sin_eps@eps_ab == -1j*cos_eps*(b - a)*eps_ab
     
-    exp_eps = construct(1j*eps/(b - a), exp, power=10)
+    exp_eps = construct(exp, 1j*eps/(b - a), power=10)
     assert exp_eps@eps_ab == exp_eps*eps_ab
     assert exp_eps**k@eps_ab == k*exp_eps**k*eps_ab
     

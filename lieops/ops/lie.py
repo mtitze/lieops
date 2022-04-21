@@ -549,20 +549,20 @@ def create_coords(dim, cartesian=False, **kwargs):
     return resultx + resulty
 
 
-def construct(lps, f, **kwargs):
+def construct(f, *lps, **kwargs):
     r'''
-    Let z = [z1, ..., zk] be Lie polynomials and f an analytical function, taking k values.
+    Let z1, ..., zk be Lie polynomials and f an analytical function, taking k values.
     Depending on the input, this routine will either return the Lie polynomial :f(z1, ..., zk): or
     the map f(z1, ..., zk).
     
     Parameters
     ----------
-    lps: poly or list of poly objects
-        The Lie polynomial(s) to be constructed.
-        
     f: callable
         A function on which we want to apply the list of poly objects.
         It needs to be supported by the njet module.
+        
+    lps: poly
+        The Lie polynomial(s) to be constructed.
         
     power: int, optional
         The maximal power of the resulting Lie polynomial (default: float('inf')).
@@ -580,9 +580,8 @@ def construct(lps, f, **kwargs):
         As described above, depending on the 'power' input parameter, either the map f(z1, ..., zk) or
         the Lie polynomial :f(z1, ..., zk): is returned.
     '''
-    if lps.__class__.__name__ == 'poly':
-        lps = [lps]
     n_args_f = len(lps)
+    assert n_args_f > 0
     dim_poly = lps[0].dim
     
     assert n_args_f == f.__code__.co_argcount, 'Input function depends on a different number of arguments.'
