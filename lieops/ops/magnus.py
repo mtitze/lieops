@@ -278,10 +278,9 @@ class hard_edge_chain:
         result_values = []
         constant = 0
         for X in self.values:
-            IX, constant_last = X.integrate(constant=constant)
+            IX, constant = X.integrate(constant=constant)
             result_values.append(IX)
-            constant += constant_last # use individual constants to be added to the integral for the next hard-edge functions
-        return self.__class__(values=result_values, integral=constant_last)
+        return self.__class__(values=result_values, integral=constant)
     
     def __str__(self):
         out = ''

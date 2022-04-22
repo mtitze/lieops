@@ -29,7 +29,7 @@ class poly:
         # self.dim denotes the number of xi (or eta)-factors.
         if 'values' in kwargs.keys():
             self._values = kwargs['values']
-        elif 'a' in kwargs.keys() or 'b' in kwargs.keys():
+        elif 'a' in kwargs.keys() or 'b' in kwargs.keys(): # simplified building
             self.set_monomial(**kwargs)
         else:
             self._values = {}
@@ -1161,6 +1161,7 @@ class lexp(lieoperator):
         return bnf(self.argument, order=order, power=self.power, 
                   max_power=self.argument.max_power, n_args=self.argument.dim*2, **kwargs)
     
+    
 def combine(*args, power: int, **kwargs):
     '''
     Compute the Lie polynomials of the Magnus expansion, up to a given order.
@@ -1198,7 +1199,7 @@ def combine(*args, power: int, **kwargs):
     assert type(power) == int and power >= 0
     dim = args[0].dim
     assert all([op.dim == dim for op in args]), 'The number of variables of the individual Lie-operators are different.'
-
+    
     lengths = kwargs.get('lengths', [1]*n_operators)
     kwargs['max_power'] = kwargs.get('max_power', min([op.max_power for op in args]))
     # The given Lie-polynomials p_1, p_2, ... are representing the chain exp(:p_1:) exp(:p_2:) ... exp(:p_k:) of Lie operators.
@@ -1212,7 +1213,7 @@ def combine(*args, power: int, **kwargs):
     all_powers = set([k for op in args for k in op.keys()])    
     hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args[m].get(k, 0)], lengths={1: lengths[m]}) for m in range(n_operators)]) for k in all_powers}
     hamiltonian = poly(values=hamiltonian_values, **kwargs)
-        
+    
     # Now perform the integration up to the requested power.
     z_series = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
     out = {}
