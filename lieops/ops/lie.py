@@ -565,10 +565,13 @@ def construct(f, *lps, **kwargs):
         The Lie polynomial(s) to be constructed.
         
     power: int, optional
-        The maximal power of the resulting Lie polynomial (default: float('inf')).
+        The maximal power of the resulting Lie polynomial (default: inf).
         If a value is provided, the routine will return a class of type poly, representing
         a Lie polynomial. If nothing is provided, the routine will return the function
         f(z1, ..., zk)
+        
+    max_power: int, optional
+        See poly.__init__; only used if power < inf.
         
     point: list, optional
         Only relevant if power != inf. A point around f will be expanded. If nothing specified, 
@@ -594,9 +597,10 @@ def construct(f, *lps, **kwargs):
         return construction
     else:
         point = kwargs.get('point', [0]*2*dim_poly)
+        max_power = kwargs.get('max_power', min([l.max_power for l in lps]))
         dcomp = derive(construction, order=power, n_args=2*dim_poly)
         taylor_coeffs = dcomp(point, mult_drv=False)
-        return poly(values=taylor_coeffs, dim=dim_poly, max_power=power)
+        return poly(values=taylor_coeffs, dim=dim_poly, max_power=max_power)
 
 class lieoperator:
     '''
@@ -818,8 +822,8 @@ class lieoperator:
         
         Parameters
         ----------
-        z: poly or list of poly classes
-            The Lie polynomial(s) on which to apply the current Lie operator.
+        z: poly classe(s)
+            The polynomial(s) on which to apply the current Lie operator.
             
         Returns
         -------
@@ -1203,9 +1207,7 @@ def combine(*args, power: int, **kwargs):
     lengths = kwargs.get('lengths', [1]*n_operators)
     kwargs['max_power'] = kwargs.get('max_power', min([op.max_power for op in args]))
     # The given Lie-polynomials p_1, p_2, ... are representing the chain exp(:p_1:) exp(:p_2:) ... exp(:p_k:) of Lie operators.
-    # This means that the last entry p_k is the operator which is executed first. In the hard-edge model, the first entry
-    # belongs to the s-dependent Hamiltonian representing the entire chain of the above operators. Therefore, p_k must come first and so
-    # the lists have to be reversed:
+    # This means that the last entry p_k is the operator is executed first:
     args = args[::-1] 
     lengths = lengths[::-1]
     

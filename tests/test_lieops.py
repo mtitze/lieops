@@ -421,7 +421,7 @@ def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
     assert all([all([abs(check[i, j]) < tol for i in range(2)]) for j in range(2)])
     
 
-def test_construct(a: int=3, b: int=5, k: int=7):
+def test_construct(a: int=3, b: int=5, k: int=7, tol=1e-14):
     # test if :sin(xi*eta):, :cos(xi*eta):, :exp(xi*eta): applied to xi**a*eta**b gives
     # values as expected.
     
@@ -432,13 +432,18 @@ def test_construct(a: int=3, b: int=5, k: int=7):
     assert eps@eps_ab == -1j*(b - a)*eps_ab
     assert eps**k@eps_ab == -1j*k*eps**(k - 1)*(b - a)*eps_ab
     
-    sin_eps = construct(sin, eps, power=20)
-    cos_eps = construct(cos, eps, power=20)
-    assert sin_eps@eps_ab == -1j*cos_eps*(b - a)*eps_ab
+    sin_eps = construct(sin, eps, power=30)
+    cos_eps = construct(cos, eps, power=30)
     
-    exp_eps = construct(exp, 1j*eps/(b - a), power=10)
-    assert exp_eps@eps_ab == exp_eps*eps_ab
-    assert exp_eps**k@eps_ab == k*exp_eps**k*eps_ab
+    diff1 = sin_eps@eps_ab + 1j*cos_eps*(b - a)*eps_ab
+    assert max([abs(v) for v in diff1.values()]) < tol
+    
+    exp_eps = construct(exp, 1j*eps/(b - a), power=30)
+    
+    diff2 = exp_eps@eps_ab - exp_eps*eps_ab
+    assert max([abs(v) for v in diff2.values()]) < tol
+    diff3 = exp_eps**k@eps_ab - k*exp_eps**k*eps_ab
+    assert max([abs(v) for v in diff3.values()]) < tol
     
     
 def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
