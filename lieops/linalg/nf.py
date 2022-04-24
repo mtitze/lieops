@@ -698,7 +698,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         Attention: A check if H2@J is diagonalizable is not done explicitly.
         
     T: matrix, optional
-        Orthogonal matrix to change the ordering of canoncial
+        Permutation matrix to change the ordering of canoncial
         coordinates and momenta, given here by default as (q1, ..., qn, p1, ..., pn), 
         into a different order. I.e. T transforms the 
         (n x n) block matrix
@@ -730,7 +730,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         J: The (original) symplectic structure J' = T.transpose()@J@T within which the input Hamiltonian was formulated.
             Hereby J is the block-matrix from above.
         J2: The new symplectic structure for the (xi, eta)-coordinates.
-        U: The unitary map from the S(p, q) = (u, v)-block coordinates to the (xi, eta)-coordinates.
+        U: The unitary map from the S(q, p) = (u, v)-block coordinates to the (xi, eta)-coordinates.
         Uinv: The inverse of U.
         K: The linear map transforming (q, p) to (xi, eta)-coordinates. K is given by U*S*T.
         Kinv: The inverse of K. Hence, it will transform H2 to complex normal form via Kinv.transpose()*H2*Kinv.
@@ -745,7 +745,8 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         
     # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
-        H2 = T@H2@T.transpose()
+        T_ctr = T.transpose()
+        H2 = T@H2@T_ctr
 
     J = column_matrix_2_code(create_J(dim//2), code=code)
     
@@ -767,9 +768,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         # OLD code, using Williamson or "unitary" Williamson.      
         if is_positive_definite(H2):
             S, D = williamson(V=H2, **kwargs)
-            # The first dim columns of S denote (new) canonical positions u, the last dim columns of S
-            # denote (new) canonical momenta v. We now get the block-matrix U, transforming the block-vector (u, v) to
-            # (xi, eta) (as e.g. defined in my thesis):
+
             U = _create_umat_xieta(dim=dim, code=code, **kwargs)
             Sinv = -J@S.transpose()@J
         else:
@@ -779,23 +778,25 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
             S = -J@Sinv.transpose()@J
     else:
         raise RuntimeError(f"Mode '{mode}' not recognized.")
+    # The first dim columns of S denote (new) canonical positions u, the last dim columns of S
+    # denote (new) canonical momenta v: S(q, p) = (u, v)
         
     # U is hermitian, therefore
     Uinv = U.transpose().conjugate()
 
-    # N.B. (p, J*q) = (Sp, J*S*q) = (u, J*v) = (Uinv*U*u, J*Uinv*U*v) = (Uinv*xi, J*Uinv*eta). Thus:
+    # N.B. (q, J*p) = (Sq, J*S*p) = (u, J*v) = (Uinv*U*u, J*Uinv*U*v) = (Uinv*xi, J*Uinv*eta). Thus:
     J2 = Uinv.transpose()@J@Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
 
-    K = U@S # K(p, q) = (xi, eta)
+    K = U@S # K(q, p) = (xi, eta)
     Kinv = Sinv@Uinv  # this map will transform to the new (xi, eta)-coordinates via Kinv.transpose()*H2*Kinv
 
     if len(T) != 0: # transform results back to the requested (q, p)-ordering
-        S = T.transpose()@S@T
-        Sinv = T.transpose()@Sinv@T
-        J = T.transpose()@J@T
-        H2 = T.transpose()@H2@T
+        S = T_ctr@S@T
+        Sinv = T_ctr@Sinv@T
+        J = T_ctr@J@T
+        H2 = T_ctr@H2@T
         K = K@T
-        Kinv = T.transpose()@Kinv
+        Kinv = T_ctr@Kinv
     
     # assemble output
     out = {}
@@ -814,7 +815,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     out['cnf'] = Kinv.transpose()@H2@Kinv # the representation of H2 in (xi, eta)-coordinates
     return out
 
-def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: int=0, tol: float=1e-14, 
+def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: int=0, tol: float=1e-14,
                              code='numpy', **kwargs):
     '''
     Return the Taylor-expansion of a Hamiltonian H in terms of first-order complex normal form coordinates

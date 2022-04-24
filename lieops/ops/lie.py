@@ -3,7 +3,7 @@ import numpy as np
 from njet.jet import factorials, check_zero
 from njet import derive, jetpoly
 
-from lieops.linalg.nf import normal_form, first_order_nf_expansion
+from lieops.linalg.nf import normal_form, first_order_nf_expansion, _create_umat_xieta
 
 from .genfunc import genexp
 from .magnus import hard_edge, hard_edge_chain, norsett_iserles
@@ -503,7 +503,7 @@ class poly:
         else:
             out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.items()}
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
-            
+        
     
 def create_coords(dim, cartesian=False, **kwargs):
     '''
@@ -954,7 +954,7 @@ def homological_eq(mu, Z, **kwargs):
             Q[powers] = value
     return chi, Q
 
-def bnf(H, order: int=1, tol=1e-12, **kwargs):
+def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
     '''
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
@@ -965,10 +965,8 @@ def bnf(H, order: int=1, tol=1e-12, **kwargs):
     ----------
     H: callable or dict
         Defines the Hamiltonian to be normalized. 
-        I) If H is of type dict, then it must be of the
-        form (e.g. for phase space dimension 4): {(i, j, k, l): value}, where the tuple (i, j, k, l)
-        denotes the exponents in xi1, xi2, eta1, eta2.
-        Furthermore, H must already be in complex normal form, i.e. its second-order coefficients must
+        I) If H is of type poly, then either H should
+        already be in complex normal form, i.e. its second-order coefficients must
         be a sum of xi*eta-terms.
         II) If H is callable, then a transformation to complex normal form is performed beforehand.
                 
@@ -976,12 +974,10 @@ def bnf(H, order: int=1, tol=1e-12, **kwargs):
         The order up to which we build the normal form. Here order = k means that we compute
         k homogeneous Lie-polynomials, where the smallest one will have power k + 2 and the 
         succeeding ones will have increased powers by 1.
-        
-    max_power: int, optional
-        An optional maximal power to be taken into consideration when applying ad-operations between Lie-polynomials.
-        
-    power: int, optional
-        A maximal power by which we want to expand any exponential ad-series while evaluating Lie operators.
+    
+    cmplx: boolean, optional
+        By default we will assume that the coefficients of the second-order terms of the Hamiltonian are real.
+        If cmplx=False, a check will be done and an error will be raised if that is not the case.
         
     tol: float, optional
         Tolerance below which we consider a value as zero. This will be used when examining the second-order
@@ -1010,10 +1006,24 @@ def bnf(H, order: int=1, tol=1e-12, **kwargs):
     max_power = kwargs.get('max_power', order + 2) # the maximal power to be taken into consideration when applying ad-operations between Lie-polynomials. Todo: check default & relation to 'power'
     lo_power = kwargs.get('power', order + 2) # The maximal power by which we want to expand exponential series when evaluating Lie operators. Todo: check default.
     
-    if type(H) != dict:
-        # obtain an expansion of H in terms of complex first-order normal form coordinates
+    #######################
+    # STEP 1: Preparation
+    #######################
+    
+    if hasattr(H, '__call__'):
+        # assume that H is given as a function, depending on phase space coordinates.
         kwargs['power'] = power
-        taylor_coeffs, nfdict = first_order_nf_expansion(H, tol=tol, **kwargs)
+        Hinp = H
+        if isinstance(H, poly):
+            # we have to transfom the call-routine of H: H depend on (xi, eta)-coordinates, but the nf routines later on assume (q, p)-coordinates.
+            # In principle, one can change this transformation somewhere else, but this may cause the normal form routines
+            # to either yield inconsistent output at a general point z -- or it may introduce additional complexity. 
+            # TODO: add expansion as class function in poly instead?
+            U = _create_umat_xieta(dim=2*H.dim, code=kwargs.get('code', 'numpy'))
+            Hinp = lambda Z: H([sum([Z[l]*U[k, l] for l in range(2*H.dim)]) for k in range(2*H.dim)]) # need to set 2*H.dim here, so that 'derive' later on recognizes two 'independent' directions (otherwise the Hesse matrix will get half its dimensions).
+            # if z in kwargs.keys()
+            # TODO/Check: may need to transform this value as well
+        taylor_coeffs, nfdict = first_order_nf_expansion(Hinp, tol=tol, **kwargs)      
     else:
         # Attention: In this case we assume that H is already in complex normal form (CNF): Off-diagonal entries will be ignored (see code below).
         taylor_coeffs = H
@@ -1029,11 +1039,16 @@ def bnf(H, order: int=1, tol=1e-12, **kwargs):
     for j in range(dim): # add the second-order coefficients (tunes)
         tpl = tuple([0 if k != j and k != j + dim else 1 for k in range(dim2)])
         muj = taylor_coeffs[tpl]
-        assert muj.imag < tol
-        muj = muj.real
+        # remove tpl from taylor_coeffs, to verify that later on, all Taylor coefficients have no remaining 2nd-order coeff (see below).
+        taylor_coeffs.pop(tpl)
+        if not cmplx:
+            # by default we assume that the coefficients in front of the 2nd order terms are real.
+            assert muj.imag < tol, f'Imaginary part of entry {j} above tolerance: {muj.imag} >= {tol}. Check input or try cmplx=True option.'
+            muj = muj.real
         H0[tpl] = muj
         mu.append(muj)
     H0 = poly(values=H0, dim=dim, max_power=max_power)
+    assert len({k: v for k, v in taylor_coeffs.items() if sum(k) == 2 and abs(v) >= tol}) == 0 # All other 2nd order Taylor coefficients must be zero.
     
     # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
     # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
@@ -1041,6 +1056,10 @@ def bnf(H, order: int=1, tol=1e-12, **kwargs):
     # in 'first_order_nf_expansion' routine.
     H = H0.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
     
+    ########################
+    # STEP 2: NF-Algorithm
+    ########################
+               
     # Induction start (k = 2); get P_3 and R_4. Z_2 is set to zero.
     Zk = poly(dim=dim, max_power=max_power) # Z_2
     Pk = H.homogeneous_part(3) # P_3
