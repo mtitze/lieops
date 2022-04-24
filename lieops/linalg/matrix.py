@@ -191,7 +191,7 @@ class cmat: # TODO: May work on a class to conveniently switch between numpy and
     
     def __add__(self, other):
         result = {}
-        if self.__class__.__name__ != other.__class__.__name__:
+        if not isinstance(self, type(other)):
             # add value to every entry
             for k in self.entries.keys():
                 sum_value = self.entries[k] + other

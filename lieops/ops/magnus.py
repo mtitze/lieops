@@ -50,7 +50,7 @@ class hard_edge:
         '''
         Convert argument to self.__class__.
         '''
-        if other.__class__.__name__ != self.__class__.__name__:
+        if not isinstance(self, type(other)):
             kwargs['lengths'] = kwargs.get('lengths', self._integral_lengths)
             return self.__class__(values=[other], **kwargs)
         else:
@@ -66,7 +66,7 @@ class hard_edge:
         (0 + 2*s + 1*s**2)*(1 + 1*s) = 0 + 2*s + 3*s**2 + 1*s**3
         corresponding to [0, 2, 3, 1].
         '''
-        if self.__class__.__name__ == other.__class__.__name__:
+        if isinstance(self, type(other)):
             assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad
             vals_mult = [0]*(self.order + other.order)
             max_power_used = 0 # to drop unecessary zeros later on
@@ -86,7 +86,7 @@ class hard_edge:
         return result
     
     def __add__(self, other):
-        if self.__class__.__name__ == other.__class__.__name__:
+        if isinstance(self, type(other)):
             assert self._integral_lengths[1] == other._integral_lengths[1] # may be dropped if performance is bad
             vals_add = []
             if self.order == other.order:
@@ -154,7 +154,7 @@ class hard_edge:
         return self.__class__(values=power_coeffs, lengths=self._integral_lengths), integral # self._integral_lengths may be modified in the original object, by the additional key. This is intended to avoid unecessary calculations.
     
     def __eq__(self, other):
-        if self.__class__.__name__ != other.__class__.__name__:
+        if not isinstance(self, type(other)):
             # In this case there may be a check of 'self' against a float like zero.
             # we have to return False here, otherwise e.g. liepoly elements containing hard_edge elements may lose some keys
             # (as they will not keep track of keys containing zeros) and eventually drop out.
@@ -205,7 +205,7 @@ class hard_edge_chain:
     
     def __mul__(self, other):
         result = []
-        if self.__class__.__name__ == other.__class__.__name__:
+        if isinstance(self, type(other)):
             assert len(self) == len(other)
             for k in range(len(self)): 
                 result.append(self[k]*other[k])
@@ -224,7 +224,7 @@ class hard_edge_chain:
         Attention: It is not checked (but assumed) that the respective element names of the hard_edge objects are equal.
         '''
         result = []
-        if self.__class__.__name__ == other.__class__.__name__:
+        if isinstance(self, type(other)):
             assert len(self) == len(other)
             # the integral lengths of power 1 must be equal; we drop this check for the time being (to improve performance)
             #assert all([self.values[k]._integral_lengths[1] == other.values[k]._integral_lengths[1] for k in range(len(self))])
@@ -250,13 +250,13 @@ class hard_edge_chain:
         
         Attention: No check regarding self._integral_constant.
         '''
-        if self.__class__.__name__ == other.__class__.__name__:
-            if len(self.values) != len(other.values):
+        if isinstance(self, type(other)):
+            if len(self) != len(other):
                 return False
             else:
-                return all([self.values[k] == other.values[k] for k in range(len(self.values))])
+                return all([self[k] == other[k] for k in range(len(self))])
         else:
-            return all([self.values[k] == other for k in range(len(self.values))])
+            return all([self[k] == other for k in range(len(self))])
         
     def integrate(self):
         '''

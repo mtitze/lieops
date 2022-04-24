@@ -124,8 +124,8 @@ class poly:
             where z = (xi, eta) denote a set of complex conjugated coordinates.
         '''
         # some consistency check
-        if z.__class__.__name__ == self.__class__.__name__:
-            raise TypeError(f"Input of type '{self.__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for poly objects.
+        if isinstance(self, type(z)):
+            raise TypeError(f"Input of type '{z.__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for poly objects.
         
         # prepare input vector
         if len(z) == self.dim:
@@ -154,7 +154,7 @@ class poly:
         if other == 0:
             return self
         add_values = {k: v for k, v in self.items()}
-        if self.__class__.__name__ != other.__class__.__name__:
+        if not isinstance(self, type(other)):
             # Treat other object as constant.
             if not check_zero(other):
                 zero_tpl = (0,)*self.dim*2
@@ -192,7 +192,7 @@ class poly:
         '''
         Compute the Poisson-bracket {self, other}
         '''
-        if self.__class__.__name__ != other.__class__.__name__:
+        if not isinstance(self, type(other)):
             raise TypeError(f"unsupported operand type(s) for poisson: '{self.__class__.__name__}' and '{other.__class__.__name__}'.")
         assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
         max_power = min([self.max_power, other.max_power])
@@ -219,7 +219,7 @@ class poly:
         return self.__class__(values=poisson_values, dim=self.dim, max_power=max_power)
     
     def __mul__(self, other):
-        if self.__class__.__name__ == other.__class__.__name__:
+        if isinstance(self, type(other)):
             assert self.dim == other.dim
             dim2 = 2*self.dim
             max_power = min([self.max_power, other.max_power])
@@ -246,7 +246,7 @@ class poly:
     
     def __truediv__(self, other):
         # implement '/' operator
-        if self.__class__.__name__ != other.__class__.__name__:
+        if not isinstance(self, type(other)):
             # Attention: If other is a NumPy array, there is no check if one of the entries is zero.
             return self.__class__(values={k: v/other for k, v in self.items() if not check_zero(other)}, 
                                           dim=self.dim, max_power=self.max_power)
@@ -276,7 +276,7 @@ class poly:
         return len(self._values)
     
     def __eq__(self, other):
-        if self.__class__.__name__ == other.__class__.__name__:
+        if isinstance(self, type(other)):
             return self._values == other._values
         else:
             if self.maxdeg() != 0:
@@ -343,7 +343,7 @@ class poly:
         list
             List [x**k(y) for k in range(n + 1)], if n is the power requested.
         '''
-        if self.__class__.__name__ != y.__class__.__name__:
+        if not isinstance(self, type(y)):
             raise TypeError(f"unsupported operand type(s) for adjoint: '{self.__class__.__name__}' on '{y.__class__.__name__}'.")
         assert power >= 0
         
@@ -627,7 +627,7 @@ class lieoperator:
             _ = self.calcFlow(**kwargs)
             
     def set_argument(self, x, **kwargs):
-        assert x.__class__.__name__ == 'poly'
+        assert isinstance(x, poly)
         self.argument = x
         self.n_args = 2*self.argument.dim
         
@@ -831,7 +831,7 @@ class lieoperator:
             Depending on the input, either the poly g(:x:)y is returned, or a list g(:x:)y for the given
             poly elements y.
         '''
-        if z.__class__.__name__ == 'poly':
+        if isinstance(z, poly):
             _ = self.calcOrbits(components=[z], **kwargs)
             return self.calcFlow(**kwargs)[0]
         else:
@@ -862,16 +862,16 @@ class lieoperator:
                poly class (see self.apply).
             3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
         '''
-        if z.__class__.__name__ == 'poly':
+        if isinstance(z, poly):
             return self.apply(z, **kwargs)
-        elif z.__class__.__name__ == self.__class__.__name__:
+        elif isinstance(z, type(self)):
             if hasattr(self, 'bch'):
                 return self.bch(z, **kwargs)
             else:
                 raise NotImplementedError(f"Composition of two objects of type '{self.__class__.__name__}' not supported.")
         else:
             assert hasattr(z, '__getitem__'), 'Input needs to be subscriptable.'
-            if z[0].__class__.__name__ == 'poly':
+            if isinstance(z[0], poly):
                 return self.apply(z, **kwargs)
             else:
                 return self.evaluate(z, **kwargs)
@@ -1113,7 +1113,7 @@ class lexp(lieoperator):
         lieoperator.__init__(self, x=x, *args, **kwargs)
         
     def set_argument(self, H, **kwargs):
-        if not H.__class__.__name__ == 'poly':
+        if not isinstance(H, poly):
             assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
             self.order = kwargs['order']
             # obtain an expansion of H in terms of complex first-order normal form coordinates
@@ -1145,13 +1145,13 @@ class lexp(lieoperator):
         lieoperator
             The resulting Lie operator of the composition.
         '''
-        assert self.__class__.__name__ == other.__class__.__name__
+        assert isinstance(self, type(other))
         kwargs['power'] = kwargs.get('power', self._compose_power_default)
         comb, _ = combine(self.argument, other.argument, max_power=self.argument.max_power, **kwargs)
         return self.__class__(sum(comb.values()), power=self.power)
     
     def __matmul__(self, other):
-        if self.__class__.__name__ == other.__class__.__name__:
+        if isinstance(self, type(other)):
             return self.bch(other)
         else:
             # we shall assume that 'other' is subscriptable with respect to a tuple of indices (i.e. a matrix)
@@ -1182,7 +1182,7 @@ class lexp(lieoperator):
             Optional arguments passed to 'bnf' routine.
         '''
         return bnf(self.argument, order=order, power=self.power, 
-                  max_power=self.argument.max_power, n_args=self.argument.dim*2, **kwargs)
+                  max_power=self.argument.max_power, n_args=self.argument.dim*2, code=self.code, **kwargs)
     
     
 def combine(*args, power: int, **kwargs):
