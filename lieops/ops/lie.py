@@ -25,7 +25,7 @@ class poly:
     **kwargs
         Optional arguments passed to self.set_monimial
     '''
-    def __init__(self, max_power=float('inf'), **kwargs):
+    def __init__(self, **kwargs):
         # self.dim denotes the number of xi (or eta)-factors.
         if 'values' in kwargs.keys():
             self._values = kwargs['values']
@@ -39,9 +39,9 @@ class poly:
         else:
             self.dim = kwargs.get('dim', len(next(iter(self._values)))//2)
             
-        self.set_max_power(max_power)
+        self.set_max_power(**kwargs)
         
-    def set_max_power(self, max_power):
+    def set_max_power(self, max_power=float('inf'), **kwargs):
         self.max_power = max_power
         self._values = {k: v for k, v in self.items() if sum(k) <= max_power}
         
@@ -60,7 +60,7 @@ class poly:
         if len(self._values) == 0:
             return 0
         else:
-            return max([sum(k) for k, v in self.items()])
+            return max([0] + [sum(k) for k, v in self.items() if not check_zero(v)])
     
     def mindeg(self):
         '''
@@ -139,15 +139,14 @@ class poly:
             z_powers[j] = {k: z[j]**int(k) for k in np.unique(we)} # need to convert k to int, 
             # otherwise we get a conversion to some numpy array if z is not a float (e.g. an njet).
             j += 1
-            
+        
         # evaluate polynomial at requested point
         result = 0
         for k, v in self.items():
             prod = 1
             for j in range(self.dim):
                 prod *= z_powers[j][k[j]]*z_powers[j + self.dim][k[j + self.dim]]
-            result += prod*v # v needs to stay on the right-hand side here, because prod may be a jet class (if we
-            # compute the derivative(s) of the Lie polynomial)
+            result += prod*v # v needs to stay on the right-hand side here, because prod may be a jet class (if we compute the derivative(s) of the Lie polynomial)
         return result
         
     def __add__(self, other):
@@ -898,23 +897,6 @@ class lieoperator:
             out.flow = [l.copy() for l in self.flow]
         return out
 
-def Omega(mu, a, b):
-    '''
-    Compute the scalar product of mu and a - b.
-    
-    Parameters
-    ----------
-    mu: subscriptable
-    a: subscriptable
-    b: subscriptable
-    
-    Returns
-    -------
-    float
-        The scalar product (mu, a - b).
-    '''
-    return sum([mu[k]*(a[k] - b[k]) for k in range(len(mu))])
-
 def homological_eq(mu, Z, **kwargs):
     '''
     Let e[k], k = 1, ..., len(mu) be actions, H0 := sum_k mu[k]*e[k] and Z a
@@ -947,7 +929,7 @@ def homological_eq(mu, Z, **kwargs):
     '''
     chi, Q = poly(values={}, dim=Z.dim, **kwargs), poly(values={}, dim=Z.dim, **kwargs)
     for powers, value in Z.items():
-        om = Omega(mu, powers[:Z.dim], powers[Z.dim:])
+        om = sum([(powers[k] - powers[Z.dim + k])*mu[k] for k in range(len(mu))])
         if om != 0:
             chi[powers] = 1j/om*value
         else:
@@ -1096,31 +1078,32 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
     return out
 
     
-class lexp(lieoperator):  
-    '''
-    Class to describe Lie operators of the form
-      exp(:x:),
-    where :x: is a poly class.
+class lexp(lieoperator):
     
-    In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
-    '''
-
     def __init__(self, x, power=10, *args, **kwargs):
-        
+        '''
+        Class to describe Lie operators of the form
+          exp(:x:),
+        where :x: is a poly class.
+
+        In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
+        '''
         self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
         kwargs['generator'] = genexp(power)
         self.code = kwargs.get('code', 'numpy')
         lieoperator.__init__(self, x=x, *args, **kwargs)
         
     def set_argument(self, H, **kwargs):
-        if not isinstance(H, poly):
+        if isinstance(H, poly): # original behavior
+            lieoperator.set_argument(self, x=H, **kwargs)           
+        elif hasattr(H, '__call__'): # H a general function (Hamiltonian)
             assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
             self.order = kwargs['order']
             # obtain an expansion of H in terms of complex first-order normal form coordinates
             taylor_coeffs, self.nfdict = first_order_nf_expansion(H, code=self.code, **kwargs)
             lieoperator.set_argument(self, x=poly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
-        else: # original behavior
-            lieoperator.set_argument(self, x=H, **kwargs)
+        else:
+            raise RuntimeError(f"Argument of type '{H.__class__.__name__}' not supported.")
         
     def bch(self, other, **kwargs):
         '''
@@ -1147,31 +1130,32 @@ class lexp(lieoperator):
         '''
         assert isinstance(self, type(other))
         kwargs['power'] = kwargs.get('power', self._compose_power_default)
-        comb, _ = combine(self.argument, other.argument, max_power=self.argument.max_power, **kwargs)
-        return self.__class__(sum(comb.values()), power=self.power)
+        comb, _ = combine(self.argument, other.argument, **kwargs)
+        if len(comb) > 0:
+            outp = sum(comb.values())
+        else: # return zero poly
+            outp = poly()
+        return self.__class__(outp, power=self.power)
     
     def __matmul__(self, other):
         if isinstance(self, type(other)):
             return self.bch(other)
         else:
-            # we shall assume that 'other' is subscriptable with respect to a tuple of indices (i.e. a matrix)
-            assert hasattr(other, '__iter__') and hasattr(other, '__len__')
-            assert len(other) > 0
-            assert all([hasattr(other[k], '__iter__') and hasattr(other[k], '__len__') for k in range(len(other))])
-            assert all([len(other[k]) == len(self.components) for k in range(len(other))])
-            result = self.copy()
-            new_components = []
-            for k in range(len(other)):
-                sum_k = 0
-                for l in range(len(other[k])):
-                    sum_k += self.components[l]*other[k][l]
-                new_components.append(sum_k)
-            _ = result.apply(z=new_components)
-            return result
+            raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
     
     def bnf(self, order: int=1, output=True, **kwargs):
         '''
         Compute the Birkhoff normal form of the current Lie exponential operator.
+        
+        Example
+        ------- 
+        nf = self.bnf()
+        echi1 = nf['chi'][0].flow(t=1) # exp(:chi1:)
+        echi1i = nf['chi'][0].flow(t=-1) # exp(-:chi1:)
+        
+        Then the map 
+          z -> exp(:chi1:)(self(exp(-:chi1:)(z))) 
+        will be in NF.
         
         Parameters
         ----------
@@ -1244,5 +1228,6 @@ def combine(*args, power: int, **kwargs):
             lp, factor = tpl
             # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:            
             out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
-        out[order] = out_order
+        if out_order != 0:
+            out[order] = out_order
     return out, hamiltonian
