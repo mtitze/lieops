@@ -511,7 +511,7 @@ class poly:
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
         
     
-def create_coords(dim, cartesian=False, **kwargs):
+def create_coords(dim, real=False, **kwargs):
     '''
     Create a set of complex (xi, eta)-Lie polynomials for a given dimension.
     
@@ -520,8 +520,8 @@ def create_coords(dim, cartesian=False, **kwargs):
     dim: int
         The requested dimension.
         
-    cartesian: boolean, optional
-        If true, create cartesian coordinates q and p instead. 
+    real: boolean, optional
+        If true, create real-valued coordinates q and p instead. 
         
         Note that it holds:
         q = (xi + eta)/sqrt(2)
@@ -539,7 +539,7 @@ def create_coords(dim, cartesian=False, **kwargs):
     resultx, resulty = [], []
     for k in range(dim):
         ek = [0 if i != k else 1 for i in range(dim)]
-        if not cartesian:
+        if not real:
             xi_k = poly(a=ek, b=[0]*dim, dim=dim, **kwargs)
             eta_k = poly(a=[0]*dim, b=ek, dim=dim, **kwargs)
         else:
@@ -1234,7 +1234,7 @@ def combine(*args, power: int, **kwargs):
         for tpl in trees: # index corresponds to an enumeration of the trees for the specific order
             lp, factor = tpl
             # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:
-            out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs) # check_zero ensures we do not add zero-values, as intended by the poly class.
+            out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
         if out_order != 0:
             out[order] = out_order
     return out, hamiltonian

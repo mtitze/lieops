@@ -502,7 +502,7 @@ def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=1e-16):
     mu0 = mu0*2*np.pi
     
     xi, eta = create_coords(1, max_power=max_power)
-    X, _ = create_coords(1, cartesian=True, max_power=max_power)
+    X, _ = create_coords(1, real=True, max_power=max_power)
 
     H0 = -mu0*xi*eta
     w = 1

@@ -129,7 +129,7 @@ def test_bch_symmetry_c(request, tol=1e-10):
     Test the symmetry of the BCH formula (see bch_symmetry_c routine) 
     and vs. the reference BCH.
     '''
-    q, p = create_coords(1, cartesian=True)
+    q, p = create_coords(1, real=True)
     x = p
     y = p*q**2
     z = p*q**4
@@ -158,7 +158,7 @@ def test_associativity_vs_bch(max_power=10, tol=5e-10):
     results from the 'combine' routine and the one from the BCH up to order 7.
     '''
     xi, eta = create_coords(1, max_power=max_power)
-    X, P = create_coords(1, cartesian=True, max_power=max_power)
+    X, P = create_coords(1, real=True, max_power=max_power)
     
     mu0 = 0.206
     mu1 = 0.372
