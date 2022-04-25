@@ -11,24 +11,39 @@ from .magnus import hard_edge, hard_edge_chain, norsett_iserles
 class poly:
     '''
     Class to model the Lie operator :p:, where p is a polynomial given in terms of
-    complex (xi, eta)-coordinates. For the notation of these coordinates see Ref.
-    "M. Titze: Space Charge Modeling at the Integer Resonance for the CERN PS and SPS" (2019),
-    p. 33 onwards.
+    complex (xi, eta)-coordinates. For the notation of these coordinates see Ref. [1] p. 33 onwards.
     
     Parameters
     ----------
-    self.max_power: int
-        A value > 0 means that any calculations leading to expressions beyond this 
-        degree will be discarded. For binary operations the minimum of both 
-        max_powers are used.
+    values: dict, optional
+        A dictionary assigning the powers of the xi- and eta-variables to coefficients, modeling monomials.
+        Note that it is internally assumed that every coefficient is non-zero and so zero-coefficients will
+        be discarded. Powers which do not appear in the dictionary are assumed to be zero.
+        
+    a: tuple, optional
+        If no values specified, then one can specify a tuple of integers a = (a1, ..., an) 
+        to set the powers of the monomial xi = xi_1**a1 * ... * xi_n**an.
+        
+    b: tuple, optional
+        Similar to 'a', this tuple will define the powers of the monomial belonging to the eta-variables.
+    
+    max_power: int, optional
+        
+    dim: int, optional
+        The number of xi- (or eta-) variables. Will be determined automatically from the input, if nothing
+        specified.
         
     **kwargs
-        Optional arguments passed to self.set_monimial
+        Optional arguments passed to self.set_monimial and self.set_max_power
+        
+    Reference(s):
+        [1] "M. Titze: Space Charge Modeling at the Integer Resonance for the CERN PS and SPS" (2019).
     '''
+    
     def __init__(self, **kwargs):
         # self.dim denotes the number of xi (or eta)-factors.
         if 'values' in kwargs.keys():
-            self._values = kwargs['values']
+            self._values = {k: v for k, v in kwargs['values'].items() if not check_zero(v)}
         elif 'a' in kwargs.keys() or 'b' in kwargs.keys(): # simplified building
             self.set_monomial(**kwargs)
         else:
@@ -42,6 +57,17 @@ class poly:
         self.set_max_power(**kwargs)
         
     def set_max_power(self, max_power=float('inf'), **kwargs):
+        '''
+        Set the maximal power to be taken into consideration.
+        Attention: This operation will discard the current values *without* recovery.
+        
+        Parameters
+        ----------
+        max_power: int, optional
+            A value > 0 means that any calculations leading to expressions beyond this 
+            degree will be discarded. For binary operations the minimum of both 
+            max_powers are used.
+        '''
         self.max_power = max_power
         self._values = {k: v for k, v in self.items() if sum(k) <= max_power}
         
@@ -60,7 +86,7 @@ class poly:
         if len(self._values) == 0:
             return 0
         else:
-            return max([0] + [sum(k) for k, v in self.items() if not check_zero(v)])
+            return max([sum(k) for k, v in self.items()])
     
     def mindeg(self):
         '''
@@ -155,22 +181,13 @@ class poly:
         add_values = {k: v for k, v in self.items()}
         if not isinstance(self, type(other)):
             # Treat other object as constant.
-            if not check_zero(other):
-                zero_tpl = (0,)*self.dim*2
-                new_value = add_values.get(zero_tpl, 0) + other
-                if not check_zero(new_value):
-                    add_values[zero_tpl] = new_value
-                else:
-                    _ = add_values.pop(zero_tpl, None)
+            zero_tpl = (0,)*self.dim*2
+            add_values[zero_tpl] = add_values.get(zero_tpl, 0) + other
             max_power = self.max_power
         else:
             assert self.dim == other.dim, f'Dimensions do not agree: {self.dim} != {other.dim}'
             for k, v in other.items():
-                new_v = add_values.get(k, 0) + v
-                if not check_zero(new_v):
-                    add_values[k] = new_v
-                else:
-                    _ = add_values.pop(k, None)
+                add_values[k] = add_values.get(k, 0) + v
             max_power = min([self.max_power, other.max_power])
         return self.__class__(values=add_values, dim=self.dim, max_power=max_power)
     
@@ -210,11 +227,7 @@ class poly:
                         continue
                     new_power = tuple([a[j] + c[j] if j != k else a[j] + c[j] - 1 for j in range(self.dim)] + \
                                 [b[j] + d[j] if j != k else b[j] + d[j] - 1 for j in range(self.dim)])
-                    new_value = v1*v2*det*-1j + poisson_values.get(new_power, 0)
-                    if not check_zero(new_value):
-                        poisson_values[new_power] = new_value
-                    else:
-                        _ = poisson_values.pop(new_power, None)
+                    poisson_values[new_power] = v1*v2*det*-1j + poisson_values.get(new_power, 0)
         return self.__class__(values=poisson_values, dim=self.dim, max_power=max_power)
     
     def __mul__(self, other):
@@ -230,15 +243,10 @@ class poly:
                     if power1 + power2 > max_power:
                         continue
                     prod_tpl = tuple([t1[k] + t2[k] for k in range(dim2)])
-                    prod_val = mult_values.get(prod_tpl, 0) + v1*v2 # it is assumed that v1 and v2 are both not zero, hence prod_val != 0.
-                    if not check_zero(prod_val):
-                        mult_values[prod_tpl] = prod_val
-                    else:
-                        _ = mult_values.pop(prod_tpl, None)
+                    mult_values[prod_tpl] = mult_values.get(prod_tpl, 0) + v1*v2 # it is assumed that v1 and v2 are both not zero, hence prod_val != 0.
             return self.__class__(values=mult_values, dim=self.dim, max_power=max_power)
         else:
-            return self.__class__(values={k: v*other for k, v in self.items() if not check_zero(other)}, 
-                                          dim=self.dim, max_power=self.max_power) # need to use v*other; not other*v here: If type(other) = numpy.float64, then it may cause unpredicted results if it stands on the left.
+            return self.__class__(values={k: v*other for k, v in self.items()}, dim=self.dim, max_power=self.max_power) # need to use v*other; not other*v here: If type(other) = numpy.float64, then it may cause unpredicted results if it stands on the left.
         
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -247,8 +255,7 @@ class poly:
         # implement '/' operator
         if not isinstance(self, type(other)):
             # Attention: If other is a NumPy array, there is no check if one of the entries is zero.
-            return self.__class__(values={k: v/other for k, v in self.items() if not check_zero(other)}, 
-                                          dim=self.dim, max_power=self.max_power)
+            return self.__class__(values={k: v/other for k, v in self.items()}, dim=self.dim, max_power=self.max_power)
         else:
             raise NotImplementedError('Division by Lie polynomial not supported.')
         
@@ -1226,8 +1233,8 @@ def combine(*args, power: int, **kwargs):
         out_order = 0
         for tpl in trees: # index corresponds to an enumeration of the trees for the specific order
             lp, factor = tpl
-            # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:            
-            out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
+            # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:
+            out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs) # check_zero ensures we do not add zero-values, as intended by the poly class.
         if out_order != 0:
             out[order] = out_order
     return out, hamiltonian
