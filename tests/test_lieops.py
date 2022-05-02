@@ -493,7 +493,7 @@ def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
         v1, v2 = chifinal_ref[key], chifinal[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
     
-def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=1e-16):
+def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=5e-16):
     '''
     Test of Hadamard's lemma. Let H0 denote a basic rotation and Hs a sextupole. Then it must hold:
       exp(:H0/2:) exp(:Hs:) exp(:H0/2:) = exp(:H0:) exp(:exp(:-H0/2:)Hs:)

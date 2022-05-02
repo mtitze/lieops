@@ -414,10 +414,15 @@ class poly:
         Parameters
         ----------
         t: float, optional
-            Optional parameter t to use exp(t:x:) instaed. 
+            The flow parameter t so that we have the following interpretation:
+            self.flow(t) = lexp(t*:self:)
+            Note that the flow will have t=-1 by default.
+        
+        *args
+            Arguments passed to lieoperator class.
 
         **kwargs
-            Additional arguments are passed to the lieoperator class.
+            Additional arguments are passed to lieoperator class.
 
         Returns
         -------
@@ -622,7 +627,7 @@ class lieoperator:
     '''
     def __init__(self, x, **kwargs):
         self.init_kwargs = kwargs
-        self.flow_parameter = kwargs.get('t', -1) # can be changed in self.calcFlow
+        self.flow_parameter = kwargs.get('t', 1) # can be changed in self.calcFlow
         self.set_argument(x, **kwargs)
         
         if 'generator' in kwargs.keys():
@@ -821,15 +826,15 @@ class lieoperator:
         else:
             return [flow[k](z) for k in range(len(flow))]
         
-    def apply(self, z, **kwargs):
+    def act(self, z, **kwargs):
         '''
-        Apply the current Lie operator g(:x:) onto a single poly class or a list of poly classes.
+        Let g(:x:) be the current Lie operator. Then act onto a single poly class or a list of poly classes.
         This function is basically intended as a shortcut for the successive call of self.calcOrbits and self.calcFlow.
         
         Parameters
         ----------
         z: poly classe(s)
-            The polynomial(s) on which to apply the current Lie operator.
+            The polynomial(s) on which the current Lie operator should act on.
             
         Returns
         -------
@@ -865,11 +870,11 @@ class lieoperator:
             1) If z is a list, then the values (g(:x:)y)(z) for the current poly elements y in self.components
             are returned (see self.evaluate).
             2) If z is a Lie polynomial, then the orbit of g(:x:)z will be computed and the flow returned as 
-               poly class (see self.apply).
+               poly class (see self.act).
             3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
         '''
         if isinstance(z, poly):
-            return self.apply(z, **kwargs)
+            return self.act(z, **kwargs)
         elif isinstance(z, type(self)):
             if hasattr(self, 'bch'):
                 return self.bch(z, **kwargs)
@@ -878,7 +883,7 @@ class lieoperator:
         else:
             assert hasattr(z, '__getitem__'), 'Input needs to be subscriptable.'
             if isinstance(z[0], poly):
-                return self.apply(z, **kwargs)
+                return self.act(z, **kwargs)
             else:
                 return self.evaluate(z, **kwargs)
             
