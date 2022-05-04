@@ -192,7 +192,7 @@ class hard_edge_chain:
         '''
         assert len(values) > 0
         self.values = values # values[k] should be a list of hard_edge or lie-polynomial objects with hard_edge objects as values.
-        self._integral = kwargs.get('integral', None)
+        self._integral = kwargs.get('integral', None) # field to store the integral over the entire chain of hard-edge elements for easy access in other routines. 
         
     def copy(self):
         return self.__class__(values=[v.copy() for v in self.values], integral=self._integral)
@@ -466,7 +466,7 @@ class tree:
         Parameters
         ----------
         hamiltonian
-            A liepoly object having of hard_edge_chain elements as values.
+            A liepoly object having hard_edge_chain elements as values.
 
         Returns
         -------
@@ -483,7 +483,7 @@ class tree:
             if bound == self._upper_bound_default:
                 break
             assert bound > var # This should be the case by construction of the trees; otherwise the following commutator may have to be reversed.
-            integrands[bound] = Iham@integrands[bound]
+            integrands[bound] = Iham@integrands[bound] # TODO: calculation time bottleneck here
         return Iham
     
     def fourier_integral_terms(self, consistency_checks=False):
@@ -653,7 +653,7 @@ def forests(k, time_power=0, **kwargs):
     return tree_groups, forest_groups
 
 
-def norsett_iserles(order: int, hamiltonian: hard_edge_chain, time=True, **kwargs):
+def norsett_iserles(order: int, hamiltonian, time=True, **kwargs):
     '''
     Compute an expansion of the Magnus series, given by Norsett and Iserles (see Ref. [1] in magnus.py) using rooted trees, here in case of hard-edge elements.
     
@@ -663,8 +663,8 @@ def norsett_iserles(order: int, hamiltonian: hard_edge_chain, time=True, **kwarg
         The maximal order to be considered in the expansion. This order corresponds to the accuracy in powers
         of s (the integration variable) of the resulting Hamiltonian.
         
-    hamiltonian: hard_edge_chain
-        A hard-edge chain of liepoly objects, having values in hard_edge objects. Each liepoly object must have the same amount of keys,
+    hamiltonian
+        A liepoly object, having values in hard_edge_chain objects. Each liepoly object must have the same amount of keys,
         but their coefficients may differ (or can be set to zero).
         
     time: boolean, optional

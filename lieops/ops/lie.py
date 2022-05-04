@@ -735,7 +735,7 @@ class lieoperator:
     
     def flowFunc(self, t, z):
         '''
-        Return the flow function phi(t, z) = [g(-t:x:) y](z).
+        Return the flow function phi(t, z) = [g(t:x:) y](z).
         
         Parameters
         ----------
@@ -750,7 +750,7 @@ class lieoperator:
         phi: callable
             The flow of the current Lie operator, as described above.
         '''
-        return [sum([self.orbits[k][j](z)*(-t)**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+        return [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
      
     def calcFlow(self, **kwargs):
         '''
@@ -1235,7 +1235,7 @@ def combine(*args, power: int, **kwargs):
     z_series = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
     out = {}
     for order, trees in z_series.items():
-        out_order = 0
+        out_order = 0 # the output for the specific order, polynoms will be added to this value
         for tpl in trees: # index corresponds to an enumeration of the trees for the specific order
             lp, factor = tpl
             # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:
