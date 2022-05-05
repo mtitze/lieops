@@ -15,7 +15,52 @@ References:
 [4]: A. Iserles, S. P. Norsett: On the solution of linear differential equations in Lie groups, Phil. Trans. R. Soc. Lond. A, no 357, pp 983 -- 1019 (1999).
 '''
 
+class fourier_model:
+    
+    '''
+    Model and compute a specific term in the integral of a tree, in case the original Hamiltonian has been decomposed into a Fourier series.
+    '''
+    
+    def __init__(self, factors=[], exponent={}, sign=1):
+        
+        self.factors = factors
+        self.exponent = exponent # the keys in 'exponent' denote the indices of the s-values, while the items denote the indices of the 'omega'-values. 
+        self.sign = sign
+        
+    def __str__(self):
+        if len(self.factors) == 0:
+            return '1'
+        
+        if self.sign == -1:
+            out = '-'
+        else:
+            out = ' '
+            
+        out += '[ '
+        for flist in self.factors:
+            out += '('
+            for f in flist:
+                out += f'f{f} + '
+            out = out[:-3]
+            out += ')*'
+        out = out[:-1]
+        expstr = ''
+        
+        for k, v in self.exponent.items():
+            expstr += '('
+            for e in v:
+                expstr += f'f{e} + '
+            expstr = expstr[:-3]
+            expstr += ') + '
+        expstr = expstr[:-3]
+        
+        out += f' ]**(-1) * [exp( {expstr} ) - 1]'
+        return out
+    
+    def _repr_html_(self):
+        return f'<samp>{self.__str__()}</samp>' 
 
+    
 class hard_edge:
     '''
     Class to model a polynomial describing a single hard-edge element. Intended to be used
@@ -290,52 +335,159 @@ class hard_edge_chain:
         
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>'
+
     
-    
-class fourier_model:
-    
+class fast_hard_edge_chain:
     '''
-    Model and compute a specific term in the integral of a tree, in case the original Hamiltonian has been decomposed into a Fourier series.
+    Class to handle a chain of hard-edge elements, given by piecewise polynomial functions, and their respective integrals.
     '''
     
-    def __init__(self, factors=[], exponent={}, sign=1):
-        
-        self.factors = factors
-        self.exponent = exponent # the keys in 'exponent' denote the indices of the s-values, while the items denote the indices of the 'omega'-values. 
-        self.sign = sign
-        
-    def __str__(self):
-        if len(self.factors) == 0:
-            return '1'
-        
-        if self.sign == -1:
-            out = '-'
+    def __init__(self, lengths, **kwargs):
+        '''
+        Parameters
+        ----------
+        values: list
+            A list of hard edge elements.
+        '''
+        self.lengths = lengths
+        if 'values' in kwargs.keys() and 'size' in kwargs.keys():
+            self._create_block(values=kwargs['values'], size=kwargs['size'])
+        elif 'block' in kwargs.keys():
+            self._block = kwargs['block']
         else:
-            out = ' '
-            
-        out += '[ '
-        for flist in self.factors:
-            out += '('
-            for f in flist:
-                out += f'f{f} + '
-            out = out[:-3]
-            out += ')*'
-        out = out[:-1]
-        expstr = ''
+            raise RuntimeError(f"{self.__class__.__name__} requires either 'values' and 'size' or 'block' argument(s).")
+        self._create_integration_fields(lengths=lengths, **kwargs)
         
-        for k, v in self.exponent.items():
-            expstr += '('
-            for e in v:
-                expstr += f'f{e} + '
-            expstr = expstr[:-3]
-            expstr += ') + '
-        expstr = expstr[:-3]
+    def _create_block(self, values, size):
+        self._block = np.array([values] + [[.0]*len(values) for k in range(size - 1)]) # block[a, b] corresponds to the integrand of power a for element b. 
         
-        out += f' ]**(-1) * [exp( {expstr} ) - 1]'
-        return out
+    def _create_integration_fields(self, lengths, **kwargs):
+        size, m = self._block.shape
+        self._imax = kwargs.get('b_imax', 1)
+        if 'b_facts' in kwargs.keys():
+            self._facts = kwargs['b_facts']
+        else:
+            self._facts = np.array([factorials(size)]*m).transpose() # faculties for the integration process
+        if 'b_powers' in kwargs.keys():
+            self._powers = kwargs['b_powers']
+        else:
+            self._powers = np.array([[w for w in range(1, size + 2)]]*m).transpose() # to compute the powers of the lengths accordingly
+        if 'b_lengths' in kwargs.keys():
+            self._lengths = kwargs['b_lengths']
+        else:
+            self._lengths = lengths**self._powers # use numpy broadcasting to get all powers
+                        
+    def clone(self, **kwargs):
+        '''
+        Return an instance having the same fields as the original routine, besides of those arguments given.
+        '''
+        return self.__class__(lengths=kwargs.get('lengths', self.lengths), block=kwargs.get('block', self._block),
+                              b_facts=kwargs.get('b_facts', self._facts), b_powers=kwargs.get('b_powers', self._powers),
+                              b_lengths=kwargs.get('b_lengths', self._lengths), b_imax=kwargs.get('b_imax', self._imax))
+
+    def __mul__(self, other):
+        result = []
+        if isinstance(self, type(other)):
+            assert self._block.shape == other._block.shape
+            mult_block = self.block_polymul(self._block, other._block)
+            mult_imax = min([self._imax + other._imax, self._block.shape[1]])
+        else:
+            mult_block = self._block*other
+            mult_imax = self._imax
+        return self.clone(block=mult_block, b_imax=mult_imax)
+        
+    @staticmethod
+    def block_polymul(block1, block2, **kwargs):
+        '''
+        Polynomial multiplication of two blocks; block size will be kept constant.
+        '''
+        # TODO: further improve code working only with non-zero rows...
+        n, m = block1.shape
+        prod = np.zeros((n, m))
+        for k in range(n):
+            coeffs_k = block1[k, :]
+            prod_k = coeffs_k*block2[:n - k] # powers ranging from k to n
+            prod[k:] += prod_k
+        return prod
+
+    def __rmul__(self, other):
+        return self*other
     
+    def __add__(self, other):
+        '''
+        Add two hard_edge_chain's. 
+        
+        Attention: It is not checked (but assumed) that the respective element names of the hard_edge objects are equal.
+        '''
+        if isinstance(self, type(other)):
+            assert self._block.shape == other._block.shape
+            add_block = self._block + other._block
+            add_imax = max([self._imax, other._imax])
+        else:
+            add_block = np.zeros(self._block.shape)
+            add_block[:,:] = self._block[:,:]
+            add_block[0,:] += other
+            add_imax = self._imax
+        return self.clone(block=add_block, b_imax=add_imax)
+    
+    def __radd__(self, other):
+        return self + other
+    
+    def __neg__(self):
+        return self.__class__(block=-self._block, integral=self._integral)
+    
+    def __sub__(self, other):
+        return self + -other
+    
+    def __eq__(self, other):
+        '''
+        Check if the hard_edge_model contains the same values.
+        
+        Attention: No check regarding self._integral_constant.
+        '''
+        if isinstance(self, type(other)):
+            return np.array_equal(self._block, other._block)
+        else:
+            import pdb; pdb.set_trace()
+            return False
+        
+    def integrate(self, n: int=1):
+        '''
+        Compute the integral
+        
+          x
+         /
+         | h(s) ds
+         /
+         p0
+         
+        where p0 = self.positions[0] and h(s) is the Hamiltonian of the hard-edge model.
+        
+        Changes self._block and self._integral
+        '''
+        integral_block = np.copy(self._block)
+        m, n_elements = integral_block.shape # m == self._n_integrals + 1
+        imax = self._imax # the row with the maximal possible non-zero values in the block
+        assert 1 <= n and n < m, 'Requested number of nested integrations surpasses block size.'
+        for k in range(imax, min([m, imax + n])):
+            # New integrands: shift all to the next level, which correspond to the next higher power. Multiply with factorial accordingly:
+            integral_block[1:k + 1] = np.true_divide(integral_block[:k], self._facts[1:k + 1]) # facts[:k + 1] corresponds to faculty up and including k!.
+            # Perform the integration for each row separately, then sum over each column (since the integration is additive) to get the new accumulated sum
+            integral_rows = np.cumsum(integral_block[1:k + 1]*self._lengths[1:k + 1], axis=1) # lengths[a, b] corresponds to length**(a + 1) of element b.
+            element_integrals = np.sum(integral_rows, axis=0)
+            integral_block[0, 1:] = element_integrals[:-1] # add the individual cumulative sums to the row representing the constants. 
+            # The index shift by 1 is due to the fact that these constants do not affect the situation at the current element.
+        return self.clone(block=integral_block, b_imax=min([m, k])), element_integrals[-1]
+    
+    def __str__(self):
+        outstr = '['
+        for e in self._block:
+            outstr += str(e) + '\n '
+        return outstr[:-2] + ']'
+        
     def _repr_html_(self):
-        return f'<samp>{self.__str__()}</samp>' 
+        outstr = self.__str__().replace('\n ', '<br>&nbsp;').replace('\n', '<br>')
+        return f"<samp>{outstr}</samp>"
 
 
 class tree:
