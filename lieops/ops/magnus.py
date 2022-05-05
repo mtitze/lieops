@@ -239,7 +239,7 @@ class hard_edge_chain:
         return self + other
     
     def __neg__(self):
-        return self.__class__(values=[-v for v in self.values], integral=self._integral)
+        return self.__class__(values=[-v for v in self.values], integral=-self._integral)
     
     def __sub__(self, other):
         return self + -other
