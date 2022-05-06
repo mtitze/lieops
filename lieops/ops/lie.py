@@ -1182,7 +1182,7 @@ class lexp(lieoperator):
     
     
 def combine(*args, power: int, mode='default', **kwargs):
-    '''
+    r'''
     Compute the Lie polynomials of the Magnus expansion, up to a given order.
     
     Parameters

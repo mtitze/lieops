@@ -349,6 +349,7 @@ class fast_hard_edge_chain:
         values: list
             A list of hard edge elements.
         '''
+        self._default_tolerance = 1e-15 # values below this entry are treated as zeros.
         self.lengths = lengths
         if 'values' in kwargs.keys() and 'blocksize' in kwargs.keys():
             self._create_block(values=kwargs['values'], blocksize=kwargs['blocksize'])
@@ -369,7 +370,7 @@ class fast_hard_edge_chain:
         if 'b_facts' in kwargs.keys():
             self._facts = kwargs['b_facts']
         else:
-            self._facts = np.array([factorials(blocksize)]*m).transpose() # faculties for the integration process; n.b. self._facts has 1 row more than self._block. This is intended; e.g. the n-th integral will require (n + 1)!
+            self._facts = np.array([range(1, blocksize + 1)]*m).transpose() # faculties for the integration process; n.b. self._facts has 1 row more than self._block. This is intended; e.g. the n-th integral will require (n + 1)!
         if 'b_powers' in kwargs.keys():
             self._powers = kwargs['b_powers']
         else:
@@ -445,7 +446,7 @@ class fast_hard_edge_chain:
         return self + other
     
     def __neg__(self):
-        return self.clone(block=-self._block)#, integral=-self._integral)
+        return self.clone(block=-self._block)#, integral=-getattr(self, 'integral', None))
     
     def __sub__(self, other):
         return self + -other
@@ -458,7 +459,8 @@ class fast_hard_edge_chain:
             return np.array_equal(self._block, other._block)
         else:
             if other == 0:
-                return not np.any(self._block)
+                return np.max(np.abs(self._block)) < self._default_tolerance
+                # return not np.any(self._block) # exact comparison (may lead to additional tiny terms in the liepoly objects)
             else:
                 import pdb; pdb.set_trace()
                 return False
@@ -488,19 +490,19 @@ class fast_hard_edge_chain:
         
         # Part 2: Perform the actual integration(s)
         for k in range(imax + 1, upper_index):
-            integral_block[1:k + 1] = np.true_divide(integral_block[:k], self._facts[1:k + 1]) # facts[:k + 1] corresponds to faculty up and including k!.
+            integral_block[1:k + 1] = np.true_divide(integral_block[:k], self._facts[:k])
             # Perform the integration for each row separately, then sum over each column (since the integration is additive) to get the new accumulated sum
             integral_rows = np.cumsum(integral_block[1:k + 1]*self._lengths[:k], axis=1) # lengths[a, b] corresponds to length**(a + 1) of element b.
             element_integrals = np.sum(integral_rows, axis=0)
             integral_block[0, 1:] = element_integrals[:-1] # add the individual cumulative sums to the row representing the constants. 
             # The index shift by 1 is due to the fact that these constants do not affect the situation at the current element.
         return self.clone(block=integral_block, b_imax=min([m - 1, k]), integral=element_integrals[-1])
-    
+
     def __str__(self):
         n, m = self._block.shape # m: number of elements in the sequence
         out = ''
         for k in range(m):
-            element = self._block[:self._imax, k]
+            element = self._block[:self._imax + 1, k]
             out += f'{str(element)} -- '
         return out[:-4]
         

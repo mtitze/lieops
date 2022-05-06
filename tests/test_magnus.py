@@ -175,13 +175,12 @@ def test_integrate2(n, m):
 
     assert c1i._imax == n
     assert c1ii._imax == n + 1
-    
-    facts = factorials(n + 1)
+
     block = c1i._block
     integral = 0
     for k in range(n + 1): # c1i._imax == n, so that we iterate up and including n
         row = block[k, :]
-        integral += sum(row*lengths**(k + 1))/facts[k + 1]
+        integral += sum(row*lengths**(k + 1))/(k + 1)
     assert integral == c1ii._integral
     
 @pytest.mark.parametrize("n, m, n_blocks", [(10, 200, 6), (13, 25, 3)])
