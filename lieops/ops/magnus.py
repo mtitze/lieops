@@ -1,8 +1,9 @@
 
 from itertools import product
 from scipy.special import bernoulli
-from njet.jet import factorials
+from njet.common import factorials
 
+import warnings
 import numpy as np
 
 '''
@@ -292,8 +293,6 @@ class hard_edge_chain:
     def __eq__(self, other):
         '''
         Check if the hard_edge_model contains the same values.
-        
-        Attention: No check regarding self._integral_constant.
         '''
         if isinstance(self, type(other)):
             if len(self) != len(other):
@@ -311,9 +310,9 @@ class hard_edge_chain:
          /
          | h(s) ds
          /
-         p0
+         0
          
-        where p0 = self.positions[0] and h(s) is the Hamiltonian of the hard-edge model.
+        where h(s) is the Hamiltonian of the hard-edge model.
         
         Returns
         -------
@@ -340,6 +339,7 @@ class hard_edge_chain:
 class fast_hard_edge_chain:
     '''
     Class to handle a chain of hard-edge elements, given by piecewise polynomial functions, and their respective integrals.
+    Functionality adjusted to use numpys vectorization capabilities.
     '''
     
     def __init__(self, lengths, **kwargs):
@@ -350,28 +350,30 @@ class fast_hard_edge_chain:
             A list of hard edge elements.
         '''
         self.lengths = lengths
-        if 'values' in kwargs.keys() and 'size' in kwargs.keys():
-            self._create_block(values=kwargs['values'], size=kwargs['size'])
+        if 'values' in kwargs.keys() and 'blocksize' in kwargs.keys():
+            self._create_block(values=kwargs['values'], blocksize=kwargs['blocksize'])
         elif 'block' in kwargs.keys():
             self._block = kwargs['block']
         else:
-            raise RuntimeError(f"{self.__class__.__name__} requires either 'values' and 'size' or 'block' argument(s).")
+            raise RuntimeError(f"{self.__class__.__name__} requires either 'values' and 'blocksize' or 'block' argument(s).")
         self._create_integration_fields(lengths=lengths, **kwargs)
         
-    def _create_block(self, values, size):
-        self._block = np.array([values] + [[.0]*len(values) for k in range(size - 1)]) # block[a, b] corresponds to the integrand of power a for element b. 
+    def _create_block(self, values, blocksize):
+        assert blocksize >= 1
+        self._block = np.array([list(values)] + [[0]*len(values) for k in range(blocksize - 1)], dtype=np.complex128) # block[a, b] corresponds to the integrand of power a for element b. 
         
     def _create_integration_fields(self, lengths, **kwargs):
-        size, m = self._block.shape
-        self._imax = kwargs.get('b_imax', 1)
+        blocksize, m = self._block.shape
+        self._integral = kwargs.get('integral', None) # to store the current integral output
+        self._imax = kwargs.get('b_imax', 0) # the row index with the maximal possible non-zero values in the block
         if 'b_facts' in kwargs.keys():
             self._facts = kwargs['b_facts']
         else:
-            self._facts = np.array([factorials(size)]*m).transpose() # faculties for the integration process
+            self._facts = np.array([factorials(blocksize)]*m).transpose() # faculties for the integration process; n.b. self._facts has 1 row more than self._block. This is intended; e.g. the n-th integral will require (n + 1)!
         if 'b_powers' in kwargs.keys():
             self._powers = kwargs['b_powers']
         else:
-            self._powers = np.array([[w for w in range(1, size + 2)]]*m).transpose() # to compute the powers of the lengths accordingly
+            self._powers = np.array([[w for w in range(1, blocksize + 2)]]*m).transpose() # to compute the powers of the lengths accordingly
         if 'b_lengths' in kwargs.keys():
             self._lengths = kwargs['b_lengths']
         else:
@@ -383,14 +385,19 @@ class fast_hard_edge_chain:
         '''
         return self.__class__(lengths=kwargs.get('lengths', self.lengths), block=kwargs.get('block', self._block),
                               b_facts=kwargs.get('b_facts', self._facts), b_powers=kwargs.get('b_powers', self._powers),
-                              b_lengths=kwargs.get('b_lengths', self._lengths), b_imax=kwargs.get('b_imax', self._imax))
+                              b_lengths=kwargs.get('b_lengths', self._lengths), b_imax=kwargs.get('b_imax', self._imax),
+                              integral=kwargs.get('integral', self._integral))
+    
+    def __getitem__(self, index):
+        return self._block[:, index]
+    
+    def __len__(self):
+        return self._block.shape[1]
 
     def __mul__(self, other):
         result = []
         if isinstance(self, type(other)):
-            assert self._block.shape == other._block.shape
-            mult_block = self.block_polymul(self._block, other._block)
-            mult_imax = min([self._imax + other._imax, self._block.shape[1]])
+            mult_block, mult_imax = self.block_polymul(self._block, other._block, n1max=self._imax, n2max=other._imax)
         else:
             mult_block = self._block*other
             mult_imax = self._imax
@@ -401,14 +408,18 @@ class fast_hard_edge_chain:
         '''
         Polynomial multiplication of two blocks; block size will be kept constant.
         '''
-        # TODO: further improve code working only with non-zero rows...
+        assert block1.shape == block2.shape
         n, m = block1.shape
-        prod = np.zeros((n, m))
-        for k in range(n):
+        n1max, n2max = kwargs.get('n1max', n - 1), kwargs.get('n2max', n - 1) # maximal indices beyond which the rows are assumed to be zero.
+        prod = np.zeros((n, m), dtype=np.complex128)
+        prod_max = n1max
+        for k in range(n1max + 1): # we multiply the k-th powers of block1 with all other egligible entries of block2
             coeffs_k = block1[k, :]
-            prod_k = coeffs_k*block2[:n - k] # powers ranging from k to n
-            prod[k:] += prod_k
-        return prod
+            b2_kmax = min([n - k, n2max + 1]) # upper bound of the non-zero terms in block2 so that they are not multiplied towards powers larger than the given block size n.
+            prod_k = coeffs_k*block2[:b2_kmax] # powers ranging from k to n
+            prod[k:k + b2_kmax] += prod_k
+            prod_max = max([prod_max, k + b2_kmax - 1])
+        return prod, prod_max
 
     def __rmul__(self, other):
         return self*other
@@ -424,7 +435,7 @@ class fast_hard_edge_chain:
             add_block = self._block + other._block
             add_imax = max([self._imax, other._imax])
         else:
-            add_block = np.zeros(self._block.shape)
+            add_block = np.zeros(self._block.shape, dtype=np.complex128)
             add_block[:,:] = self._block[:,:]
             add_block[0,:] += other
             add_imax = self._imax
@@ -434,7 +445,7 @@ class fast_hard_edge_chain:
         return self + other
     
     def __neg__(self):
-        return self.__class__(block=-self._block, integral=self._integral)
+        return self.clone(block=-self._block)#, integral=-self._integral)
     
     def __sub__(self, other):
         return self + -other
@@ -442,14 +453,15 @@ class fast_hard_edge_chain:
     def __eq__(self, other):
         '''
         Check if the hard_edge_model contains the same values.
-        
-        Attention: No check regarding self._integral_constant.
         '''
         if isinstance(self, type(other)):
             return np.array_equal(self._block, other._block)
         else:
-            import pdb; pdb.set_trace()
-            return False
+            if other == 0:
+                return not np.any(self._block)
+            else:
+                import pdb; pdb.set_trace()
+                return False
         
     def integrate(self, n: int=1):
         '''
@@ -459,36 +471,41 @@ class fast_hard_edge_chain:
          /
          | h(s) ds
          /
-         p0
+         0
          
-        where p0 = self.positions[0] and h(s) is the Hamiltonian of the hard-edge model.
-        
-        Changes self._block and self._integral
+        where h(s) is the Hamiltonian of the hard-edge model.
         '''
+        # Part 1: Preparation
         integral_block = np.copy(self._block)
         m, n_elements = integral_block.shape # m == self._n_integrals + 1
-        imax = self._imax # the row with the maximal possible non-zero values in the block
-        assert 1 <= n and n < m, 'Requested number of nested integrations surpasses block size.'
-        for k in range(imax, min([m, imax + n])):
-            # New integrands: shift all to the next level, which correspond to the next higher power. Multiply with factorial accordingly:
+        imax = self._imax # the row index with the maximal possible non-zero values in the block
+        assert 1 <= n 
+        assert n < m, 'Requested number of nested integrations surpasses block size.'
+        upper_index = min([m, imax + n + 1]) # we shall iterate up to upper_index. The largest non-zero entries of integral_block have order imax. n-times integration will therefore get them to order imax + n.
+        if imax + 1 >= upper_index:
+            warnings.warn(f'Block size of {m} appears to be insufficient.')
+            return self
+        
+        # Part 2: Perform the actual integration(s)
+        for k in range(imax + 1, upper_index):
             integral_block[1:k + 1] = np.true_divide(integral_block[:k], self._facts[1:k + 1]) # facts[:k + 1] corresponds to faculty up and including k!.
             # Perform the integration for each row separately, then sum over each column (since the integration is additive) to get the new accumulated sum
-            integral_rows = np.cumsum(integral_block[1:k + 1]*self._lengths[1:k + 1], axis=1) # lengths[a, b] corresponds to length**(a + 1) of element b.
+            integral_rows = np.cumsum(integral_block[1:k + 1]*self._lengths[:k], axis=1) # lengths[a, b] corresponds to length**(a + 1) of element b.
             element_integrals = np.sum(integral_rows, axis=0)
             integral_block[0, 1:] = element_integrals[:-1] # add the individual cumulative sums to the row representing the constants. 
             # The index shift by 1 is due to the fact that these constants do not affect the situation at the current element.
-        return self.clone(block=integral_block, b_imax=min([m, k])), element_integrals[-1]
+        return self.clone(block=integral_block, b_imax=min([m - 1, k]), integral=element_integrals[-1])
     
     def __str__(self):
-        outstr = '['
-        for e in self._block:
-            outstr += str(e) + '\n '
-        return outstr[:-2] + ']'
+        n, m = self._block.shape # m: number of elements in the sequence
+        out = ''
+        for k in range(m):
+            element = self._block[:self._imax, k]
+            out += f'{str(element)} -- '
+        return out[:-4]
         
     def _repr_html_(self):
-        outstr = self.__str__().replace('\n ', '<br>&nbsp;').replace('\n', '<br>')
-        return f"<samp>{outstr}</samp>"
-
+        return f'<samp>{self.__str__()}</samp>'
 
 class tree:
     '''
@@ -828,6 +845,9 @@ def norsett_iserles(order: int, hamiltonian, time=True, **kwargs):
     dict
         A dictionary mapping integer values (the orders) to lists, which contain the results of
         integrating the given hard-edge Hamiltonian with respect to the individual trees.
+        
+    forest
+        The forest used in the calculations.
     '''
     forest, tforest = forests(order)
     if time:
@@ -847,4 +867,4 @@ def norsett_iserles(order: int, hamiltonian, time=True, **kwargs):
             if len(I) > 0:
                 result_l.append((I, tr.factor))
         result[l] = result_l
-    return result
+    return result, forest_oi

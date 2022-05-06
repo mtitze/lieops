@@ -6,7 +6,7 @@ from njet import derive, jetpoly
 from lieops.linalg.nf import normal_form, first_order_nf_expansion, _create_umat_xieta
 
 from .genfunc import genexp
-from .magnus import hard_edge, hard_edge_chain, norsett_iserles
+from .magnus import fast_hard_edge_chain, hard_edge, hard_edge_chain, norsett_iserles
 
 class poly:
     '''
@@ -1142,7 +1142,7 @@ class lexp(lieoperator):
         '''
         assert isinstance(self, type(other))
         kwargs['power'] = kwargs.get('power', self._compose_power_default)
-        comb, _ = combine(self.argument, other.argument, **kwargs)
+        comb, _, _ = combine(self.argument, other.argument, **kwargs)
         if len(comb) > 0:
             outp = sum(comb.values())
         else: # return zero poly
@@ -1181,7 +1181,7 @@ class lexp(lieoperator):
                   max_power=self.argument.max_power, n_args=self.argument.dim*2, code=self.code, **kwargs)
     
     
-def combine(*args, power: int, **kwargs):
+def combine(*args, power: int, mode='default', **kwargs):
     '''
     Compute the Lie polynomials of the Magnus expansion, up to a given order.
     
@@ -1193,6 +1193,11 @@ def combine(*args, power: int, **kwargs):
     *args
         A series of poly objects p_j, j = 0, 1, ..., k which to be combined. They may represent 
         the exponential operators exp(:p_j:).
+        
+    mode: str, optional
+        Modus how the magnus series should be evaluated. Supported modes are:
+        1) 'default': Use routines optimized to work with numpy arrays (fast)
+        2) 'general': Use routines which are intended to work with general objects.
         
     lengths: list, optional
         An optional list of lengths. If nothing specified, the lengths are assumed to be 1.
@@ -1227,12 +1232,18 @@ def combine(*args, power: int, **kwargs):
     lengths = lengths[::-1]
     
     # Build the hard-edge Hamiltonian model.
-    all_powers = set([k for op in args for k in op.keys()])    
-    hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args[m].get(k, 0)], lengths={1: lengths[m]}) for m in range(n_operators)]) for k in all_powers}
+    all_powers = set([k for op in args for k in op.keys()])
+    if mode == 'general':
+        # use hard-edge element objects which are intended to carry general objects.
+        hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args[m].get(k, 0)], lengths={1: lengths[m]}) for m in range(n_operators)]) for k in all_powers}
+    if mode == 'default':
+        # use fast hard-edge element class which is optimized to work with numpy arrays.
+        hamiltonian_values = {k: fast_hard_edge_chain(values=[args[m].get(k, 0) for m in range(n_operators)], 
+                                                      lengths=lengths, blocksize=kwargs.get('blocksize', power + 2)) for k in all_powers}
     hamiltonian = poly(values=hamiltonian_values, **kwargs)
     
     # Now perform the integration up to the requested power.
-    z_series = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
+    z_series, forest = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
     out = {}
     for order, trees in z_series.items():
         out_order = 0 # the output for the specific order, polynoms will be added to this value
@@ -1242,4 +1253,4 @@ def combine(*args, power: int, **kwargs):
             out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
         if out_order != 0:
             out[order] = out_order
-    return out, hamiltonian
+    return out, hamiltonian, forest
