@@ -514,7 +514,42 @@ class poly:
         else:
             out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.items()}
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
+    
+    def realBasis(self, mult_drv=False, mult_prm=False):
+        '''
+        Cast the current polynomial into its real form, depending on
+        p and q canonical coordinates.
         
+        Note that it holds xi = (q + 1j*p)/sqrt2, eta = (q - 1j*p)/sqrt2.
+        
+        Parameters
+        ----------
+        mult_drv: boolean, optional
+            Control of factorial and permutation coefficients. See njet.poly.jetpoly.get_taylor_coefficients for details.
+            
+        mult_prm: boolean, optional
+            Control of factorial and permutation coefficients. See njet.poly.jetpoly.get_taylor_coefficients for details.
+
+        Returns
+        -------
+        dict
+            The coefficients of the polynomial with respect to the real q and p coordinates.
+            The keys correspond to the powers with respect to (q_1, ..., q_dim, p1, ..., p_dim).
+        ''' 
+        sqrt2 = float(np.sqrt(2))
+        xi, eta = [], []
+        for k in range(self.dim):
+            # we insert polynomials with coefficients 1 and power 1 into the current Hamiltonian
+            qk = jetpoly(1, index=k, power=1)
+            pk = jetpoly(1, index=k + self.dim, power=1)
+            xik = (qk + pk*1j)/sqrt2
+            etak = xik.conjugate()
+            xi.append(xik)
+            eta.append(etak)
+        h1 = self(xi + eta)
+        return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
+                                          mult_drv=mult_drv, mult_prm=mult_prm)
+
     
 def create_coords(dim, real=False, **kwargs):
     '''
