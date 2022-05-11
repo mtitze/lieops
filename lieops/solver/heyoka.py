@@ -3,11 +3,42 @@ import numpy as np
 
 from .common import realHamiltonEqs
 
-def prepare(hamiltonian, length, n_steps, start=0):
+def createHamiltonEqs(hamiltonian, **kwargs):
     '''
-    Prepare heyoka PDE taylor_adaptive solver.
     
     TODO: arbitrary dim check/update & further options of heyoka.
+    
+    Returns
+    -------
+    dict
+        A dictionary containing the real Hamilton equations and the integration steps.
+    '''
+    dim = hamiltonian.dim
+    qp = hy.make_vars(*([f"coord_q{k}" for k in range(dim)] + 
+                        [f"coord_p{k}" for k in range(dim)]))
+    q, p = qp[:dim], qp[dim:]
+    hameqs = realHamiltonEqs(hamiltonian, **kwargs)(q, p) # hameqs represents the Hamilton-equations for the real variables q and p.
+    return qp, hameqs
+
+def prepare(hamiltonian, length, n_steps, start=0, **kwargs):
+    '''
+    Prepare heyoka PDE taylor_adaptive solver using grid propagation.
+    
+    TODO: arbitrary dim check/update & further options of heyoka.
+    
+    Returns
+    -------
+    dict
+        A dictionary containing the real Hamilton equations and the integration steps.
+    '''
+    svals = np.linspace(start, length, n_steps)
+    qp, hameqs = createHamiltonEqs(hamiltonian, **kwargs)
+    return {'hamilton_eqs': zip(*[qp, hameqs]), 'svals': svals}
+    
+    
+def run(heyp, q0, p0, **kwargs):
+    '''
+    Routine intended to be used in one-turn maps
     
     Returns
     -------
@@ -15,23 +46,10 @@ def prepare(hamiltonian, length, n_steps, start=0):
         A dictionary containing the result of the solver, as well as
         the final points.
     '''
-    
-    q, p = hy.make_vars(*([f"q{k}" for k in range(hamiltonian.dim)] + 
-                          [f"p{k}" for k in range(hamiltonian.dim)]))
-    svals = np.linspace(start, length, n_steps)
-    hameqs = realHamiltonEqs(hamiltonian)([q], [p]) # hameqs represents the Hamilton-equations for the real variables q and p.
-    
-    return {'hamilton_eqs': [(q, hameqs[0]), (p, hameqs[1])], 'svals': svals}
-    
-    
-def run(heyp, q0, p0):
-    '''
-    Routine intended to be used in one-turn maps
-    '''
     hameqs = heyp['hamilton_eqs']
     svals = heyp['svals']
     
-    ta = hy.taylor_adaptive(hameqs, q0 + p0)
+    ta = hy.taylor_adaptive(hameqs, q0 + p0, **kwargs)
     status, min_h, max_h, n_steps, soltaylor = ta.propagate_grid(svals)
     
     # Assemble output information

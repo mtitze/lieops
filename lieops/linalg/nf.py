@@ -10,7 +10,7 @@ from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
 from .checks import is_positive_definite, relative_eq
 from .matrix import column_matrix_2_code, create_J, get_package_name, matrix_from_dict
 
-from njet.ad import standardize_function
+from njet.ad import getNargs
 from njet import derive
     
 
@@ -857,7 +857,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
         The output of linalg.normal_form routine, providing the linear map information at the requested point.
     '''
     assert power >= 2
-    Hst, dim = standardize_function(H, n_args=n_args)
+    dim = getNargs(H, n_args=n_args)
     assert dim%2 == 0, 'Dimension must be even; try passing n_args argument.'
     
     # Step 1 (optional): Construct H locally around z (N.B. shifts are symplectic, as they drop out from derivatives.)
@@ -865,10 +865,10 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     # this works numerically only if we consider a function around zero.
     if len(z) > 0:
         assert len(z) == dim, f'Dimension ({len(z)}) of custom point mismatch (expected: {dim})'
-        H = lambda x: Hst([x[k] + z[k] for k in range(len(z))])
+        Hshift = lambda *x: H(*[x[k] + z[k] for k in range(len(z))])
     else:
+        Hshift = H
         z = dim*[0]
-        H = Hst
     
     # Step 2: Obtain the Hesse-matrix of H.
     # N.B. we need to work with the Hesse-matrix here (and *not* with the Taylor-coefficients), because we want to get
@@ -876,27 +876,28 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     # if the Hesse-matrix of H is transformed to CNF.
     # Note that the Taylor-coefficients of H in 2nd-order are 1/2*Hesse_matrix. This means that at (++) (see below),
     # no factor of two is required.
-    dH = derive(H, order=2, n_args=dim)
+    dHshift = derive(Hshift, order=2, n_args=dim)
     z0 = dim*[0]
-    Hesse_dict = dH.hess(z0)
+    Hesse_dict = dHshift.hess(*z0)
     Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code)
     
     # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
     if check:
-        gradient = dH.grad()
-        if any([abs(gradient[k]) > tol for k in gradient.keys()]) > 0:
+        gradient = dHshift.grad() # the gradient of H is evaluated at z0 (note that H has been shifted to z0 above, so that z0 corresponds to the original point z).
+        grad_vector = [gradient.get((k,), 0) for k in range(dim)]
+        if any([abs(c) > tol for c in grad_vector]) > 0:
             print (f'Warning: H has a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
-            print ([gradient.get((k,), 0) for k in range(dim)])
+            print (grad_vector)
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
     nfdict = normal_form(Hesse_matrix, tol=tol, check=check, **kwargs)
     Kinv = nfdict['Kinv'] # Kinv.transpose()@Hesse_matrix@Kinv is in cnf; K(q, p) = (xi, eta)
     
     # Step 4: Obtain the expansion of the Hamiltonian up to the requested power.
-    Kmap = lambda zz: [sum([zz[k]*Kinv[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: Kinv[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
-    HK = lambda zz: H(Kmap(zz))
+    Kmap = lambda *zz: [sum([zz[k]*Kinv[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: Kinv[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
+    HK = lambda *zz: Hshift(*Kmap(*zz))
     dHK = derive(HK, order=power, n_args=dim)
-    results = dHK(z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
+    results = dHK(*z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
     
     if check:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex

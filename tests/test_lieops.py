@@ -142,10 +142,10 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
 
     # first apply K, then exp_ad:
     xy_mapped = [xieta[0]*Kinv[0, 0] + xieta[1]*Kinv[0, 1], xieta[0]*Kinv[1, 0] + xieta[1]*Kinv[1, 1]]    
-    xy_final_mapped = Hop(xy_mapped)
+    xy_final_mapped = Hop(*xy_mapped)
     
     # first apply exp_ad, then K:
-    xy_fin = Hop(xieta)
+    xy_fin = Hop(*xieta)
     xy_final = [xy_fin[0]*Kinv[0, 0] + xy_fin[1]*Kinv[0, 1], xy_fin[0]*Kinv[1, 0] + xy_fin[1]*Kinv[1, 1]]
     
     # Both results must be equal.
@@ -164,7 +164,7 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     expectation = [xf, pxf]
     for k in range(len(xy_final_mapped)):
         lie_k = xy_final_mapped[k] # lie_k = exp(:HLie:)((Kinv*xieta)[k])
-        diff = expectation[k] - (lie_k( sum([zz[l]*K[:, l] for l in range(len(zz))]) ) ).expand()
+        diff = expectation[k] - (lie_k( *sum([zz[l]*K[:, l] for l in range(len(zz))]) ) ).expand()
         assert abs(diff.coeff(zz[0])) < tol and abs(diff.coeff(zz[1])) < tol
         
 def fonfe(tol=1e-14, code='numpy', **kwargs):
@@ -207,10 +207,10 @@ def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32,
         xy_mapped = [[sum([xieta[k]*K[j, k] for k in range(len(xieta))])] for j in range(len(K))]
     xy_mapped = [xy_mapped[k][0]**3 + 0.753 for k in range(len(xy_mapped))] # apply an additional non-linear operation
     Hop = lexp(HLie, power=power)
-    xy_final_mapped = Hop(xy_mapped) 
+    xy_final_mapped = Hop(*xy_mapped) 
     
     # first apply exp_ad, then function:
-    xy_fin = Hop(xieta)
+    xy_fin = Hop(*xieta)
     if code == 'numpy':
         xy_final = (K@np.array([xy_fin]).transpose()).tolist()
     elif code == 'mpmath':
@@ -263,7 +263,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
 #########
 
 def test_version():
-    assert __version__ == '0.1.0'
+    assert __version__ == '0.1.3'
     
 def test_jacobi():
     # Test the Jacobi-identity for the poly class
@@ -314,9 +314,9 @@ def test_shift():
     H_shift = lambda x, y, px, py: H(x + z[0], y + z[1], px + z[2], py + z[3])
     dH_shift = derive(H_shift, order=3)
     
-    assert dH.hess(z, mult_drv=False) == dH_shift.hess(z0, mult_drv=False)
-    assert dH.hess(z, mult_drv=True) == dH_shift.hess(z0, mult_drv=True)
-    assert dH_shift.get_taylor_coefficients(dH_shift.eval(z0)) == dH.get_taylor_coefficients(dH.eval(z))
+    assert dH.hess(*z, mult_drv=False) == dH_shift.hess(*z0, mult_drv=False)
+    assert dH.hess(*z, mult_drv=True) == dH_shift.hess(*z0, mult_drv=True)
+    assert dH_shift.get_taylor_coefficients(dH_shift.eval(*z0)) == dH.get_taylor_coefficients(dH.eval(*z))
     
     
 @pytest.mark.parametrize("tol1, tol2, code", [(1e-18, 1e-10, 'numpy'), (1e-35, 1e-28, 'mpmath')])
@@ -339,18 +339,18 @@ def test_exp_ad2(mode):
     exp_ad2(mode=mode)
     
             
-def test_flow1(mu0=0.43, z=[0.046], a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
+def test_flow1(mu0=0.43, z=0.046, a=1.23, b=2.07, power=40, tol=1e-15, **kwargs):
     # Test if the flow for the sum of two parameters equals the chain of flows applied for each parameter individually.
     coeff = 1j*mu0/np.sqrt(2)**3
     H_accu = poly(values={(1, 1): -mu0,
-                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
-                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
-                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
-                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))}, **kwargs)
+                          (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                          (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                          (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                          (0, 3): coeff/(1 - np.exp(-3*1j*mu0))}, **kwargs)
     
     Hflow = H_accu.flow(power=power, **kwargs)
 
-    v1 = Hflow(Hflow(z, t=a), t=b)
+    v1 = Hflow(*Hflow(z, t=a), t=b)
     v2 = Hflow(z, t=a + b)
     assert all([abs(v1[k] - v2[k]) < tol for k in range(1)])
     
@@ -361,10 +361,10 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     # holds.
     coeff = 1j*mu0/np.sqrt(2)**3
     H_accu = poly(values={(1, 1): -mu0,
-                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
-                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
-                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
-                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))}, max_power=max_power, **kwargs)
+                          (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                          (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                          (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                          (0, 3): coeff/(1 - np.exp(-3*1j*mu0))}, max_power=max_power, **kwargs)
     
     xi, eta = create_coords(1)
     lp1 = 0.24*xi**2 + 0.824*eta
@@ -389,7 +389,7 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     assert all([abs(term1[k] - term2[k]) < tol for k in common_keys])
     
     
-def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
+def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
     # Test if the flow map of a Lie operator is a symplectic map: Test if
     # M := Jacobi_x(phi(t, x)) it holds M.transpose()@Jc@M - Jc = 0, where Jc is the complex symplectic structure given
     # by the (xi, eta)-coordinates.
@@ -398,21 +398,20 @@ def test_flow3(Q=0.252, p=[0.232], max_power=30, order=10, power=50, tol=1e-12):
     coeff = w*1j*mu0/np.sqrt(2)**3
 
     H_accu = poly(values={(1, 1): -mu0,
-                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
-                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
-                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
-                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))})
+                          (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                          (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                          (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                          (0, 3): coeff/(1 - np.exp(-3*1j*mu0))})
     
-    H_accu_f = lambda z: H_accu([(z[0] + 1j*z[1])/np.sqrt(2),
-                                 (z[0] - 1j*z[1])/np.sqrt(2)])
+    H_accu_f = lambda *z: H_accu((z[0] + 1j*z[1])/np.sqrt(2), (z[0] - 1j*z[1])/np.sqrt(2))
 
     xieta = create_coords(1)
     
     t_ref = 1
     L1 = lexp(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, max_power=max_power)
     # check Symplecticity of the flow of L1 at position p:
-    dL1flow = derive(lambda x: L1.flowFunc(t_ref, x), order=1, n_args=2)
-    ep, epc = dL1flow.eval(p + p) # N.B. ep contains x0-terms, while ecp contains x1-terms
+    dL1flow = derive(lambda *x: L1.flowFunc(t_ref, *x), order=1, n_args=2)
+    ep, epc = dL1flow.eval(p, p.conjugate())
     jacobi = [[dL1flow.get_taylor_coefficients(ep)[(1, 0)], dL1flow.get_taylor_coefficients(ep)[(0, 1)]],
               [dL1flow.get_taylor_coefficients(epc)[(1, 0)], dL1flow.get_taylor_coefficients(epc)[(0, 1)]]]
     jacobi = np.array(jacobi)
@@ -454,18 +453,17 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     w = -1
     coeff = w*1j*mu0/np.sqrt(2)**3
     H_accu = poly(values={(1, 1): -mu0,
-                             (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
-                             (2, 1): -coeff/(1 - np.exp(1j*mu0)),
-                             (1, 2): coeff/(1 - np.exp(-1j*mu0)),
-                             (0, 3): coeff/(1 - np.exp(-3*1j*mu0))})
+                          (3, 0): -coeff/(1 - np.exp(3*1j*mu0)),
+                          (2, 1): -coeff/(1 - np.exp(1j*mu0)),
+                          (1, 2): coeff/(1 - np.exp(-1j*mu0)),
+                          (0, 3): coeff/(1 - np.exp(-3*1j*mu0))})
             
-    H_accu_f = lambda z: H_accu([(z[0] + 1j*z[1])/np.sqrt(2),
-                                 (z[0] - 1j*z[1])/np.sqrt(2)])
+    H_accu_f = lambda *z: H_accu((z[0] + 1j*z[1])/np.sqrt(2), (z[0] - 1j*z[1])/np.sqrt(2))
     
     t = -1
     L1 = lexp(H_accu_f, t=t, order=order, power=power, n_args=2)
     argflow = L1.argument.flow(t=t, power=L1.power)
-    return argflow(z) == L1(z)
+    return argflow(*z) == L1(*z)
     
 def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).
@@ -521,6 +519,6 @@ def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=5e-16):
     p_insert = np.sin(phi)*base
     xi_insert = (q_insert + p_insert*1j)/np.sqrt(2)
         
-    assert max(np.abs(hadamard2([xi_insert]) - hadamard1([xi_insert]))) < tol
+    assert max(np.abs(hadamard2(xi_insert) - hadamard1(xi_insert))) < tol
     
     

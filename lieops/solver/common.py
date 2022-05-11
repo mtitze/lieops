@@ -25,7 +25,7 @@ def complexHamiltonEqs(hamiltonian):
         return dxi
     return eqs
 
-def getRealHamiltonianFunction(hamiltonian, real=True, **kwargs):
+def getRealHamiltonianFunction(hamiltonian, real=True, tol=0, **kwargs):
     '''
     Create a Hamilton function H(q, p) -> real, for a given Hamiltonian.
     
@@ -39,6 +39,9 @@ def getRealHamiltonianFunction(hamiltonian, real=True, **kwargs):
         Hamiltonian has no imaginary parts (for example, if the given Hamiltonian emerged from
         some real-valued functions).
         
+    tol: float, optional
+        If > 0, then drop Hamiltonian coefficients below this threshold.
+        
     **kwargs
         Optional keyword arguments passed to hamiltonian.realBasis routine.
         
@@ -48,10 +51,12 @@ def getRealHamiltonianFunction(hamiltonian, real=True, **kwargs):
         A function taking values in 2*hamiltonian.dim input parameters and returns a complex (or real) value.
         It will represent the Hamiltonian with respect to its real (q, p)-coordinates.
     '''
-    rbh = hamiltonian.realBasis(**kwargs)
     dim = hamiltonian.dim
+    rbh = hamiltonian.realBasis(**kwargs)
     if real:
         rbh = {k: v.real for k, v in rbh.items()}
+    if tol > 0:
+        rbh = {k: v for k, v in rbh.items() if abs(v) >= tol}
     def ham(*qp):
         result = 0
         for k, v in rbh.items():
@@ -83,9 +88,9 @@ def realHamiltonEqs(hamiltonian, **kwargs):
     '''
     realHam = getRealHamiltonianFunction(hamiltonian, **kwargs)
     dim = hamiltonian.dim
-    dhamiltonian = derive(lambda qp: realHam(*qp), n_args=2*dim)    
-    def eqs(q, p):
-        dH = dhamiltonian.grad(q + p)
+    dhamiltonian = derive(realHam, order=1, n_args=2*dim)    
+    def eqs(*qp):
+        dH = dhamiltonian.grad(*qp)
         dqp = [dH.get((k + dim,), 0) for k in range(dim)] + [-dH.get((k,), 0) for k in range(dim)]
         return dqp
     return eqs

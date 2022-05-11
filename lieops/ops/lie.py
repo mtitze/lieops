@@ -138,7 +138,7 @@ class poly:
         '''
         return self.extract(condition=lambda x: sum(x) == k)
         
-    def __call__(self, z):
+    def __call__(self, *z):
         '''
         Evaluate the polynomial at a specific position z.
         
@@ -150,8 +150,8 @@ class poly:
             where z = (xi, eta) denote a set of complex conjugated coordinates.
         '''
         # some consistency check
-        if isinstance(self, type(z)):
-            raise TypeError(f"Input of type '{z.__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for poly objects.
+        #if isinstance(self, type(z[0])):
+        #    raise TypeError(f"Input of type '{z[0].__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for poly objects.
         
         # prepare input vector
         if len(z) == self.dim:
@@ -392,6 +392,9 @@ class poly:
         order: int
             The order by which we are going to derive the polynomial.
             
+        **kwargs
+            Optional keyword arguments passed to njet.derive
+            
         Returns
         -------
         derive
@@ -400,7 +403,8 @@ class poly:
             the last self.dim entries are the complex conjugate values of the 
             first self.dim entries.
         '''
-        return derive(self, n_args=2*self.dim, **kwargs)
+        kwargs['n_args'] = kwargs.get('n_args', 2*self.dim)
+        return derive(self, **kwargs)
     
     def flow(self, t=-1, *args, **kwargs):
         '''
@@ -546,7 +550,7 @@ class poly:
             etak = xik.conjugate()
             xi.append(xik)
             eta.append(etak)
-        h1 = self(xi + eta)
+        h1 = self(*(xi + eta))
         return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
 
@@ -636,7 +640,7 @@ def construct(f, *lps, **kwargs):
     assert n_args_f == f.__code__.co_argcount, 'Input function depends on a different number of arguments.'
     assert all([lp.dim == dim_poly for lp in lps]), 'Input polynomials not all having the same dimensions.'
 
-    construction = lambda z: f(*[lps[k](z) for k in range(n_args_f)])   
+    construction = lambda *z: f(*[lps[k](*z) for k in range(n_args_f)])   
     
     power = kwargs.get('power', float('inf'))
     if power == float('inf'):
@@ -645,7 +649,7 @@ def construct(f, *lps, **kwargs):
         point = kwargs.get('point', [0]*2*dim_poly)
         max_power = kwargs.get('max_power', min([l.max_power for l in lps]))
         dcomp = derive(construction, order=power, n_args=2*dim_poly)
-        taylor_coeffs = dcomp(point, mult_drv=False)
+        taylor_coeffs = dcomp(*point, mult_drv=False)
         return poly(values=taylor_coeffs, dim=dim_poly, max_power=max_power)
 
 class lieoperator:
@@ -703,7 +707,7 @@ class lieoperator:
             # assume that g is a function of one variable which needs to be derived n-times at zero.
             assert generator.__code__.co_argcount == 1, 'Function needs to depend on a single variable.'
             dg = derive(generator, order=kwargs['power'])
-            taylor_coeffs = dg([0], mult_drv= False)
+            taylor_coeffs = dg(0, mult_drv= False)
             self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
         else:
             raise NotImplementedError('Input function not recognized.')
@@ -768,7 +772,7 @@ class lieoperator:
             self.orbits = orbits
         return orbits
     
-    def flowFunc(self, t, z):
+    def flowFunc(self, t, *z):
         '''
         Return the flow function phi(t, z) = [g(t:x:) y](z).
         
@@ -785,7 +789,7 @@ class lieoperator:
         phi: callable
             The flow of the current Lie operator, as described above.
         '''
-        return [sum([self.orbits[k][j](z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+        return [sum([self.orbits[k][j](*z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
      
     def calcFlow(self, **kwargs):
         '''
@@ -822,7 +826,7 @@ class lieoperator:
             self.flow_parameter = t
         return flow
 
-    def evaluate(self, z, **kwargs):
+    def evaluate(self, *z, **kwargs):
         '''
         Evaluate current flow of Lie operator at a specific point.
         
@@ -843,6 +847,9 @@ class lieoperator:
             flow = self.flow
             
         if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'):
+            
+            import pdb; pdb.set_trace() # need to be worked on this
+            
             # If it happens that both self.flow_parameter and z have a shape (e.g. if both are numpy arrays)
             # then we reshape z to be able to broadcast z and self.flow_parameter into a common array.
             # After the application of self.flow, a reshape on the result is performed in order to
@@ -853,15 +860,15 @@ class lieoperator:
             # TODO: may need to check speed for various reshaping options.
             trailing_ones = [1]*len(self.flow_parameter.shape)
             z = z.reshape(*z.shape, *trailing_ones)
-            result = np.array([flow[k](z) for k in range(len(flow))])
+            result = np.array([flow[k](*z) for k in range(len(flow))])
             # Now the result has z.shape in its first len(z.shape) indices. We need to bring the first two
             # indices to the rear in order to have an object by which we can apply the conventional matmul operation(s).
             transp_indices = np.roll(np.arange(result.ndim), shift=-2)
             return result.transpose(transp_indices)
         else:
-            return [flow[k](z) for k in range(len(flow))]
+            return [flow[k](*z) for k in range(len(flow))]
         
-    def act(self, z, **kwargs):
+    def act(self, *z, **kwargs):
         '''
         Let g(:x:) be the current Lie operator. Then act onto a single poly class or a list of poly classes.
         This function is basically intended as a shortcut for the successive call of self.calcOrbits and self.calcFlow.
@@ -877,14 +884,13 @@ class lieoperator:
             Depending on the input, either the poly g(:x:)y is returned, or a list g(:x:)y for the given
             poly elements y.
         '''
-        if isinstance(z, poly):
-            _ = self.calcOrbits(components=[z], **kwargs)
-            return self.calcFlow(**kwargs)[0]
-        else:
-            _ = self.calcOrbits(components=z, **kwargs)
-            return self.calcFlow(**kwargs)
+        _ = self.calcOrbits(components=z, **kwargs)
+        result = self.calcFlow(**kwargs)
+        if len(result) == 1:
+            result = result[0]
+        return result
 
-    def __call__(self, z, **kwargs):
+    def __call__(self, *z, **kwargs):
         '''
         Compute the result of the current Lie operator g(:x:), applied to either 
         1) a specific point
@@ -908,19 +914,15 @@ class lieoperator:
                poly class (see self.act).
             3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
         '''
-        if isinstance(z, poly):
-            return self.act(z, **kwargs)
+        if isinstance(z[0], poly):
+            return self.act(*z, **kwargs)
         elif isinstance(z, type(self)):
             if hasattr(self, 'bch'):
                 return self.bch(z, **kwargs)
             else:
                 raise NotImplementedError(f"Composition of two objects of type '{self.__class__.__name__}' not supported.")
         else:
-            assert hasattr(z, '__getitem__'), 'Input needs to be subscriptable.'
-            if isinstance(z[0], poly):
-                return self.act(z, **kwargs)
-            else:
-                return self.evaluate(z, **kwargs)
+            return self.evaluate(*z, **kwargs)
             
     def copy(self):
         '''
