@@ -149,10 +149,6 @@ class poly:
             in which case the components of z are assumed to be xi-values. Otherwise, it is assumed that len(z) == 2*self.dim,
             where z = (xi, eta) denote a set of complex conjugated coordinates.
         '''
-        # some consistency check
-        #if isinstance(self, type(z[0])):
-        #    raise TypeError(f"Input of type '{z[0].__class__.__name__}' not supported.") # later on, the getitem method of z is called from 0 onward, which will not behave well for poly objects.
-        
         # prepare input vector
         if len(z) == self.dim:
             z = [e for e in z] + [e.conjugate() for e in z]
@@ -846,10 +842,7 @@ class lieoperator:
             assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
             flow = self.flow
             
-        if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'):
-            
-            import pdb; pdb.set_trace() # need to be worked on this
-            
+        if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'): # TODO: not checked recently
             # If it happens that both self.flow_parameter and z have a shape (e.g. if both are numpy arrays)
             # then we reshape z to be able to broadcast z and self.flow_parameter into a common array.
             # After the application of self.flow, a reshape on the result is performed in order to
@@ -1051,7 +1044,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
             # to either yield inconsistent output at a general point z -- or it may introduce additional complexity. 
             # TODO: add expansion as class function in poly instead?
             U = _create_umat_xieta(dim=2*H.dim, code=kwargs.get('code', 'numpy'))
-            Hinp = lambda Z: H([sum([Z[l]*U[k, l] for l in range(2*H.dim)]) for k in range(2*H.dim)]) # need to set 2*H.dim here, so that 'derive' later on recognizes two 'independent' directions (otherwise the Hesse matrix will get half its dimensions).
+            Hinp = lambda *Z: H(*[sum([Z[l]*U[k, l] for l in range(2*H.dim)]) for k in range(2*H.dim)]) # need to set 2*H.dim here, so that 'derive' later on recognizes two 'independent' directions (otherwise the Hesse matrix will get half its dimensions).
             # if z in kwargs.keys()
             # TODO/Check: may need to transform this value as well
         taylor_coeffs, nfdict = first_order_nf_expansion(Hinp, tol=tol, **kwargs)      

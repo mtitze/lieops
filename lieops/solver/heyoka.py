@@ -16,11 +16,10 @@ def createHamiltonEqs(hamiltonian, **kwargs):
     dim = hamiltonian.dim
     qp = hy.make_vars(*([f"coord_q{k}" for k in range(dim)] + 
                         [f"coord_p{k}" for k in range(dim)]))
-    q, p = qp[:dim], qp[dim:]
-    hameqs = realHamiltonEqs(hamiltonian, **kwargs)(q, p) # hameqs represents the Hamilton-equations for the real variables q and p.
+    hameqs = realHamiltonEqs(hamiltonian, **kwargs)(*qp) # hameqs represents the Hamilton-equations for the real variables q and p.
     return qp, hameqs
 
-def prepare(hamiltonian, length, n_steps, start=0, **kwargs):
+def prepare_propagate_grid(hamiltonian, length, n_steps, start=0, **kwargs):
     '''
     Prepare heyoka PDE taylor_adaptive solver using grid propagation.
     
@@ -33,7 +32,7 @@ def prepare(hamiltonian, length, n_steps, start=0, **kwargs):
     '''
     svals = np.linspace(start, length, n_steps)
     qp, hameqs = createHamiltonEqs(hamiltonian, **kwargs)
-    return {'hamilton_eqs': zip(*[qp, hameqs]), 'svals': svals}
+    return {'hamilton_eqs': [e for e in zip(*[qp, hameqs])], 'svals': svals}
     
     
 def run(heyp, q0, p0, **kwargs):
@@ -48,7 +47,6 @@ def run(heyp, q0, p0, **kwargs):
     '''
     hameqs = heyp['hamilton_eqs']
     svals = heyp['svals']
-    
     ta = hy.taylor_adaptive(hameqs, q0 + p0, **kwargs)
     status, min_h, max_h, n_steps, soltaylor = ta.propagate_grid(svals)
     
@@ -66,7 +64,7 @@ def solve(hamiltonian, q0, p0, length, n_steps, **kwargs):
     '''
     Routine intended to be used as 'stand-alone' solver.
     '''
-    heyp = prepare(hamiltonian=hamiltonian, length=length, n_steps=n_steps, **kwargs)
+    heyp = prepare_propagate_grid(hamiltonian=hamiltonian, length=length, n_steps=n_steps, **kwargs)
     return run(heyp, q0=q0, p0=p0)
     
     

@@ -19,9 +19,9 @@ def complexHamiltonEqs(hamiltonian):
     # The above factor -1j stems from the fact that the equations of motion are
     # given with respect to the complex xi and eta variables.
     def eqs(*z):
-        zc = [e.conjugate() for e in z]
-        dH = dhamiltonian.grad(list(z) + zc)
-        dxi = [dH.get((k,), 0) for k in range(hamiltonian.dim, k + hamiltonian.dim)]
+        zinp = list(z) + [e.conjugate() for e in z]
+        dH = dhamiltonian.grad(*zinp)
+        dxi = [dH.get((k,), 0) for k in range(hamiltonian.dim, 2*hamiltonian.dim)]
         return dxi
     return eqs
 
