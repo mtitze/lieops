@@ -122,7 +122,7 @@ def matrix_from_dict(M, code, symmetry: int=0, **kwargs):
     '''
     assert symmetry in [-1, 0, 1]
 
-    dict_shape = max(M.keys())
+    dict_shape = max(M.keys(), default=(0, 0))
     n_rows = kwargs.get('n_rows', dict_shape[0] + 1)
     n_cols = kwargs.get('n_cols', dict_shape[1] + 1)
     
