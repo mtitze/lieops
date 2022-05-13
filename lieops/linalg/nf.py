@@ -12,7 +12,7 @@ from .matrix import column_matrix_2_code, create_J, get_package_name, matrix_fro
 
 from njet.ad import getNargs
 from njet import derive
-    
+
 
 def _check_linear_independence(a, b, tol=1e-14):
     '''
@@ -879,7 +879,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     dHshift = derive(Hshift, order=2, n_args=dim)
     z0 = dim*[0]
     Hesse_dict = dHshift.hess(*z0)
-    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code)
+    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code, n_rows=dim, n_cols=dim)
     
     # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
     if check:
