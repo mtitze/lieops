@@ -1,7 +1,6 @@
 import numpy as np
 
 from njet import derive
-
 from lieops.linalg.nf import first_order_nf_expansion, _create_umat_xieta
 
 from .genfunc import genexp
@@ -61,7 +60,8 @@ class poly(_poly):
         **kwargs
             Optional arguments passed to 'bnf' routine.
         '''
-        return bnf(self, order=order, power=power, max_power=self.max_power, n_args=self.dim*2, **kwargs)
+        kwargs['max_power'] = kwargs.get('max_power', self.max_power)
+        return bnf(self, order=order, power=power, n_args=self.dim*2, **kwargs)
     
 def create_coords(dim, real=False, **kwargs):
     '''
@@ -482,7 +482,8 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
         Qk:     List of poly objects, notation see Lem. 1.4.5. in Ref. [1].
         
     Reference(s):
-    [1]: M. Titze: "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS", PhD Thesis (2019). 
+    [1]: M. Titze: "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS", PhD Thesis (2019).
+    [2]: B. Grebert. "Birkhoff normal form and Hamiltonian PDEs". (2006)
     '''
     power = order + 2 # the maximal power of the homogeneous polynomials chi mapping to normal form.
     max_power = kwargs.get('max_power', order + 2) # the maximal power to be taken into consideration when applying ad-operations between Lie-polynomials. Todo: check default & relation to 'power'
@@ -574,6 +575,9 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
     out['Hk'] = Hk_all
     out['Zk'] = Zk_all
     out['Qk'] = Qk_all
+    out['order'] = order
+    out['lo_power'] = lo_power
+    out['max_power'] = max_power
         
     return out
 

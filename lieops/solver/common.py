@@ -25,7 +25,7 @@ def complexHamiltonEqs(hamiltonian):
         return dxi
     return eqs
 
-def getRealHamiltonianFunction(hamiltonian, real=True, tol=0, **kwargs):
+def getRealHamiltonFunction(hamiltonian, real=True, tol=0, **kwargs):
     '''
     Create a Hamilton function H(q, p) -> real, for a given Hamiltonian.
     
@@ -78,7 +78,7 @@ def realHamiltonEqs(hamiltonian, **kwargs):
         complex (xi, eta)-coordinates.
     
     **kwargs
-        Optional keyword arguments passed to getRealHamiltonianFunction routine.
+        Optional keyword arguments passed to getRealHamiltonFunction routine.
         
     Returns
     -------
@@ -86,7 +86,7 @@ def realHamiltonEqs(hamiltonian, **kwargs):
         A function taking values in real (q, p)-variables, representing the right-hand side of the
         Hamilton-equations \dot z = J \nabla H(z).
     '''
-    realHam = getRealHamiltonianFunction(hamiltonian, **kwargs)
+    realHam = getRealHamiltonFunction(hamiltonian, **kwargs)
     dim = hamiltonian.dim
     dhamiltonian = derive(realHam, order=1, n_args=2*dim)    
     def eqs(*qp):
