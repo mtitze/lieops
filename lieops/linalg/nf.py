@@ -5,6 +5,7 @@ import mpmath as mp
 import cmath
 
 from sympy import Matrix as sympy_matrix
+from sympy import diag as sympy_diag
 
 from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
 from .checks import is_positive_definite, relative_eq
@@ -763,8 +764,6 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         J_symp = sympy_matrix(create_J(dim//2)).transpose()
         G_symp = sympy_matrix(H2)
         P_symp, JNF = (G_symp@J_symp).jordan_form()
-        
-        P_symp2, JNF2 = (G_symp@J_symp@G_symp@J_symp).jordan_form()
         if not JNF.is_diagonal():
             raise RuntimeError('Jordan normal form of H2@J not diagonal (check: True).')
 
@@ -952,7 +951,7 @@ def symplectic_takagi(G, **kwargs):
     # use sympy to get the jordan normal form
     GJs = sympy_matrix(G@J)
     P, cells = GJs.jordan_cells() # P.inv()@GJ@P = JNF
-    P, JNF = GJs.jordan_form() # we could compute the JNF via P as above, but this might leave some small non-zero values.
+    JNF = sympy_diag(*cells)
     P = np.array(P).astype(np.complex128)
     
     U2 = np.array([[1j, -1j], [1, 1]])/np.sqrt(2) # diagonalizes a 2x2 off-diagonal matrix A via U2.transpose().conjugate()@A@U2
