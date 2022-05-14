@@ -1,1 +1,1 @@
-from .test_lieops import referencebnf, qpqp2qp
+from .test_lieops import referencebnf, expandingSum

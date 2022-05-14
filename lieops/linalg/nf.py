@@ -8,7 +8,7 @@ from sympy import Matrix as sympy_matrix
 
 from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
 from .checks import is_positive_definite, relative_eq
-from .matrix import column_matrix_2_code, create_J, get_package_name, matrix_from_dict
+from .matrix import column_matrix_2_code, create_J, get_package_name, matrix_from_dict, expandingSum
 
 from njet.ad import getNargs
 from njet import derive
@@ -282,7 +282,7 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
-def _diagonal2block(D, code, tol=1e-10, **kwargs):
+def _diagonal2block(D, code, tol=1e-10, skip=[], **kwargs):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
@@ -319,18 +319,19 @@ def _diagonal2block(D, code, tol=1e-10, **kwargs):
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     ind1, ind2 = [], []
     for i in range(len(D)):
-        if i in ind1 or i in ind2:
+        if i in ind1 or i in ind2 or i in skip:
             continue
         for j in range(len(D)):
-            if j in ind1 or j in ind2 or j == i:
+            if j in ind1 or j in ind2 or j == i or j in skip:
                 continue
             if abs(D[i] + D[j]) < tol:
                 ind1.append(i)
                 ind2.append(j)
                 break # index i consumed
                 
-    assert len(ind1) == len(ind2) and len(ind1) == dim, 'Error identifying pairs. Check input matrix or tolerance.'
+    assert len(ind1) == len(ind2), 'Error identifying pairs. Check input matrix or tolerance.'
     pairs = list(zip(ind1, ind2))
+    assert dim2 - len(pairs)*2 == len(skip), 'Check if skipped indices are removing partners.' 
     
     # Step 2: Construct U, assuming that it will transform a matrix with the above order
     if code == 'numpy':
@@ -353,15 +354,21 @@ def _diagonal2block(D, code, tol=1e-10, **kwargs):
     if code == 'mpmath':
         T = mp.zeros(dim2)
         
+    for k in skip:
+        T[k, k] = 1
+            
+    column_indices = [k for k in range(dim2) if k not in skip] # len(column_indices) == 2*len(pairs)
     k = 0
     for i, j in pairs:
+        k1 = column_indices[k]
+        k2 = column_indices[k + dim  - len(skip)//2] # the last dim - len(skip)//2 entries are the 'momenta'
         # map ei to ek and ej to e(k + dim)
-        T[k, i] = 1
-        T[k + dim, j] = 1
+        T[k1, i] = 1
+        T[k2, j] = 1
         k += 1
         
     return U@T.transpose()
-
+    
 
 def unitary_williamson(M, tol=1e-14, **kwargs):
     r'''
@@ -592,11 +599,11 @@ def williamson(V, **kwargs):
     return S, D
 
 
-def symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
+def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
     '''
-    Symplectic Takagi factorization.
+    Symplectic Takagi factorization (OLD ROUTINE).
     
-    Let G be a general symmetric matrix with complex entries and J the canonical symplectic
+    Let G be a symmetric matrix with complex entries and J the canonical symplectic
     structure. Assumes that G@J is diagonalizable.
     
     Then this routine will determine a symplectic matrix S so that S@D@S.transpose() = G, where
@@ -756,11 +763,13 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         J_symp = sympy_matrix(create_J(dim//2)).transpose()
         G_symp = sympy_matrix(H2)
         P_symp, JNF = (G_symp@J_symp).jordan_form()
+        
+        P_symp2, JNF2 = (G_symp@J_symp@G_symp@J_symp).jordan_form()
         if not JNF.is_diagonal():
             raise RuntimeError('Jordan normal form of H2@J not diagonal (check: True).')
 
     if mode == 'default':
-        S, D = symplectic_takagi(H2, check=check, **kwargs)
+        S, D = gj_symplectic_takagi(H2, check=check, **kwargs)
         S = S.transpose()
         Sinv = -J@S.transpose()@J
         U = _create_umat_xieta(dim=dim, code=code, **kwargs)
@@ -911,4 +920,64 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
         
     return results, nfdict
 
+def symplectic_takagi(G, **kwargs):
+    '''
+    Symplectic Takagi factorization.
+    
+    Let G be a symmetric matrix with complex entries and J the canonical symplectic
+    structure. Assumes that G@J@G@J is diagonalizable.
+    
+    Then this routine will determine a symplectic matrix S so that S@G@S.transpose() is diagonal.
+    
+    Parameters
+    ----------
+    G: matrix
+        Symmetric matrix.
+
+    **kwargs: optional
+        Optional arguments passed to '_diagonal2block' routine.
+        
+    Returns
+    -------
+    S: matrix
+        Symplectic matrix.
+    '''
+    
+    dim2 = len(G)
+    assert dim2%2 == 0, 'Dimension must be even.'
+    dim = dim2//2
+
+    J = np.array(create_J(dim)).transpose()
+    
+    # use sympy to get the jordan normal form
+    GJs = sympy_matrix(G@J)
+    P, cells = GJs.jordan_cells() # P.inv()@GJ@P = JNF
+    P, JNF = GJs.jordan_form() # we could compute the JNF via P as above, but this might leave some small non-zero values.
+    P = np.array(P).astype(np.complex128)
+    
+    U2 = np.array([[1j, -1j], [1, 1]])/np.sqrt(2) # diagonalizes a 2x2 off-diagonal matrix A via U2.transpose().conjugate()@A@U2
+    zero2 = np.zeros([2, 2])
+    one2 = np.eye(2)
+    
+    # identify the 2x2 jordan blocks
+    skip = []
+    k = 0
+    for c in cells:
+        if c.shape[0] == 2:
+            skip.append(k)
+            skip.append(k + 1)
+    diagonal_of_JNF = np.array(JNF.diagonal()).astype(np.complex128)[0]
+    U = _diagonal2block(diagonal_of_JNF, code='numpy', skip=skip, **kwargs) # one can give a tolerance here
+    # The unitary U will anti-diagonalize the diagonal blocks on the JNF via U.transpose().conjugate()@JNF@U.
+    
+    # Construct an orthogonal T which will serve as a similarity transformation between the direct sum
+    # and the expanding sum (see docs in expandingSum for details).
+    T = expandingSum(dim)
+    UT = U@T # UT.transpose().conjugate()@JNF@UT will be in desired anti-diagonal form
+    X = P@UT # This matrix is the desired similarity transform between GJ and the J-invariant anti-diagonal matrix
+    Xi = np.linalg.inv(X)
+
+    # Now construct the symplectic diagonalizing matrix Y@Xi: 
+    Y = get_principal_sqrt(-J@X.transpose()@J@X)
+    return Y@Xi
     

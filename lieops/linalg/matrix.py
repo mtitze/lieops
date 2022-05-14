@@ -59,40 +59,40 @@ def create_J(dim: int):
     return J1 + J2 
 
 
-def qpqp2qp(n):
+def expandingSum(dim):
     '''Compute a transformation matrix T by which we can transform a given
     (2n)x(2n) matrix M, represented in (q1, p1, q2, p2, ..., qn, pn)-coordinates, into
     a (q1, q2, ..., qn, p1, p2, ..., pn)-representation via
     M' = T^(-1)*M*T. T will be orthogonal, i.e. T^(-1) = T.transpose().
     
+    See also Refs. [1, 2] or (alternatively) in Ref. [3], p. 292., here. In particular, M
+    is given in terms of 2x2 block matrices, then M' is called the 'expanding Sum' of M. This explains the name
+    of this routine.
+    
     Parameters
     ----------
-    n: int
-        number of involved coordinates (i.e. 2*n dimension of phase space)
+    dim: int
+        number of involved coordinates (i.e. 2*dim dimension of phase space)
         
     Returns
     -------
     np.matrix
         Numpy matrix T defining the aforementioned transformation.
-    '''
-    columns_q, columns_p = [], []
-    for k in range(n):
-        # The qk are mapped to the positions zj via k->j as follows
-        # 1 -> 1, 2 -> 3, 3 -> 5, ..., k -> 2*k - 1. The pk are mapped to the 
-        # positions zj via k->j as follows
-        # 1 -> 2, 2 -> 4, 3 -> 6, ..., k -> 2*k. The additional "-1" is because
-        # in Python the indices are one less than the mathematical notation.
-        column_k = np.zeros(2*n)
-        column_k[2*(k + 1) - 1 - 1] = 1
-        columns_q.append(column_k)
-
-        column_kpn = np.zeros(2*n)
-        column_kpn[2*(k + 1) - 1] = 1
-        columns_p.append(column_kpn)
         
-    q = np.array(columns_q).transpose()
-    p = np.array(columns_p).transpose()
-    return np.bmat([[q, p]])
+    Reference(s):
+    [1]: M. Titze: "Space Charge Modeling at the Integer Resonances for the CERN PS and SPS", PhD Thesis (2019)
+    [2]: M. Titze: "On emittance and optics calculation from the tracking data in periodic lattices", arXiv.org (2019)
+    [3]: R. J. de la Cruz and H. Faßbender: "On the diagonalizability of a matrix by a symplectic equivalence, similarity or congruence transformation (2016).
+    '''
+    dim2 = dim*2
+    T = np.zeros([dim2, dim2])
+    # define the columns of T:
+    for j in range(dim2):
+        if j%2 == 0: # note that j starts from 0, in contrast to what is given in Refs. [1, 2]. Therefore the conditions are reversed.
+            T[(j + 1)//2, j] = 1
+        else:
+            T[dim + j//2, j] = 1
+    return T.transpose()
 
 
 def matrix_from_dict(M, code, symmetry: int=0, **kwargs):

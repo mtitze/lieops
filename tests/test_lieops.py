@@ -10,8 +10,8 @@ from njet import derive
 from lieops import __version__
 from lieops.ops import poly, create_coords, construct, bnf, lexp
 from lieops.ops.lie import homological_eq, first_order_nf_expansion
-from lieops.linalg.matrix import qpqp2qp, column_matrix_2_code, create_J
-from lieops.linalg.nf import symplectic_takagi
+from lieops.linalg.matrix import expandingSum, column_matrix_2_code, create_J
+from lieops.linalg.nf import gj_symplectic_takagi
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
@@ -175,7 +175,7 @@ def fonfe(tol=1e-14, code='numpy', **kwargs):
     he, he_dict = first_order_nf_expansion(H, order=3, warn=True, code=code, **kwargs)
     
     # compute expansion of the same Hamiltonian, but with respect to an alternative symplectic structure, up to third order:
-    T = qpqp2qp(2)
+    T = expandingSum(2)
     if code == 'mpmath':
         T = mp.matrix(T)
     HT = lambda x, px, y, py: H(x, y, px, py)
@@ -248,7 +248,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
     G = A.transpose()@J@EE@J@A
     G = G + G.transpose()
     
-    S0, D0 = symplectic_takagi(G, tol=tol1, dps=dps)
+    S0, D0 = gj_symplectic_takagi(G, tol=tol1, dps=dps)
     
     symplecticity = S0.transpose()@J@S0 - J
     factorization = S0@D0@S0.transpose() - G
