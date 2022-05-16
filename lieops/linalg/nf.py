@@ -316,6 +316,8 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], **kwargs):
     dim2 = len(D)
     assert dim2%2 == 0
     dim = dim2//2
+    
+    error_msg = 'Error identifying pairs. Check input or tolerance.'
 
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     ind1, ind2 = [], []
@@ -330,9 +332,9 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], **kwargs):
                 ind2.append(j)
                 break # index i consumed
                 
-    assert len(ind1) == len(ind2), 'Error identifying pairs. Check input matrix or tolerance.'
+    assert len(ind1) == len(ind2), error_msg
     pairs = list(zip(ind1, ind2))
-    assert dim2 - len(pairs)*2 == len(skip), 'Check if skipped indices are removing partners.' 
+    assert dim2 - len(pairs)*2 == len(skip), error_msg
     
     # Step 2: Construct U, assuming that it will transform a matrix with the above order
     if code == 'numpy':
@@ -740,8 +742,8 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         J2: The new symplectic structure for the (xi, eta)-coordinates.
         U: The unitary map from the S(q, p) = (u, v)-block coordinates to the (xi, eta)-coordinates.
         Uinv: The inverse of U.
-        K: The linear map transforming (q, p) to (xi, eta)-coordinates. K is given by U*S*T.
-        Kinv: The inverse of K. Hence, it will transform H2 to complex normal form via Kinv.transpose()*H2*Kinv.
+        K: The linear map transforming (q, p) to (xi, eta)-coordinates. K is given by U@S@T.
+        Kinv: The inverse of K. Hence, it will transform H2 to complex normal form via Kinv.transpose()@H2@Kinv.
         rnf: The 'real' normal form, by which we understand the diagonalization of H2 relative to the 
             symplectic matrix S. Note that S might be complex if the Hesse matrix of H2 is not positive definite.
         cnf: The 'complex' normal form, which is given as the representation of H2 in terms of the complex
@@ -858,7 +860,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     Returns
     -------
     dict
-        A dictionary of the Taylor coefficients of the Hamiltonian around z, where the first n
+        A dictionary of the Taylor coefficients of the Hamiltonian in normal form around z = (q, p), where the first n
         entries denote powers of xi, while the last n entries denote powers of eta.
         
     dict
@@ -978,5 +980,5 @@ def symplectic_takagi(G, **kwargs):
 
     # Now construct the symplectic diagonalizing matrix Y@Xi: 
     Y = get_principal_sqrt(-J@X.transpose()@J@X)
-    return Y@Xi
+    return Y@Xi, X
     

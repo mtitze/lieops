@@ -1,4 +1,5 @@
 from njet import derive
+import numpy as np
 
 def complexHamiltonEqs(hamiltonian):
     r'''
@@ -25,7 +26,7 @@ def complexHamiltonEqs(hamiltonian):
         return dxi
     return eqs
 
-def getRealHamiltonFunction(hamiltonian, real=True, tol=0, **kwargs):
+def getRealHamiltonFunction(hamiltonian, real=False, tol=0, nf=[], **kwargs):
     '''
     Create a Hamilton function H(q, p) -> real, for a given Hamiltonian.
     
@@ -35,9 +36,18 @@ def getRealHamiltonFunction(hamiltonian, real=True, tol=0, **kwargs):
         A poly object, representing a Hamiltonian in its default complex (xi, eta)-coordinates.
     
     real: boolean, optional
-        If true, it will be assumed that the real form of the given
-        Hamiltonian has no imaginary parts (for example, if the given Hamiltonian emerged from
-        some real-valued functions).
+        This flag is intended to be used on Hamiltonians whose real form is expected to not
+        contain imaginary parts.
+        
+    nf: matrix_like, optional
+        Intended to be used with the output matrix K of lieops.linalg.nf.normal_form routine.
+        Background:
+        It can happen that the given Hamiltonian has been constructed by means of (complex) normal form. 
+        This means that we need to apply an additional transformation to rever the K-map (otherwise
+        we would get a complex-valued Hamiltonian. (see lieops.linalg.nf.first_order_nf_expansion routine).
+        If nf is given, then the map needs to ensure that the resulting Hamiltonian is real-valued.
+    
+    rham = hamiltonian
         
     tol: float, optional
         If > 0, then drop Hamiltonian coefficients below this threshold.
@@ -52,11 +62,23 @@ def getRealHamiltonFunction(hamiltonian, real=True, tol=0, **kwargs):
         It will represent the Hamiltonian with respect to its real (q, p)-coordinates.
     '''
     dim = hamiltonian.dim
-    rbh = hamiltonian.realBasis(**kwargs)
-    if real:
+    
+    if len(nf) == 0:
+        # use default realBasis
+        rbh = hamiltonian.realBasis(**kwargs)
+    else:
+        rbh = hamiltonian
+            
+    if real and len(nf) == 0:
+        # in this case we can just remove the imaginary parts from rbh outright
+        # this becomes necessary if we want to apply the heyoka solver, which complains if
+        # one attempts to multiply a complex value with one of its variables
         rbh = {k: v.real for k, v in rbh.items()}
+        
     if tol > 0:
         rbh = {k: v for k, v in rbh.items() if abs(v) >= tol}
+        
+    # By construction, the realBasis of a Hamiltonian is given in terms of powers of q and p:
     def ham(*qp):
         result = 0
         for k, v in rbh.items():
@@ -65,7 +87,17 @@ def getRealHamiltonFunction(hamiltonian, real=True, tol=0, **kwargs):
                 power *= qp[l]**k[l]*qp[l + dim]**k[l + dim]
             result += power*v
         return result
-    return ham
+    
+    if len(nf) > 0:
+        # apply a map beforehand
+        Kmap = lambda *qp: [sum([nf[k, j]*qp[j] for j in range(2*dim)]) for k in range(2*dim)]
+        ham1 = lambda *qp: ham(*Kmap(*qp))
+        if real:
+            return lambda *qp: ham1(*qp).real
+        else:
+            return ham1
+    else:
+        return ham
 
 def realHamiltonEqs(hamiltonian, **kwargs):
     r'''
@@ -93,4 +125,4 @@ def realHamiltonEqs(hamiltonian, **kwargs):
         dH = dhamiltonian.grad(*qp)
         dqp = [dH.get((k + dim,), 0) for k in range(dim)] + [-dH.get((k,), 0) for k in range(dim)]
         return dqp
-    return eqs
+    return eqs, realHam

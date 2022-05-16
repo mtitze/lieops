@@ -484,7 +484,7 @@ class poly:
             out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.items()}
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
     
-    def realBasis(self, mult_drv=False, mult_prm=False):
+    def realBasis(self, mult_drv=False, mult_prm=False, **kwargs):
         '''
         Cast the current polynomial into its real form, depending on
         p and q canonical coordinates.

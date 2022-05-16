@@ -7,6 +7,8 @@ from .genfunc import genexp
 from .magnus import fast_hard_edge_chain, hard_edge, hard_edge_chain, norsett_iserles
 from .poly import poly as _poly
 
+from lieops.solver.common import getRealHamiltonFunction
+
 class poly(_poly):
     
     def flow(self, t=-1, *args, **kwargs):
@@ -436,7 +438,7 @@ def homological_eq(mu, Z, **kwargs):
             Q[powers] = value
     return chi, Q
 
-def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
+def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     '''
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
@@ -458,8 +460,8 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
         succeeding ones will have increased powers by 1.
     
     cmplx: boolean, optional
-        By default we will assume that the coefficients of the second-order terms of the Hamiltonian are real.
-        If cmplx=False, a check will be done and an error will be raised if that is not the case.
+        If false, assume that the coefficients of the second-order terms of the Hamiltonian are real.
+        In this case a check will be done and an error will be raised if that is not the case.
         
     tol: float, optional
         Tolerance below which we consider a value as zero. This will be used when examining the second-order
@@ -500,17 +502,18 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
         if isinstance(H, poly):
             # we have to transfom the call-routine of H: H depend on (xi, eta)-coordinates, but the nf routines later on assume (q, p)-coordinates.
             # In principle, one can change this transformation somewhere else, but this may cause the normal form routines
-            # to either yield inconsistent output at a general point z -- or it may introduce additional complexity. 
-            # TODO: add expansion as class function in poly instead?
-            U = _create_umat_xieta(dim=2*H.dim, code=kwargs.get('code', 'numpy'))
-            Hinp = lambda *Z: H(*[sum([Z[l]*U[k, l] for l in range(2*H.dim)]) for k in range(2*H.dim)]) # need to set 2*H.dim here, so that 'derive' later on recognizes two 'independent' directions (otherwise the Hesse matrix will get half its dimensions).
-            # if z in kwargs.keys()
-            # TODO/Check: may need to transform this value as well
-        taylor_coeffs, nfdict = first_order_nf_expansion(Hinp, tol=tol, **kwargs)      
+            # to either yield inconsistent output at a general point z -- or it may introduce additional complexity.
+            Hinp = getRealHamiltonFunction(H, tol=tol, **kwargs)
+        taylor_coeffs, nfdict = first_order_nf_expansion(Hinp, tol=tol, **kwargs)
+        # N.B. while Hinp is given in terms of (q, p) variables, taylor_coeffs correspond to the Taylor-expansion
+        # of the Hamiltonian around z=(q0, p0) with respect to the normal form (xi, eta) coordinates (see first_order_nf_expansion routine).
     else:
         # Attention: In this case we assume that H is already in complex normal form (CNF): Off-diagonal entries will be ignored (see code below).
         taylor_coeffs = H
         nfdict = {}
+        
+    # Note that if a vector z is given, the origin of the results correspond to z (since the normal form above
+    # is constructed with respect to a Hamiltonian shifted by z.
         
     # get the dimension (by looking at one key in the dict)
     dim2 = len(next(iter(taylor_coeffs)))
@@ -532,13 +535,13 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
         mu.append(muj)
     H0 = poly(values=H0, dim=dim, max_power=max_power)
     assert len({k: v for k, v in taylor_coeffs.items() if sum(k) == 2 and abs(v) >= tol}) == 0 # All other 2nd order Taylor coefficients must be zero.
-    
+
     # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
-    # Note that the skipping of gradients leads to an artificial normal form which may not have anything relation
+    # Note that the skipping of gradients leads to an artificial normal form which may not have any relation
     # to the original problem. By default, the user will be informed if there is a non-zero gradient 
     # in 'first_order_nf_expansion' routine.
     H = H0.update({k: v for k, v in taylor_coeffs.items() if sum(k) > 2})
-    
+        
     ########################
     # STEP 2: NF-Algorithm
     ########################
@@ -550,16 +553,19 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
         
     chi_all, Hk_all = [], [H]
     Zk_all, Qk_all = [], []
+    lchi_all = []
     for k in range(3, power + 1):
         chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        Hk = lexp(-chi, power=lo_power)(Hk)
+        lchi = lexp(-chi, power=lo_power)
+        Hk = lchi(Hk)
         # Hk = lexp(-chi, power=k + 1)(Hk) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)
-        Zk += Q 
+        Zk += Q
         
+        lchi_all.append(lchi)
         chi_all.append(chi)
         Hk_all.append(Hk)
         Zk_all.append(Zk)
@@ -570,7 +576,8 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=False, **kwargs):
     out['nfdict'] = nfdict
     out['H'] = H
     out['H0'] = H0
-    out['mu'] = mu    
+    out['mu'] = mu
+    out['lchi_inv'] = lchi_all
     out['chi'] = chi_all
     out['Hk'] = Hk_all
     out['Zk'] = Zk_all
