@@ -28,7 +28,7 @@ def complexHamiltonEqs(hamiltonian):
 
 def getRealHamiltonFunction(hamiltonian, real=False, tol=0, nf=[], **kwargs):
     '''
-    Create a Hamilton function H(q, p) -> real, for a given Hamiltonian.
+    Create a Hamilton function H(q, p), for a given Hamiltonian H(xi, eta).
     
     Parameters
     ----------
@@ -50,7 +50,7 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0, nf=[], **kwargs):
     rham = hamiltonian
         
     tol: float, optional
-        If > 0, then drop Hamiltonian coefficients below this threshold.
+        Only in effect if len(nf) == 0. If > 0, then drop Hamiltonian coefficients below this threshold.
         
     **kwargs
         Optional keyword arguments passed to hamiltonian.realBasis routine.
@@ -64,40 +64,36 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0, nf=[], **kwargs):
     dim = hamiltonian.dim
     
     if len(nf) == 0:
-        # use default realBasis
+        # use default realBasis, i.e. q and p are given by their 'default' relation to xi and eta.
         rbh = hamiltonian.realBasis(**kwargs)
-    else:
-        rbh = hamiltonian
+        if real:
+            # In this case we remove the imaginary parts from rbh outright.
+            # This becomes necessary if we want to apply the heyoka solver, which complains if
+            # one attempts to multiply a complex value with one of its variables
+            rbh = {k: v.real for k, v in rbh.items()}
             
-    if real and len(nf) == 0:
-        # in this case we can just remove the imaginary parts from rbh outright
-        # this becomes necessary if we want to apply the heyoka solver, which complains if
-        # one attempts to multiply a complex value with one of its variables
-        rbh = {k: v.real for k, v in rbh.items()}
+        if tol > 0:
+            rbh = {k: v for k, v in rbh.items() if abs(v) >= tol}
+            
+        # By construction, the realBasis of a Hamiltonian is given in terms of powers of q and p:
+        def ham(*qp):
+            result = 0
+            for k, v in rbh.items():
+                power = 1
+                for l in range(dim):
+                    power *= qp[l]**k[l]*qp[l + dim]**k[l + dim]
+                result += power*v
+            return result
         
-    if tol > 0:
-        rbh = {k: v for k, v in rbh.items() if abs(v) >= tol}
-        
-    # By construction, the realBasis of a Hamiltonian is given in terms of powers of q and p:
-    def ham(*qp):
-        result = 0
-        for k, v in rbh.items():
-            power = 1
-            for l in range(dim):
-                power *= qp[l]**k[l]*qp[l + dim]**k[l + dim]
-            result += power*v
-        return result
-    
-    if len(nf) > 0:
-        # apply a map beforehand
+        return ham
+    else:
+        # apply a map before
         Kmap = lambda *qp: [sum([nf[k, j]*qp[j] for j in range(2*dim)]) for k in range(2*dim)]
-        ham1 = lambda *qp: ham(*Kmap(*qp))
+        ham1 = lambda *qp: hamiltonian(*Kmap(*qp))
         if real:
             return lambda *qp: ham1(*qp).real
         else:
             return ham1
-    else:
-        return ham
 
 def realHamiltonEqs(hamiltonian, **kwargs):
     r'''

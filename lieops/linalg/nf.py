@@ -283,7 +283,7 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
-def _diagonal2block(D, code, tol=1e-10, skip=[], **kwargs):
+def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda x, y: True, **kwargs):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
@@ -295,7 +295,7 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], **kwargs):
     B = |         |
         \ -W   0  /
     
-    where W = diag(a, b, ...).
+    where W = diag(a*1j, b*1j, ...). The signs of a, b, ... can be controlled by an optional condition.
     
     Parameters
     ----------
@@ -307,6 +307,15 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], **kwargs):
         
     tol: float, optional
         A small parameter to identify the pairs on the diagonal of D.
+        
+    condition: callable, optional
+        It may be necessary to exchange the roles of two pairs (a, -a) in the case that
+        such pairs emerge from the Jordan Normal Form, which is only determined up to 
+        permuation of its blocks (here the pair of eigenvalues).
+        
+        This selection can be controlled by a callable, which takes the two pairs (a, -a)
+        and must return a boolean value. If True, then (a, -a) will be used. 
+        If False, then (-a, a) will be used.
     
     Returns
     -------
@@ -343,11 +352,18 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], **kwargs):
         U = mp.eye(dim2, dtype=complex)
         
     U2by2 = _create_umat_xieta(2, code=code, **kwargs)
+    signs = {True: 1, False: -1}
     for i, j in pairs:
+        # Signs: Need to ensure orientation: Using
+        # U2by2perm := matrix([[0, 1], [1, 0]])@U2by2
+        # instead corresponds to an exchange of the two eigenvalue pairs.
+        # This may be necessary because the Jordan Normal Form etc. is only determined up to
+        # permuation of its blocks (here a pair of eigenvalues).
+        sign = signs[condition(D[i], D[j])]
         U[i, i] = U2by2[0, 0]
-        U[i, j] = U2by2[0, 1]
+        U[i, j] = U2by2[0, 1]*sign
         U[j, i] = U2by2[1, 0]
-        U[j, j] = U2by2[1, 1]
+        U[j, j] = U2by2[1, 1]*sign
         
     # Step 3: Ensure that U maps to the desired block ordering.
     # Pair k should be mapped to the indices (k, k + dim) and (k + dim, k). This can be done with a
@@ -654,7 +670,8 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
         Yi = mp.matrix(evects).transpose()
         Y = mp.inverse(Yi)
         
-    U = _diagonal2block(evals, code=code, tol=d2b_tol)
+    # TODO: check condition!
+    U = _diagonal2block(evals, code=code, tol=d2b_tol, condition = lambda x, y: x.imag <= y.imag)
     X = U.transpose().conjugate()@Y
     Xi = Yi@U
     F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
@@ -768,14 +785,23 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         P_symp, JNF = (G_symp@J_symp).jordan_form()
         if not JNF.is_diagonal():
             raise RuntimeError('Jordan normal form of H2@J not diagonal (check: True).')
-
-    if mode == 'default':
+            
+    if mode == 'new':
+        # will become the default in future; TODO: some tests are failing
+        S, X = symplectic_takagi(H2, **kwargs)
+        D = S.transpose()@H2@S
+        Sinv = -J@S.transpose()@J
+        U = _create_umat_xieta(dim=dim, code=code, **kwargs)
+    elif mode == 'default':
+        # will become OLD code. Using symplectic takagi assuming GJ is diagonalizable. This older version
+        # works with eigenspaces and eigenvalues routine.
+        # TODO: S may change the sign of the Hesse-matrix. Need to figure out the issue. 
         S, D = gj_symplectic_takagi(H2, check=check, **kwargs)
         S = S.transpose()
         Sinv = -J@S.transpose()@J
         U = _create_umat_xieta(dim=dim, code=code, **kwargs)
     elif mode == 'classic':
-        # OLD code, using Williamson or "unitary" Williamson.      
+        # OLD code, using Williamson or "unitary" Williamson.
         if is_positive_definite(H2):
             S, D = williamson(V=H2, **kwargs)
 
@@ -794,9 +820,11 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     # U is hermitian, therefore
     Uinv = U.transpose().conjugate()
 
-    # N.B. (q, J*p) = (Sq, J*S*p) = (u, J*v) = (Uinv*U*u, J*Uinv*U*v) = (Uinv*xi, J*Uinv*eta). Thus:
-    J2 = Uinv.transpose()@J@Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
-
+    # N.B. (q, J*p) = (Sq, J*S*p) = (u, J*v) = (Uinv*U*u, J*Uinv*U*v) = (Uinv*xi, J*Uinv*eta) = (xi, Uinv.transpose().conjugate()@J@Uinv*eta).
+    J2 = U@J@U.transpose() # the new symplectic structure (see my notes).
+    #J2 = Uinv.transpose().conjugate()@J@Uinv # the new symplectic structure with respect to the (xi, eta)-coordinates (holds also in the case len(T) != 0)
+    #   = U@J@U.transpose().conjuage() = [U@J@U.transpose()].conjugate()
+    
     K = U@S # K(q, p) = (xi, eta)
     Kinv = Sinv@Uinv  # this map will transform to the new (xi, eta)-coordinates via Kinv.transpose()*H2*Kinv
 
@@ -890,7 +918,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     z0 = dim*[0]
     Hesse_dict = dHshift.hess(*z0)
     Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code, n_rows=dim, n_cols=dim)
-    
+
     # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
     if check:
         gradient = dHshift.grad() # the gradient of H is evaluated at z0 (note that H has been shifted to z0 above, so that z0 corresponds to the original point z).
@@ -968,7 +996,9 @@ def symplectic_takagi(G, **kwargs):
             skip.append(k)
             skip.append(k + 1)
     diagonal_of_JNF = np.array(JNF.diagonal()).astype(np.complex128)[0]
-    U = _diagonal2block(diagonal_of_JNF, code='numpy', skip=skip, **kwargs) # one can give a tolerance here
+    # TODO: check condition!
+    U = _diagonal2block(diagonal_of_JNF, code='numpy', skip=skip, 
+                        condition = lambda x, y: x.imag <= y.imag, **kwargs) # one can give a tolerance here
     # The unitary U will anti-diagonalize the diagonal blocks on the JNF via U.transpose().conjugate()@JNF@U.
     
     # Construct an orthogonal T which will serve as a similarity transformation between the direct sum
