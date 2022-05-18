@@ -283,7 +283,7 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
-def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda x, y: True, **kwargs):
+def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda p, k: 1, **kwargs):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
@@ -307,15 +307,6 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda x, y: True, **
         
     tol: float, optional
         A small parameter to identify the pairs on the diagonal of D.
-        
-    condition: callable, optional
-        It may be necessary to exchange the roles of two pairs (a, -a) in the case that
-        such pairs emerge from the Jordan Normal Form, which is only determined up to 
-        permuation of its blocks (here the pair of eigenvalues).
-        
-        This selection can be controlled by a callable, which takes the two pairs (a, -a)
-        and must return a boolean value. If True, then (a, -a) will be used. 
-        If False, then (-a, a) will be used.
     
     Returns
     -------
@@ -352,14 +343,14 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda x, y: True, **
         U = mp.eye(dim2, dtype=complex)
         
     U2by2 = _create_umat_xieta(2, code=code, **kwargs)
-    signs = {True: 1, False: -1}
-    for i, j in pairs:
+    for k in range(len(pairs)):
+        i, j = pairs[k]
         # Signs: Need to ensure orientation: Using
         # U2by2perm := matrix([[0, 1], [1, 0]])@U2by2
         # instead corresponds to an exchange of the two eigenvalue pairs.
         # This may be necessary because the Jordan Normal Form etc. is only determined up to
         # permuation of its blocks (here a pair of eigenvalues).
-        sign = signs[condition(D[i], D[j])]
+        sign = condition(pairs, k)
         U[i, i] = U2by2[0, 0]
         U[i, j] = U2by2[0, 1]*sign
         U[j, i] = U2by2[1, 0]
@@ -637,7 +628,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
         Optional tolerance given to '_diagonal2block' routine.
         
     **kwargs: optional
-        Optional arguments passed to 'eigenspaces' routine.
+        Optional arguments passed to 'eigenspaces' and '_diagonal2block' routine.
         
     Returns
     -------
@@ -669,9 +660,10 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
     if code == 'mpmath':
         Yi = mp.matrix(evects).transpose()
         Y = mp.inverse(Yi)
-        
-    # TODO: check condition!
-    U = _diagonal2block(evals, code=code, tol=d2b_tol) # , condition = lambda x, y: x.imag <= y.imag)
+
+    # Y@GJ@Yi will be diagonal
+    
+    U = _diagonal2block(evals, code=code, tol=d2b_tol)
     X = U.transpose().conjugate()@Y
     Xi = Yi@U
     F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
