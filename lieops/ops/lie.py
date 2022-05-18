@@ -488,8 +488,8 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     [2]: B. Grebert. "Birkhoff normal form and Hamiltonian PDEs". (2006)
     '''
     power = order + 2 # the maximal power of the homogeneous polynomials chi mapping to normal form.
-    max_power = kwargs.get('max_power', order + 2) # the maximal power to be taken into consideration when applying ad-operations between Lie-polynomials. Todo: check default & relation to 'power'
-    lo_power = kwargs.get('power', order + 2) # The maximal power by which we want to expand exponential series when evaluating Lie operators. Todo: check default.
+    max_power = kwargs.get('max_power', order + 2) # the maximal power to be taken into consideration when applying ad-operations between Lie-polynomials. TODO: check default & relation to 'power'
+    lo_power = kwargs.get('power', order + 2) # The maximal power by which we want to expand exponential series when evaluating Lie operators. TODO: check default.
     
     #######################
     # STEP 1: Preparation

@@ -444,7 +444,6 @@ def test_construct(a: int=3, b: int=5, k: int=7, tol=1e-14):
     diff3 = exp_eps**k@eps_ab - k*exp_eps**k*eps_ab
     assert max([abs(v) for v in diff3.values()]) < tol
     
-    
 def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     # Check if the flow function of a Lie-polynomial gives the same result as the
     # flow of the Lie-operator, having this polynomial as argument (exponent).
@@ -464,6 +463,31 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     L1 = lexp(H_accu_f, t=t, order=order, power=power, n_args=2)
     argflow = L1.argument.flow(t=t, power=L1.power)
     return argflow(*z) == L1(*z)
+
+def test_bnf_diagonalization(tol=5e-15, **kwargs):
+    '''
+    Test if the first_order_nf_expansion routine will give the same result for a 1D-Hamiltonian (i.e.
+    a Hamiltonian depending only on one set of coordinates), as it is already in a first-order
+    NF (there is only one (1, 1)-term).
+    '''
+    heff = poly(values={(1, 2): (0.030281601477850428+0.022880847131515537j),
+                (2, 1): (0.030281601477850428-0.022880847131515537j),
+                (1, 1): (-1.2943361732789946+0j),
+                (0, 3): (-0.0067437692097512825+0.022880847131512467j),
+                (3, 0): (-0.0067437692097512825-0.022880847131512467j),
+                (2, 2): (-0.0020696721592390653+0j),
+                (0, 4): (0.0002573905636475989-0.0009855310036223186j),
+                (3, 1): (-0.0007774455159719339+0.001600740049462997j),
+                (1, 3): (-0.0007774455159719339-0.001600740049462997j),
+                (4, 0): (0.0002573905636475989+0.0009855310036223186j),
+                (0, 5): (9.871836039193e-06+2.1828185573764483e-05j),
+                (3, 2): (9.871836039193003e-05-4.365637114752898e-05j),
+                (1, 4): (4.935918019596501e-05+6.548455672129347e-05j),
+                (4, 1): (4.935918019596501e-05-6.548455672129347e-05j),
+                (2, 3): (9.871836039193003e-05+4.365637114752898e-05j),
+                (5, 0): (9.871836039193e-06-2.1828185573764483e-05j)})
+    bnfdict = heff.bnf(order=3, **kwargs)
+    assert all([abs(v) for v in (heff - bnfdict['H']).values()])
     
 def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).

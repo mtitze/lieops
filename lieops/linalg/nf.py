@@ -671,7 +671,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
         Y = mp.inverse(Yi)
         
     # TODO: check condition!
-    U = _diagonal2block(evals, code=code, tol=d2b_tol, condition = lambda x, y: x.imag <= y.imag)
+    U = _diagonal2block(evals, code=code, tol=d2b_tol) # , condition = lambda x, y: x.imag <= y.imag)
     X = U.transpose().conjugate()@Y
     Xi = Yi@U
     F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
@@ -997,8 +997,8 @@ def symplectic_takagi(G, **kwargs):
             skip.append(k + 1)
     diagonal_of_JNF = np.array(JNF.diagonal()).astype(np.complex128)[0]
     # TODO: check condition!
-    U = _diagonal2block(diagonal_of_JNF, code='numpy', skip=skip, 
-                        condition = lambda x, y: x.imag <= y.imag, **kwargs) # one can give a tolerance here
+    U = _diagonal2block(diagonal_of_JNF, code='numpy', skip=skip)#, 
+                        #condition = lambda x, y: x.imag <= y.imag, **kwargs) # one can give a tolerance here
     # The unitary U will anti-diagonalize the diagonal blocks on the JNF via U.transpose().conjugate()@JNF@U.
     
     # Construct an orthogonal T which will serve as a similarity transformation between the direct sum
