@@ -283,7 +283,7 @@ def cortho_symmetric_decomposition(M):
     return Q, G
 
 
-def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda p, k: 1, **kwargs):
+def _diagonal2block(D, code, tol=1e-10, skip=[], orientation=lambda p, k: 1, **kwargs):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
@@ -295,7 +295,7 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda p, k: 1, **kwa
     B = |         |
         \ -W   0  /
     
-    where W = diag(a*1j, b*1j, ...). The signs of a, b, ... can be controlled by an optional condition.
+    where W = diag(a*1j, b*1j, ...). The signs of a, b, ... can be controlled by an optional orientation (see below).
     
     Parameters
     ----------
@@ -307,6 +307,10 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda p, k: 1, **kwa
         
     tol: float, optional
         A small parameter to identify the pairs on the diagonal of D.
+        
+    orientation: callable, optional
+        A function taking a set of pairs and an index, and returning +1 or -1. With this
+        function one can therefore control the orientation of the result.
     
     Returns
     -------
@@ -317,7 +321,7 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda p, k: 1, **kwa
     assert dim2%2 == 0
     dim = dim2//2
     
-    error_msg = 'Error identifying pairs. Check input or tolerance.'
+    error_msg = f'Error identifying pairs. Check input or tolerance ({tol}).'
 
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     ind1, ind2 = [], []
@@ -350,7 +354,7 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], condition=lambda p, k: 1, **kwa
         # instead corresponds to an exchange of the two eigenvalue pairs.
         # This may be necessary because the Jordan Normal Form etc. is only determined up to
         # permuation of its blocks (here a pair of eigenvalues).
-        sign = condition(pairs, k)
+        sign = orientation(pairs, k)
         U[i, i] = U2by2[0, 0]
         U[i, j] = U2by2[0, 1]*sign
         U[j, i] = U2by2[1, 0]
@@ -609,7 +613,7 @@ def williamson(V, **kwargs):
     return S, D
 
 
-def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
+def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
     '''
     Symplectic Takagi factorization (OLD ROUTINE).
     
@@ -628,7 +632,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
         Optional tolerance given to '_diagonal2block' routine.
         
     **kwargs: optional
-        Optional arguments passed to 'eigenspaces' and '_diagonal2block' routine.
+        Optional arguments passed to 'eigenspaces' routine.
         
     Returns
     -------
@@ -663,7 +667,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
 
     # Y@GJ@Yi will be diagonal
     
-    U = _diagonal2block(evals, code=code, tol=d2b_tol)
+    U = _diagonal2block(evals, code=code, tol=d2b_tol, orientation=kwargs.get('orientation', lambda p, k: 1))
     X = U.transpose().conjugate()@Y
     Xi = Yi@U
     F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
@@ -671,9 +675,20 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, **kwargs):
     
     # Step 2: Construct symplectic matrix
     if code == 'numpy':
-        YY = get_principal_sqrt(-J@X.transpose()@J@X)
+        # from scipy.linalg import sqrtm
+        # YY = sqrtm(-J@X.transpose()@J@X) # does not give poylnomial square roots
+        # YY = get_principal_sqrt(-J@X.transpose()@J@X) # does not give polynomial square roots in general TODO: need to change this routine
+        
+        Jmp = mp.matrix(J)
+        Xmp = mp.matrix(X)
+        YY = np.array(mp.sqrtm(-Jmp@Xmp.transpose()@Jmp@Xmp).tolist(), dtype=np.complex128)
     if code == 'mpmath':
         YY = mp.sqrtm(-J@X.transpose()@J@X)
+        
+    # It must hold: -J@YY.transpose()@J = Y. If this is not the case, then YY is not a polynomial square root of the above matrix.
+    # (see Thm. 5.5 my notes, or Horner: Topics in Matrix Analysis, S-polar decomposition. Throw me a message if you need details)
+    if kwargs.get('check', True):
+        assert max(np.abs(np.array(-J@YY.transpose()@J - YY).flatten())) < d2b_tol, 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
         
     return YY@Xi, D
 
@@ -1002,5 +1017,8 @@ def symplectic_takagi(G, **kwargs):
 
     # Now construct the symplectic diagonalizing matrix Y@Xi: 
     Y = get_principal_sqrt(-J@X.transpose()@J@X)
-    return Y@Xi, X
+    if kwargs.get('check', True):
+        assert max(np.abs(np.array(-J@Y.transpose()@J - Y).flatten())) < kwargs.get('d2b_tol', 1e-10), 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
+    S = Y@Xi
+    return S, S@G@S.transpose()
     
