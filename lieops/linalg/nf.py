@@ -282,8 +282,93 @@ def cortho_symmetric_decomposition(M):
     # G@Q = M
     return Q, G
 
+def _identifyPairs(D, tol=1e-10, **kwargs):
+    '''
+    Let D = [a, b, ..., -a, ..., -b, ...] be a list of complex values.
+    This routine will identify the pairs (a, -a), (b, -b), ... and return
+    their indices.
+    
+    Parameters
+    ----------
+    D: list
+        A list of even length containing the pairs of values.
+        
+    tol: float, optional
+        An optional tolerance by which we identify two pairs.
+    '''
+    dim2 = len(D)
+    assert dim2%2 == 0
+    dim = dim2//2
 
-def _diagonal2block(D, code, tol=1e-10, skip=[], orientation=lambda p, k: 1, **kwargs):
+    error_msg = f'Error identifying pairs. Check input or tolerance ({tol}).'
+
+    # Step 1: Determine the pairs on the diagonal which should be mapped.
+    ind1, ind2 = [], []
+    for i in range(len(D)):
+        if i in ind1 or i in ind2:
+            continue
+        for j in range(len(D)):
+            if j in ind1 or j in ind2 or j == i:
+                continue
+            if abs(D[i] + D[j]) < tol:
+                ind1.append(i)
+                ind2.append(j)
+                break # index i consumed
+                
+    assert len(ind1) == len(ind2), error_msg
+    pairs = list(zip(ind1, ind2))
+    assert dim2 - len(pairs)*2 == 0, error_msg
+    
+    return pairs
+
+
+def _get_orientation(Dref, D, tol=1e-10):
+    '''
+    For two lists of values Dref = [a, b, ..., -a, ..., -b, ...], D = [c, d, ..., -c, ..., -d, ...], this routine
+    will attempt to identify the indices of those values from list Dref with the one of D in such a way that
+    whenever one value can be transformed by +/- 1 or +/- i to another, this value will be determined.
+    
+    Parameters
+    ----------
+    Dref: list
+        The 'reference' list
+        
+    D: list
+        The second list
+        
+    tol: float, optional
+        Tolerance by which we identify two values to be equal.
+        
+    Returns
+    -------
+    np.array
+        A numpy array whose (i, j) entry denotes the factor f so that D[j]*f = Dref[i] holds, where f in [1, -1, i, -i].
+    '''
+    dim2 = len(D)
+    assert len(Dref) == dim2
+    orient = np.zeros([dim2, dim2], dtype=np.complex128)
+    check = 0 
+    for k in range(dim2):
+        a = Dref[k]
+        for l in range(dim2):
+            b = D[l]
+            if abs(a - b) < tol:
+                orient[k, l] = 1
+            elif abs(a - 1j*b) < tol:
+                orient[k, l] = 1j
+            elif abs(a + 1j*b) < tol:
+                orient[k, l] = -1j
+            elif abs(a + b) < tol:
+                orient[k, l] = -1
+            else:
+                check += 1
+                continue
+    # check if there are exactly 2 entries for each column. If this is not the case, something went wrong.
+    assert check == dim2**2 - 2*dim2, f'Orientation could not be determined using tol: {tol}'
+    return orient
+
+
+def _diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
     r'''
     Computes a unitary map U which will congruent-diagonalize a matrix D of the form
     
@@ -309,8 +394,8 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], orientation=lambda p, k: 1, **k
         A small parameter to identify the pairs on the diagonal of D.
         
     orientation: callable, optional
-        A function taking a set of pairs and an index, and returning +1 or -1. With this
-        function one can therefore control the orientation of the result.
+        A function taking a list of values, a set of pairs and an index, and returning +1 or -1. With this
+        function one has some control over the orientation of the result.
     
     Returns
     -------
@@ -320,25 +405,12 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], orientation=lambda p, k: 1, **k
     dim2 = len(D)
     assert dim2%2 == 0
     dim = dim2//2
-    
-    error_msg = f'Error identifying pairs. Check input or tolerance ({tol}).'
+
+    if len(orientation) > 0:
+        omat = _get_orientation(orientation, D, **kwargs)
 
     # Step 1: Determine the pairs on the diagonal which should be mapped.
-    ind1, ind2 = [], []
-    for i in range(len(D)):
-        if i in ind1 or i in ind2 or i in skip:
-            continue
-        for j in range(len(D)):
-            if j in ind1 or j in ind2 or j == i or j in skip:
-                continue
-            if abs(D[i] + D[j]) < tol:
-                ind1.append(i)
-                ind2.append(j)
-                break # index i consumed
-                
-    assert len(ind1) == len(ind2), error_msg
-    pairs = list(zip(ind1, ind2))
-    assert dim2 - len(pairs)*2 == len(skip), error_msg
+    pairs = _identifyPairs(D, tol=tol, **kwargs)
     
     # Step 2: Construct U, assuming that it will transform a matrix with the above order
     if code == 'numpy':
@@ -347,14 +419,28 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], orientation=lambda p, k: 1, **k
         U = mp.eye(dim2, dtype=complex)
         
     U2by2 = _create_umat_xieta(2, code=code, **kwargs)
+    column_indices = []
     for k in range(len(pairs)):
         i, j = pairs[k]
-        # Signs: Need to ensure orientation: Using
-        # U2by2perm := matrix([[0, 1], [1, 0]])@U2by2
-        # instead corresponds to an exchange of the two eigenvalue pairs.
-        # This may be necessary because the Jordan Normal Form etc. is only determined up to
-        # permuation of its blocks (here a pair of eigenvalues).
-        sign = orientation(pairs, k)
+        
+        if len(orientation) > 0:
+            # Signs: Need to ensure orientation: Using
+            # U2by2perm := matrix([[0, 1], [1, 0]])@U2by2
+            # instead corresponds to an exchange of the two eigenvalue pairs.
+            # This may be necessary because the Jordan Normal Form etc. is only determined up to
+            # permuation of its blocks (here a pair of eigenvalues). In effect, U2by2perm can be
+            # computed by adding a -1 as sign. Furthermore, the eigenvalues might be related by +/- i.
+            # For this purpose we have constructed the orientation matrix 'omat' above, in which these
+            # values are stored. We retreive the factors now:
+            oindices = np.where(omat[:,i])[0] # These are the (two) indices of those values in the reference 'orientation' vector, to which the value D[i] can be transformed by a multiplication of one of the members of [+1, -1, +i, -i].
+            column_indices += list(oindices)
+            oindex = oindices[0] # To get the sign, we take the first of the two indices, because these indices correspond to two identical values in 'orientation'.
+            sign = omat[oindex, i].imag
+            # now it holds sign*1j*D[i] == orientation[oindex] (up to the given tolerance).
+        else:
+            sign = 1
+            column_indices += [k, k + dim]
+            
         U[i, i] = U2by2[0, 0]
         U[i, j] = U2by2[0, 1]*sign
         U[j, i] = U2by2[1, 0]
@@ -367,16 +453,13 @@ def _diagonal2block(D, code, tol=1e-10, skip=[], orientation=lambda p, k: 1, **k
         T = np.zeros([dim2, dim2])
     if code == 'mpmath':
         T = mp.zeros(dim2)
-        
-    for k in skip:
-        T[k, k] = 1
-            
-    column_indices = [k for k in range(dim2) if k not in skip] # len(column_indices) == 2*len(pairs)
+
     k = 0
-    for i, j in pairs:
-        k1 = column_indices[k]
-        k2 = column_indices[k + dim  - len(skip)//2] # the last dim - len(skip)//2 entries are the 'momenta'
-        # map ei to ek and ej to e(k + dim)
+    for k in range(len(pairs)):
+        i, j = pairs[k]
+        k1 = column_indices[2*k]
+        k2 = column_indices[2*k + 1]
+        # map ei to ek1 and ej to ek2
         T[k1, i] = 1
         T[k2, j] = 1
         k += 1
@@ -666,8 +749,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
         Y = mp.inverse(Yi)
 
     # Y@GJ@Yi will be diagonal
-    
-    U = _diagonal2block(evals, code=code, tol=d2b_tol, orientation=kwargs.get('orientation', lambda p, k: 1))
+    U = _diagonal2block(evals, code=code, tol=d2b_tol, orientation=kwargs.get('orientation', []))
     X = U.transpose().conjugate()@Y
     Xi = Yi@U
     F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
@@ -688,7 +770,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
     # It must hold: -J@YY.transpose()@J = Y. If this is not the case, then YY is not a polynomial square root of the above matrix.
     # (see Thm. 5.5 my notes, or Horner: Topics in Matrix Analysis, S-polar decomposition. Throw me a message if you need details)
     if kwargs.get('check', True):
-        assert max(np.abs(np.array(-J@YY.transpose()@J - YY).flatten())) < d2b_tol, 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
+        assert max(np.abs(np.array(-J@YY.transpose()@J - YY, dtype=np.complex128).flatten())) < d2b_tol, 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
         
     return YY@Xi, D
 
@@ -1003,9 +1085,7 @@ def symplectic_takagi(G, **kwargs):
             skip.append(k)
             skip.append(k + 1)
     diagonal_of_JNF = np.array(JNF.diagonal()).astype(np.complex128)[0]
-    # TODO: check condition!
-    U = _diagonal2block(diagonal_of_JNF, code='numpy', skip=skip)#, 
-                        #condition = lambda x, y: x.imag <= y.imag, **kwargs) # one can give a tolerance here
+    U = _diagonal2block(diagonal_of_JNF, code='numpy', skip=skip, orientation=kwargs.get('orientation', []))
     # The unitary U will anti-diagonalize the diagonal blocks on the JNF via U.transpose().conjugate()@JNF@U.
     
     # Construct an orthogonal T which will serve as a similarity transformation between the direct sum
@@ -1018,7 +1098,7 @@ def symplectic_takagi(G, **kwargs):
     # Now construct the symplectic diagonalizing matrix Y@Xi: 
     Y = get_principal_sqrt(-J@X.transpose()@J@X)
     if kwargs.get('check', True):
-        assert max(np.abs(np.array(-J@Y.transpose()@J - Y).flatten())) < kwargs.get('d2b_tol', 1e-10), 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
+        assert max(np.abs(np.array(-J@Y.transpose()@J - Y, dtype=np.complex128).flatten())) < kwargs.get('d2b_tol', 1e-10), 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
     S = Y@Xi
     return S, S@G@S.transpose()
     

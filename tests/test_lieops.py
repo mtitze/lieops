@@ -464,25 +464,19 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     argflow = L1.argument.flow(t=t, power=L1.power)
     return argflow(*z) == L1(*z)
 
-def test_gjst_consistency(n=11, dim=4, tol=5e-15):
+def test_gjst_consistency(n=101, dim=6, tol=5e-15):
     '''
     Test the consistency of gj_symplectic_takagi routine:
     If given a diagonal matrix, it must return the input diagonal again.
-    (if given the correct orientation).
     '''
-    def orientation(pairs, k, DD):
-        i, j = pairs[k]
-        if DD[i].imag > 0:
-            return 1
-        if DD[i].imag < 0:
-            return -1
-    
-    assert dim%2 == 0
+    assert dim%2 == 0, 'Dimension must be even.'
+
     for k in range(n):
         coeffs = np.random.rand(dim)*2 - 1 # create 'dim' random values between -1 and 1
         D1 = [coeffs[k] + coeffs[k + dim//2]*1j for k in range(dim//2)]
-        D = np.diag(D1 + D1)
-        S, _ = gj_symplectic_takagi(D, orientation=lambda pairs, k: orientation(pairs, k, D1))
+        D1D1 = D1 + D1
+        D = np.diag(D1D1)
+        S, _ = gj_symplectic_takagi(D, orientation=D1D1)
         Dout = S@D@S.transpose()
         diff = Dout - D
         assert max(np.absolute(diff.flatten())) < tol
