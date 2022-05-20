@@ -393,9 +393,16 @@ def _diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
     tol: float, optional
         A small parameter to identify the pairs on the diagonal of D.
         
-    orientation: callable, optional
-        A function taking a list of values, a set of pairs and an index, and returning +1 or -1. With this
-        function one has some control over the orientation of the result.
+    orientation: list, optional
+        A list of expected eigenvalues.
+    
+        Explanation:
+        Giving an orientation may be necessary because the Jordan Normal Form (or diagonal form of a matrix) is only determined up to
+        permuation of its blocks (here a pair of eigenvalues). Without any orientation this may result in inconsistent output, for example
+        if a diagonal matrix is given as input in symplectic_takagi, symplectic_takagi calls this routine, and the output
+        of symplectic_takagic then diagonalizes to a matrix in which the original order and signs of the input diagonal matrix
+        have been changed (permuted or multiplied by a minus sign). To prevent this, one can provide a list of 'expected' eigenvalues here,
+        which will therefore fix the correct order/orientation.
     
     Returns
     -------
@@ -424,11 +431,10 @@ def _diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
         i, j = pairs[k]
         
         if len(orientation) > 0:
-            # Signs: Need to ensure orientation: Using
+            # Using
             # U2by2perm := matrix([[0, 1], [1, 0]])@U2by2
-            # instead corresponds to an exchange of the two eigenvalue pairs.
-            # This may be necessary because the Jordan Normal Form etc. is only determined up to
-            # permuation of its blocks (here a pair of eigenvalues). In effect, U2by2perm can be
+            # instead of the default U2by2 corresponds to an exchange of the two eigenvalue pairs.
+            # In effect, U2by2perm can be
             # computed by adding a -1 as sign. Furthermore, the eigenvalues might be related by +/- i.
             # For this purpose we have constructed the orientation matrix 'omat' above, in which these
             # values are stored. We retreive the factors now:
