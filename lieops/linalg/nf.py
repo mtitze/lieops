@@ -326,7 +326,7 @@ def _get_orientation(Dref, D, tol=1e-10):
     '''
     For two lists of values Dref = [a, b, ..., -a, ..., -b, ...], D = [c, d, ..., -c, ..., -d, ...], this routine
     will attempt to identify the indices of those values from list Dref with the one of D in such a way that
-    whenever one value can be transformed by +/- 1 or +/- i to another, this value will be determined.
+    whenever one value can be transformed by +/- i to another, this value will be determined.
     
     Parameters
     ----------
@@ -342,7 +342,7 @@ def _get_orientation(Dref, D, tol=1e-10):
     Returns
     -------
     np.array
-        A numpy array whose (i, j) entry denotes the factor f so that D[j]*f = Dref[i] holds, where f in [1, -1, i, -i].
+        A numpy array whose (i, j) entry denotes the factor f so that D[j]*f = Dref[i] holds, where f in [i, -i].
     '''
     dim2 = len(D)
     assert len(Dref) == dim2
@@ -352,14 +352,10 @@ def _get_orientation(Dref, D, tol=1e-10):
         a = Dref[k]
         for l in range(dim2):
             b = D[l]
-            if abs(a - b) < tol:
-                orient[k, l] = 1
-            elif abs(a - 1j*b) < tol:
+            if abs(a - 1j*b) < tol:
                 orient[k, l] = 1j
             elif abs(a + 1j*b) < tol:
                 orient[k, l] = -1j
-            elif abs(a + b) < tol:
-                orient[k, l] = -1
             else:
                 check += 1
                 continue
@@ -414,8 +410,9 @@ def _diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
     dim = dim2//2
 
     if len(orientation) > 0:
-        omat = _get_orientation(orientation, D, **kwargs)
-
+        orientation = list(orientation)
+        omat = _get_orientation(orientation + orientation, D, **kwargs) # orientation is copied twice here, because _get_orientation is made to work with two general lists of the same length.
+        
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     pairs = _identifyPairs(D, tol=tol, **kwargs)
     
@@ -429,7 +426,7 @@ def _diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
     column_indices = []
     for k in range(len(pairs)):
         i, j = pairs[k]
-        
+
         if len(orientation) > 0:
             # Using
             # U2by2perm := matrix([[0, 1], [1, 0]])@U2by2

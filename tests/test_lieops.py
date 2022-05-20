@@ -474,9 +474,8 @@ def test_gjst_consistency(n=101, dim=6, tol=5e-15):
     for k in range(n):
         coeffs = np.random.rand(dim)*2 - 1 # create 'dim' random values between -1 and 1
         D1 = [coeffs[k] + coeffs[k + dim//2]*1j for k in range(dim//2)]
-        D1D1 = D1 + D1
-        D = np.diag(D1D1)
-        S, _ = gj_symplectic_takagi(D, orientation=D1D1)
+        D = np.diag(D1 + D1)
+        S, _ = gj_symplectic_takagi(D, orientation=D1)
         Dout = S@D@S.transpose()
         diff = Dout - D
         assert max(np.absolute(diff.flatten())) < tol
