@@ -881,8 +881,10 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     if mode == 'new':
         # will become the default in future; TODO: some tests are failing
         S, X = symplectic_takagi(H2, **kwargs)
-        D = S.transpose()@H2@S
+        S = S.transpose()
         Sinv = -J@S.transpose()@J
+                
+        D = Sinv.transpose()@H2@Sinv
         U = _create_umat_xieta(dim=dim, code=code, **kwargs)
     elif mode == 'default':
         # will become OLD code. Using symplectic takagi assuming GJ is diagonalizable. This older version
@@ -943,6 +945,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     out['K'] = K # K(q, p) = (xi, eta)
     out['Kinv'] = Kinv
     out['cnf'] = Kinv.transpose()@H2@Kinv # the representation of H2 in (xi, eta)-coordinates
+    out['D'] = D
     return out
 
 def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: int=0, tol: float=1e-14,
