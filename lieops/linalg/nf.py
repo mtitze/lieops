@@ -729,7 +729,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
         Diagonal matrix.
         
     X: matrix
-        Matrix which has been found to anti-diagonalize G@J so that X@GJ@X^(-1) = F is in anti-diagonal form.
+        Matrix which has been found to anti-diagonalize G@J so that X^(-1)@GJ@X = F is in anti-diagonal form.
     '''
     code = get_package_name(G)
     
@@ -748,17 +748,17 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
     # Step 1: Anti-block-diagonalize GJ
     evals, evects = eigenspaces(GJ, flatten=True, **kwargs)
     if code == 'numpy':
-        Yi = np.array(evects).transpose()
-        Y = np.linalg.inv(Yi)
+        Y = np.array(evects).transpose()
+        Yi = np.linalg.inv(Y)
     if code == 'mpmath':
-        Yi = mp.matrix(evects).transpose()
-        Y = mp.inverse(Yi)
+        Y = mp.matrix(evects).transpose()
+        Yi = mp.inverse(Y)
 
-    # Y@GJ@Yi will be diagonal
+    # Yi@GJ@Y will be diagonal
     U = _diagonal2block(evals, code=code, tol=d2b_tol, orientation=kwargs.get('orientation', []))
-    X = U.transpose().conjugate()@Y
-    Xi = Yi@U
-    F = X@GJ@Xi # F = A and GJ = B in Cor. 5.6
+    Xi = U.transpose().conjugate()@Yi
+    X = Y@U
+    F = Xi@GJ@X # F = A and GJ = B in Cor. 5.6
     D = -F@J
     
     # Step 2: Construct symplectic matrix
@@ -768,17 +768,17 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
         # YY = get_principal_sqrt(-J@X.transpose()@J@X) # does not give polynomial square roots in general TODO: need to change this routine
         
         Jmp = mp.matrix(J)
-        Xmp = mp.matrix(X)
+        Xmp = mp.matrix(Xi)
         YY = np.array(mp.sqrtm(-Jmp@Xmp.transpose()@Jmp@Xmp).tolist(), dtype=np.complex128)
     if code == 'mpmath':
-        YY = mp.sqrtm(-J@X.transpose()@J@X)
+        YY = mp.sqrtm(-J@Xi.transpose()@J@Xi)
         
     # It must hold: -J@YY.transpose()@J = Y. If this is not the case, then YY is not a polynomial square root of the above matrix.
     # (see Thm. 5.5 my notes, or Horner: Topics in Matrix Analysis, S-polar decomposition. Throw me a message if you need details)
     if kwargs.get('check', True):
         assert max(np.abs(np.array(-J@YY.transpose()@J - YY, dtype=np.complex128).flatten())) < d2b_tol, 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
         
-    return YY@Xi, D, X
+    return YY@X, D, X
 
 
 def _create_umat_xieta(dim, code, **kwargs):
