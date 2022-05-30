@@ -248,7 +248,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
     G = A.transpose()@J@EE@J@A
     G = G + G.transpose()
     
-    S0, D0 = gj_symplectic_takagi(G, tol=tol1, dps=dps)
+    S0, D0, _ = gj_symplectic_takagi(G, tol=tol1, dps=dps)
     
     symplecticity = S0.transpose()@J@S0 - J
     factorization = S0@D0@S0.transpose() - G
@@ -475,7 +475,7 @@ def test_gjst_consistency(n=101, dim=6, tol=5e-15):
         coeffs = np.random.rand(dim)*2 - 1 # create 'dim' random values between -1 and 1
         D1 = [coeffs[k] + coeffs[k + dim//2]*1j for k in range(dim//2)]
         D = np.diag(D1 + D1)
-        S, _ = gj_symplectic_takagi(D, orientation=D1)
+        S, _, _ = gj_symplectic_takagi(D, orientation=D1)
         Dout = S@D@S.transpose()
         diff = Dout - D
         assert max(np.absolute(diff.flatten())) < tol

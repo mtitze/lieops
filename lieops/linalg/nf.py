@@ -727,6 +727,9 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
         
     D: matrix
         Diagonal matrix.
+        
+    X: matrix
+        Matrix which has been found to anti-diagonalize G@J so that X@GJ@X^(-1) = F is in anti-diagonal form.
     '''
     code = get_package_name(G)
     
@@ -775,7 +778,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
     if kwargs.get('check', True):
         assert max(np.abs(np.array(-J@YY.transpose()@J - YY, dtype=np.complex128).flatten())) < d2b_tol, 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
         
-    return YY@Xi, D
+    return YY@Xi, D, X
 
 
 def _create_umat_xieta(dim, code, **kwargs):
@@ -890,7 +893,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         # will become OLD code. Using symplectic takagi assuming GJ is diagonalizable. This older version
         # works with eigenspaces and eigenvalues routine.
         # TODO: S may change the sign of the Hesse-matrix. Need to figure out the issue. 
-        S, D = gj_symplectic_takagi(H2, check=check, **kwargs)
+        S, D, _ = gj_symplectic_takagi(H2, check=check, **kwargs)
         S = S.transpose()
         Sinv = -J@S.transpose()@J
         U = _create_umat_xieta(dim=dim, code=code, **kwargs)
