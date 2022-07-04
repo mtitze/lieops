@@ -729,7 +729,7 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
         Diagonal matrix.
         
     X: matrix
-        Matrix which has been found to anti-diagonalize G@J so that X^(-1)@GJ@X = F is in anti-diagonal form.
+        Matrix which has been found to anti-diagonalize G@J so that X^(-1)@G@J@X = F is in anti-diagonal form.
     '''
     code = get_package_name(G)
     
@@ -768,8 +768,8 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
         # YY = get_principal_sqrt(-J@X.transpose()@J@X) # does not give polynomial square roots in general TODO: need to change this routine
         
         Jmp = mp.matrix(J)
-        Xmp = mp.matrix(Xi)
-        YY = np.array(mp.sqrtm(-Jmp@Xmp.transpose()@Jmp@Xmp).tolist(), dtype=np.complex128)
+        Ximp = mp.matrix(Xi)
+        YY = np.array(mp.sqrtm(-Jmp@Ximp.transpose()@Jmp@Ximp).tolist(), dtype=np.complex128)
     if code == 'mpmath':
         YY = mp.sqrtm(-J@Xi.transpose()@J@Xi)
         
