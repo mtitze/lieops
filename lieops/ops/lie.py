@@ -171,7 +171,7 @@ class lieoperator:
             
     def action(self, y, **kwargs):
         '''
-        Apply the Lie operator g(:x:) to a given lie polynomial y to return the elements
+        Apply the Lie operator g(:x:) to a given lie polynomial y, to return the elements
         in the series of g(:x:)y.
         
         Parameters
@@ -182,7 +182,7 @@ class lieoperator:
         Returns
         -------
         list
-            List containing g[n]*:x:**n y if g = [g[0], g[1], ...] denotes the underlying generator.
+            List containing (g[n]*:x:**n)(y) if g = [g[0], g[1], ...] denotes the underlying generator.
             The list goes on up to the maximal power N determined by self.argument.ad routine (see
             documentation there).
         '''
@@ -216,14 +216,14 @@ class lieoperator:
         Returns
         -------
         list
-            A list containing lists of exponents [g[k]*:x:**k (y) for k in (...)], 
-            where y is running over the Lie-operator components.
+            A list containing the actions [(g[n]*:x:**n)(y) for n=0, ..., N] (see self.action) as elements, 
+            where y is running over the requested Lie-operator components.
         '''
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
-        elif not hasattr(self, 'components'): # then use the xi-polynomials as components.
-            self.components = create_coords(dim=self.argument.dim, **kwargs)[:self.argument.dim] 
-        orbits = [self.action(y) for y in self.components]
+        elif not hasattr(self, 'components'):
+            self.components = create_coords(dim=self.argument.dim, **kwargs)
+        orbits = [self.action(y) for y in self.components] # orbits: A list of lists
         if kwargs.get('store', True):
             self.orbits = orbits
         return orbits
@@ -265,7 +265,6 @@ class lieoperator:
             A list containing the flow of every component function of the Lie-operator.
         '''
         t = kwargs.get('t', self.flow_parameter)
-        
         if 'orbits' in kwargs.keys():
             orbits = kwargs['orbits']
         elif not hasattr(self, 'orbits'):
@@ -689,6 +688,10 @@ def combine(*args, power: int, mode='default', **kwargs):
         
     hard_edge_chain
         The s-dependent Hamiltonian used to construct z.
+        
+    dict
+        A dictionary containing the forest used in the calculation. This is the outcome of the norsett_iserles
+        routine, which is called internally here.
     '''
     n_operators = len(args)
 
@@ -701,7 +704,7 @@ def combine(*args, power: int, mode='default', **kwargs):
     lengths = kwargs.get('lengths', [1]*n_operators)
     kwargs['max_power'] = kwargs.get('max_power', min([op.max_power for op in args]))
     # The given Lie-polynomials p_1, p_2, ... are representing the chain exp(:p_1:) exp(:p_2:) ... exp(:p_k:) of Lie operators.
-    # This means that the last entry p_k is the operator is executed first:
+    # This means that the last entry p_k is the operator which will be executed first:
     args = args[::-1] 
     lengths = lengths[::-1]
     
