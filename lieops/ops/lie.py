@@ -38,6 +38,7 @@ class poly(_poly):
         lieoperator
             Class of type lieoperator, modeling the flow of the current Lie polynomial.
         '''
+        kwargs['max_power'] = kwargs.get('max_power', self.max_power)
         return lexp(self, t=t, *args, **kwargs)
     
     def bnf(self, order: int=1, power=10, **kwargs):

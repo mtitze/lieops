@@ -236,7 +236,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
     if code == 'numpy':
         A = np.array(A)
         EE = np.eye(4)
-        J = np.matrix(create_J(2)).transpose()
+        J = np.array(create_J(2)).transpose()
     if code == 'mpmath':
         A = mp.matrix(A)
         EE = mp.eye(4)
