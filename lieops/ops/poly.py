@@ -103,22 +103,28 @@ class poly:
             new_values[k] = v
         return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
     
-    def extract(self, condition):
+    def extract(self, key_cond=lambda x: True, value_cond=lambda x: True):
         '''
         Extract a Lie polynomial from the current Lie polynomial, based on a condition.
         
         Parameters
         ----------
-        condition: callable
-            A function which maps a given tuple (an index) to a boolean. For example 'condition = lambda x: sum(x) == k' would
+        key_cond: callable, optional
+            A function which maps a given tuple (an index) to a boolean. key_cond is used to enforce a condition
+            on the keys of the current polynomial. For example 'key_cond = lambda x: sum(x) == k' would
             yield the homogeneous part of the current Lie polynomial (this is realized in 'self.homogeneous_part').
-            
+
+        value_cond: callable, optional
+            A function which maps a given value to a boolean. value_cond is used to enforce a condition on the values of the
+            current polynomial.
+
         Returns
         -------
         poly
             The extracted Lie polynomial.
         '''
-        return self.__class__(values={key: value for key, value in self.items() if condition(key)}, dim=self.dim, max_power=self.max_power)
+        return self.__class__(values={key: value for key, value in self.items() if key_cond(key) and value_cond(value)}, 
+                              dim=self.dim, max_power=self.max_power)
     
     def homogeneous_part(self, k: int):
         '''
@@ -132,9 +138,26 @@ class poly:
         Returns
         -------
         poly
-            The extracted Lie polynomial.
+            The extracted polynomial.
         '''
-        return self.extract(condition=lambda x: sum(x) == k)
+        return self.extract(key_cond=lambda x: sum(x) == k)
+    
+    def drop(self, tol: float):
+        '''
+        Drop values below a given threshold.
+        
+        Parameters
+        ----------
+        tol: float
+            The threshold.
+            
+        Returns
+        -------
+        poly
+            A polynomial having the same keys/values as the current polynomial, but the absolute values are larger
+            than the requested threshold.
+        '''
+        return self.extract(value_cond=lambda x: abs(x) > tol)
         
     def __call__(self, *z):
         '''
