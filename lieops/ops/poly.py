@@ -142,7 +142,7 @@ class poly:
         '''
         return self.extract(key_cond=lambda x: sum(x) == k)
     
-    def drop(self, tol: float):
+    def above(self, tol: float):
         '''
         Drop values below a given threshold.
         
