@@ -1,4 +1,4 @@
 from .common import *
 
-from .heyoka import solve as heyoka
+from .heyoka import heyoka_solver as heyoka
 
