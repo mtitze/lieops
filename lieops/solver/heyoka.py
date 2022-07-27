@@ -14,8 +14,8 @@ class heyoka_solver:
         
     def getHamiltonEqs(self, **kwargs):
         '''
-
-        TODO: arbitrary dim check/update & further options of heyoka.
+        Compute the Hamilton equations from the given Hamiltonian (self.hamiltonian).
+        
 
         Returns
         -------
