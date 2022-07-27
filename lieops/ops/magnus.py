@@ -1,6 +1,7 @@
 
 from itertools import product
 from scipy.special import bernoulli
+from tqdm import tqdm
 from njet.common import factorials
 
 import warnings
@@ -858,15 +859,20 @@ def norsett_iserles(order: int, hamiltonian, time=True, **kwargs):
         forest_oi = forest
         
     result = {}
-    for l in forest_oi.keys():
-        if l > order: # the time_power of trees may exceed the maximal index given by the order, therefore we drop these forests.
+    for fo in forest_oi.keys():
+        if fo > order:  
+            # the time_power of trees may exceed the maximal index given by the order, therefore we drop these forests.
             continue
-        result_l = [] # in general there are several trees for a specific order l
-        for tr in forest_oi[l]:
-            if tr.factor == 0:
-                continue
+        result_fo = [] # in general there are several trees for a specific order l
+        forest_group = [tr for tr in forest_oi[fo] if tr.factor != 0]
+        pbar = tqdm(range(len(forest_group)), 
+                    leave=kwargs.get('leave_tqdm', True), 
+                    disable=kwargs.get('disable_tqdm', False))
+        for j in pbar:
+            pbar.set_description(f'Order {fo}')
+            tr = forest_group[j]
             I = tr.hard_edge_integral(hamiltonian=hamiltonian)
             if len(I) > 0:
-                result_l.append((I, tr.factor))
-        result[l] = result_l
+                result_fo.append((I, tr.factor))
+        result[fo] = result_fo
     return result, forest_oi
