@@ -119,6 +119,7 @@ def realHamiltonEqs(hamiltonian, **kwargs):
     dhamiltonian = derive(realHam, order=1, n_args=2*dim)    
     def eqs(*qp):
         dH = dhamiltonian.grad(*qp)
-        dqp = [dH.get((k + dim,), 0) for k in range(dim)] + [-dH.get((k,), 0) for k in range(dim)]
+        # we have to use qp[0]*0 to broadcast zero in the data type of qp[0]
+        dqp = [dH.get((k + dim,), qp[0]*0) for k in range(dim)] + [-dH.get((k,), qp[0]*0) for k in range(dim)]
         return dqp
     return eqs, realHam

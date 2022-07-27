@@ -53,7 +53,7 @@ def nc(*args):
 def bch(x, y):
     '''
     Compute the explicit commutators of the Baker-Campbell-Hausdorff series for
-    orders up and including 6.
+    orders up and including 7.
     '''
     result = {}
     result[1] = x + y
