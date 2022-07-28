@@ -158,6 +158,23 @@ class poly:
             than the requested threshold.
         '''
         return self.extract(value_cond=lambda x: abs(x) > tol)
+    
+    def below(self, tol: float):
+        '''
+        Drop values above a given threshold.
+        
+        Parameters
+        ----------
+        tol: float
+            The threshold.
+            
+        Returns
+        -------
+        poly
+            A polynomial having the same keys/values as the current polynomial, but the absolute values are smaller
+            than the requested threshold.
+        '''
+        return self.extract(value_cond=lambda x: abs(x) < tol)
         
     def __call__(self, *z):
         '''

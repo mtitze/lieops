@@ -470,13 +470,18 @@ class fast_hard_edge_chain:
         '''
         Compute the integral
         
-          x
+          L
          /
          | h(s) ds
          /
          0
          
         where h(s) is the Hamiltonian of the hard-edge model.
+        
+        Parameters
+        ----------
+        n: int, optional
+            Perform the integration over the interval [0, L] n-times.
         '''
         # Part 1: Preparation
         integral_block = np.copy(self._block)
@@ -495,6 +500,7 @@ class fast_hard_edge_chain:
             # Perform the integration for each row separately, then sum over each column (since the integration is additive) to get the new accumulated sum
             integral_rows = np.cumsum(integral_block[1:k + 1]*self._lengths[:k], axis=1) # lengths[a, b] corresponds to length**(a + 1) of element b.
             element_integrals = np.sum(integral_rows, axis=0)
+            integral_block[0, 0] = 0 # the first constant term is shifted to the next row
             integral_block[0, 1:] = element_integrals[:-1] # add the individual cumulative sums to the row representing the constants. 
             # The index shift by 1 is due to the fact that these constants do not affect the situation at the current element.
         return self.clone(block=integral_block, b_imax=min([m - 1, k]), integral=element_integrals[-1])
