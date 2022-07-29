@@ -182,6 +182,28 @@ def test_integrate2(n, m):
         row = block[k, :]
         integral += sum(row*lengths**(k + 1))/(k + 1)
     assert integral == c1ii._integral
+
+@pytest.mark.parametrize("block_size, n_elements, n_integrals", [(5, 17, 4), (5, 17, 5), (2, 100, 3)])
+def test_integrate3(block_size, n_elements, n_integrals):
+    '''
+    Test if performing integration n-times gives the same result as giving the paramter n to the routine.
+    '''
+    block = np.random.rand(block_size + n_integrals, n_elements)
+    for k in range(n_integrals):
+        block[-k-1, :] = np.zeros(n_elements)
+
+    pp = fast_hard_edge_chain(block=block, lengths=np.random.rand(n_elements))
+
+    pp_chain = [pp]
+    pp_k = pp
+    for k in range(n_integrals):
+        pp_k = pp_k.integrate()
+        pp_chain.append(pp_k)
+
+    for k in range(1, n_integrals):
+        pp_direct = pp.integrate(k)
+        assert pp_direct == pp_chain[k], f'Problem checking integral {k}'
+        assert pp_direct._integral == pp_chain[k]._integral
     
 @pytest.mark.parametrize("n, m, n_blocks", [(10, 200, 6), (13, 25, 3)])
 def test_block_polymul1(n, m, n_blocks):

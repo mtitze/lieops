@@ -307,7 +307,7 @@ class hard_edge_chain:
         '''
         Compute the integral
         
-          x
+          L
          /
          | h(s) ds
          /
@@ -365,13 +365,34 @@ class fast_hard_edge_chain:
         self._block = np.array([list(values)] + [[0]*len(values) for k in range(blocksize - 1)], dtype=np.complex128) # block[a, b] corresponds to the integrand of power a for element b. 
         
     def _create_integration_fields(self, lengths, **kwargs):
+        '''
+        Create the fields
+        
+        self._imax
+        self._facts
+        self._powers
+        self._lengths
+        
+        which are required for the self.integrate routine.
+        '''
         blocksize, m = self._block.shape
         self._integral = kwargs.get('integral', None) # to store the current integral output
-        self._imax = kwargs.get('b_imax', 0) # the row index with the maximal possible non-zero values in the block
+        if 'b_imax' in kwargs.keys(): # the row index with the maximal possible non-zero values in the block
+            self._imax = kwargs['b_imax']
+        else:
+            # find the row index with the maximal possible non-zero values in the block
+            imax = blocksize - 1
+            for k in range(1, blocksize):
+                row_k = self._block[-k]
+                if all(row_k == 0):
+                    imax -= 1
+                else:
+                    break
+            self._imax = imax
         if 'b_facts' in kwargs.keys():
             self._facts = kwargs['b_facts']
         else:
-            self._facts = np.array([range(1, blocksize + 1)]*m).transpose() # faculties for the integration process; n.b. self._facts has 1 row more than self._block. This is intended; e.g. the n-th integral will require (n + 1)!
+            self._facts = np.array([range(1, blocksize + 1)]*m).transpose() # will produce the faculty coefficients for the integration process; n.b. self._facts has 1 row more than self._block. This is intended; e.g. the n-th integral will require (n + 1)!
         if 'b_powers' in kwargs.keys():
             self._powers = kwargs['b_powers']
         else:
@@ -403,7 +424,7 @@ class fast_hard_edge_chain:
         else:
             mult_block = self._block*other
             mult_imax = self._imax
-        return self.clone(block=mult_block, b_imax=mult_imax)
+        return self.clone(block=mult_block, b_imax=mult_imax, integral=None)
         
     @staticmethod
     def block_polymul(block1, block2, **kwargs):
@@ -441,13 +462,13 @@ class fast_hard_edge_chain:
             add_block[:,:] = self._block[:,:]
             add_block[0,:] += other
             add_imax = self._imax
-        return self.clone(block=add_block, b_imax=add_imax)
+        return self.clone(block=add_block, b_imax=add_imax, integral=None)
     
     def __radd__(self, other):
         return self + other
     
     def __neg__(self):
-        return self.clone(block=-self._block)#, integral=-getattr(self, 'integral', None))
+        return self.clone(block=-self._block, integral=-getattr(self, '_integral', None), b_imax=self._imax)
     
     def __sub__(self, other):
         return self + -other
@@ -496,11 +517,11 @@ class fast_hard_edge_chain:
         
         # Part 2: Perform the actual integration(s)
         for k in range(imax + 1, upper_index):
-            integral_block[1:k + 1] = np.true_divide(integral_block[:k], self._facts[:k])
+            integral_block[1:k + 1] = np.true_divide(integral_block[:k], self._facts[:k]) # self._facts[j] = j + 1
             # Perform the integration for each row separately, then sum over each column (since the integration is additive) to get the new accumulated sum
-            integral_rows = np.cumsum(integral_block[1:k + 1]*self._lengths[:k], axis=1) # lengths[a, b] corresponds to length**(a + 1) of element b.
+            integral_rows = np.cumsum(integral_block[1:k + 1]*self._lengths[:k], axis=1) # lengths[a, b] corresponds to length**(a + 1) of element b.            
             element_integrals = np.sum(integral_rows, axis=0)
-            integral_block[0, 0] = 0 # the first constant term is shifted to the next row
+            integral_block[0, 0] = 0 # the constant term at the first element has to be zero
             integral_block[0, 1:] = element_integrals[:-1] # add the individual cumulative sums to the row representing the constants. 
             # The index shift by 1 is due to the fact that these constants do not affect the situation at the current element.
         return self.clone(block=integral_block, b_imax=min([m - 1, k]), integral=element_integrals[-1])
@@ -661,7 +682,9 @@ class tree:
             if bound == self._upper_bound_default:
                 break
             assert bound > var # This should be the case by construction of the trees; otherwise the following commutator may have to be reversed.
+            
             integrands[bound] = Iham@integrands[bound] # TODO: calculation time bottleneck here
+
         return Iham
     
     def fourier_integral_terms(self, consistency_checks=False):

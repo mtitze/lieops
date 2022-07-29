@@ -724,11 +724,11 @@ def combine(*args, power: int, mode='default', **kwargs):
     z_series, forest = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
     out = {}
     for order, trees in z_series.items():
-        out_order = 0 # the output for the specific order, polynoms will be added to this value
+        lp_order = 0 # the poly object for the specific order, further polynoms will be added to this value
         for tpl in trees: # index corresponds to an enumeration of the trees for the specific order
             lp, factor = tpl
             # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:
-            out_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
-        if out_order != 0:
-            out[order] = out_order
+            lp_order += poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
+        if lp_order != 0:
+            out[order] = lp_order
     return out, hamiltonian, forest
