@@ -204,6 +204,32 @@ def test_integrate3(block_size, n_elements, n_integrals):
         pp_direct = pp.integrate(k)
         assert pp_direct == pp_chain[k], f'Problem checking integral {k}'
         assert pp_direct._integral == pp_chain[k]._integral
+        
+def test_integrate4(tol=1e-15):
+    '''
+    Test first, second and third integral of the combination of
+    two specific functions against their analytical expectation.
+    '''
+    functions = [np.array([1, 1, 0, 0]), np.array([2, 0, 1, 0])]
+    lengths = np.random.rand(2)
+    L1, L2 = np.cumsum(lengths)
+    I1 = L1**2/2 - L1 + 2*L2 + 1/3*(L2 - L1)**3
+    I2 = 1/2*L1**2 + L1**3/6 + (L1**2/2 - L1)*(L2 - L1) + L2**2 - L1**2 + 1/12*(L2 - L1)**4
+    I3 = 1/6*L1**3 + 1/24*L1**4 + (L1**2/2 + 1/6*L1**3)*(L2 - L1) + (L1**2/2 - L1)/2*(L2 - L1)**2 + \
+         1/3*(L2**3 - L1**3) - L1**2*(L2 - L1) + 1/60*(L2 - L1)**5
+    
+    ref_block = np.zeros([7, 2])
+    for k in range(2):
+        ref_block[:4, k] = functions[k]
+    pref = fast_hard_edge_chain(block=ref_block, lengths=lengths)
+    
+    i1pref = pref.integrate()
+    i2pref = i1pref.integrate()
+    i3pref = i2pref.integrate()
+    
+    assert abs(I1 - i1pref._integral) < tol
+    assert abs(I2 - i2pref._integral) < tol
+    assert abs(I3 - i3pref._integral) < tol
     
 @pytest.mark.parametrize("n, m, n_blocks", [(10, 200, 6), (13, 25, 3)])
 def test_block_polymul1(n, m, n_blocks):
