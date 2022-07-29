@@ -210,7 +210,6 @@ def test_integrate4(tol=1e-15):
     Test first, second and third integral of the combination of
     two specific functions against their analytical expectation.
     '''
-    functions = [np.array([1, 1, 0, 0]), np.array([2, 0, 1, 0])]
     lengths = np.random.rand(2)
     L1, L2 = np.cumsum(lengths)
     I1 = L1**2/2 - L1 + 2*L2 + 1/3*(L2 - L1)**3
@@ -219,8 +218,8 @@ def test_integrate4(tol=1e-15):
          1/3*(L2**3 - L1**3) - L1**2*(L2 - L1) + 1/60*(L2 - L1)**5
     
     ref_block = np.zeros([7, 2])
-    for k in range(2):
-        ref_block[:4, k] = functions[k]
+    ref_block[:4, 0] = np.array([1, 1, 0, 0])
+    ref_block[:4, 1] = np.array([2, 0, 1, 0])
     pref = fast_hard_edge_chain(block=ref_block, lengths=lengths)
     
     i1pref = pref.integrate()
@@ -230,6 +229,32 @@ def test_integrate4(tol=1e-15):
     assert abs(I1 - i1pref._integral) < tol
     assert abs(I2 - i2pref._integral) < tol
     assert abs(I3 - i3pref._integral) < tol
+    
+@pytest.mark.parametrize("n_elements", [1, 2, 3, 11, 33])
+def test_integrate5(n_elements, tol=1e-14):
+    '''
+    Compare first integral with analytical expectation for functions up to 4th order.
+    '''
+    # todo: generalize this test for higher integration
+    
+    def Ifunc(f, x):
+        return f[0]*x + 1/2*f[1]*x**2 + 1/3*f[2]*x**3 + 1/4*f[3]*x**4
+    
+    lengths = np.random.rand(n_elements)
+    
+    functions = []
+    first_integral = 0
+    for k in range(n_elements):
+        f = np.random.rand(4)
+        functions.append(f)
+        first_integral += Ifunc(f, lengths[k]) # functions considered relative to their position; they are 0 at 0.
+    
+    ref_block = np.zeros([7, n_elements])
+    for k in range(n_elements):
+        ref_block[:4, k] = np.copy(functions[k])
+    pref = fast_hard_edge_chain(block=ref_block, lengths=lengths)
+    i1pref = pref.integrate()
+    assert abs(i1pref._integral - first_integral) < tol
     
 @pytest.mark.parametrize("n, m, n_blocks", [(10, 200, 6), (13, 25, 3)])
 def test_block_polymul1(n, m, n_blocks):
