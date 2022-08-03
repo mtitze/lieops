@@ -559,6 +559,30 @@ class poly:
         return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
     
+    def split(self, keys, scheme=[0.5, 1, 0.5], symmetric=False):
+        '''
+        Split the Hamiltonian symmetrically with respect to a set of keys. 
+        Return a list of polynomials according to the requested number of slices and the splitting.
+        '''
+        
+        ham1 = self.extract(key_cond=lambda x: x in keys)
+        ham2 = self.extract(key_cond=lambda x: x not in keys)
+        out = []
+        check1, check2 = 0, 0
+        # the decomposition is (always) assumed to be alternating between two entries.
+        for k in range(len(scheme)):
+            f = scheme[k]
+            if k%2 == 0:
+                out.append(ham1*f)
+                check1 += f
+            else:
+                out.append(ham2*f)
+                check2 += f
+
+        # perform consistency check:
+        assert check1 == 1 and check2 == 1, f'Both sums need to be 1:\nsum1: {check1}, sum2: {check2}'
+        return out
+    
     
 def construct(f, *lps, **kwargs):
     r'''
