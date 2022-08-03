@@ -559,7 +559,7 @@ class poly:
         return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
     
-    def split(self, keys, scheme=[0.5, 1, 0.5], symmetric=False):
+    def split(self, keys, scheme=[0.5, 1, 0.5], **kwargs):
         '''
         Split the Hamiltonian symmetrically with respect to a set of keys. 
         Return a list of polynomials according to the requested number of slices and the splitting.
