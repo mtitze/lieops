@@ -568,19 +568,19 @@ class poly:
         ham1 = self.extract(key_cond=lambda x: x in keys)
         ham2 = self.extract(key_cond=lambda x: x not in keys)
         out = []
-        check1, check2 = 0, 0
+        c, d = [], []
         # the decomposition is (always) assumed to be alternating between two entries.
         for k in range(len(scheme)):
             f = scheme[k]
             if k%2 == 0:
                 out.append(ham1*f)
-                check1 += f
+                c.append(f)
             else:
                 out.append(ham2*f)
-                check2 += f
-
+                d.append(f)
+                
         # perform consistency check:
-        assert check1 == 1 and check2 == 1, f'Both sums need to be 1:\nsum1: {check1}, sum2: {check2}'
+        assert sum(c) == 1 and sum(d) == 1, f'Both sums need to be 1:\nsum1: {check1}, sum2: {check2}'
         return out
     
     
