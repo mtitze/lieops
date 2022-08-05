@@ -559,10 +559,23 @@ class poly:
         return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
     
-    def split(self, keys, scheme=[0.5, 1, 0.5], **kwargs):
+    def split(self, keys, scheme=[0.5, 1, 0.5], check=True, **kwargs):
         '''
-        Split the Hamiltonian symmetrically with respect to a set of keys. 
+        Split the Hamiltonian with respect to a set of keys. 
         Return a list of polynomials according to the requested number of slices and the splitting.
+        
+        Parameters
+        ----------
+        scheme: list, optional
+            A list of coefficients [a1, b1, a2, ...]
+            
+        Returns
+        -------
+        list
+            A list F of poly objects so that if H = H1 + H2, where H is the current poly, H1 the poly
+            according to the subset of keys and H2 the complement of H1, then:
+            F = [a1*H1, b1*H2, a2*H1, b2*H2, ...]
+            according to the requested input list above.
         '''
         
         ham1 = self.extract(key_cond=lambda x: x in keys)
@@ -579,8 +592,10 @@ class poly:
                 out.append(ham2*f)
                 d.append(f)
                 
-        # perform consistency check:
-        assert sum(c) == 1 and sum(d) == 1, f'Both sums need to be 1:\nsum1: {check1}, sum2: {check2}'
+        if check:
+            # perform consistency check:
+            check1, check2 = sum(c), sum(d)
+            assert check1 == 1 and check2 == 1, f'Both sums need to be 1:\nsum1: {check1}, sum2: {check2}'
         return out
     
     
