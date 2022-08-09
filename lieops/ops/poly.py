@@ -79,7 +79,7 @@ class poly:
         
     def maxdeg(self):
         '''
-        Obtain the maximal degree of the current Lie polynomial. 
+        Obtain the maximal degree of the current polynomial. 
         '''
         if len(self._values) == 0:
             return 0
@@ -88,7 +88,7 @@ class poly:
     
     def mindeg(self):
         '''
-        Obtain the minimal degree of the current Lie polynomial. 
+        Obtain the minimal degree of the current polynomial. 
         '''
         if len(self._values) == 0:
             return 0
