@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "lieops"
-version = "0.1.4"
+version = "0.1.5"
 description = "Lie operator tools."
 authors = [ "Malte Titze <mtitze@users.noreply.github.com>",]
 license = "GPL-3.0-or-later"
