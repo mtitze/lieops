@@ -556,7 +556,10 @@ class poly:
             xi.append(xik)
             eta.append(etak)
         h1 = self(*(xi + eta))
-        return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
+        if h1 == 0:
+            return {(0,)*self.dim*2: 0}
+        else:
+            return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
     
     def split(self, keys, scheme=[0.5, 1, 0.5], check=True, **kwargs):

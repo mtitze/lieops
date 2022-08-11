@@ -732,3 +732,4 @@ def combine(*args, power: int, mode='default', **kwargs):
         if lp_order != 0:
             out[order] = lp_order
     return out, hamiltonian, forest
+
