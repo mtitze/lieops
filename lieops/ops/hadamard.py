@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import numpy as np
+import warnings
 
 from .lie import poly, lexp
 
@@ -20,8 +21,8 @@ def bch_2x2(A, B):
     C = A@B - B@A
     a = A[0, 0] + A[1, 1] # Tr(A)
     b = B[0, 0] + B[1, 1] # Tr(B)
-    alpha = (A[0, 0]*A[1, 1] - A[1, 0]*A[0, 1]) # det(A)
-    beta = (B[0, 0]*B[1, 1] - B[1, 0]*B[0, 1]) # det(B)
+    alpha = A[0, 0]*A[1, 1] - A[1, 0]*A[0, 1] # det(A)
+    beta = B[0, 0]*B[1, 1] - B[1, 0]*B[0, 1] # det(B)
     
     AB = A@B
     omega = AB[0, 0] + AB[1, 1] # tr(AB)
@@ -69,7 +70,7 @@ def mat2lo(mat):
     a3 = 1j/2*mat[0, 1]
     return poly(values={(1, 1): a1, (2, 0): a2, (0, 2): a3})
 
-def hadamard2d(*hamiltonians, keys, **kwargs):
+def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
     '''
     Rearrange the terms in a sequence of Hamiltonians according to Hadamard's theorem:
 
@@ -116,6 +117,9 @@ def hadamard2d(*hamiltonians, keys, **kwargs):
     keys: list
         A list of keys to distinguish the first group of Hamiltonians against the second group.
         
+    exact: boolean, optional
+        Whether to distinguish the Hamiltonians of group 1 by the given keys (True) or a subset of the given keys (False).
+        
     **kwargs
         Optional keyworded arguments passed to the lexp routine.
     
@@ -131,7 +135,13 @@ def hadamard2d(*hamiltonians, keys, **kwargs):
     current_g1_op = []
     new_hamiltonians = []
     for hamiltonian in tqdm(hamiltonians, disable=kwargs.get('disable_tqdm', False)):
-        if hamiltonian.keys() == set(keys):
+        
+        if exact:
+            condition = hamiltonian.keys() == set(keys)
+        else:
+            condition = set(hamiltonian.keys()).issubset(set(keys))
+        
+        if condition:
             # in this case the entry k belongs to group 1, which will be exchanged with the
             # entries in group 2.
             if len(current_g1_op) == 0:
@@ -144,5 +154,6 @@ def hadamard2d(*hamiltonians, keys, **kwargs):
             else:
                 op = lexp(mat2lo(current_g1_op), **kwargs)
                 new_hamiltonians.append(op(hamiltonian))
-    assert len(current_g1_op) > 0, f'No operators found to commute with using keys: {keys}.'
+    if len(current_g1_op) == 0 or len(new_hamiltonians) == 0:
+        warnings.warn(f'No operators found to commute with, using keys: {keys}.')
     return new_hamiltonians, mat2lo(current_g1_op)

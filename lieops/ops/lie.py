@@ -709,15 +709,22 @@ def combine(*args, power: int, mode='default', **kwargs):
     args = args[::-1] 
     lengths = lengths[::-1]
     
+    # remove any possible zeros
+    args1, lengths1 = [], []
+    for k in range(n_operators):
+        if args[k] != 0 and lengths[k] != 0:
+            args1.append(args[k])
+            lengths1.append(lengths[k])
+    assert len(args1) > 0, 'No non-zero operators in the chain.'
+    
     # Build the hard-edge Hamiltonian model.
-    all_powers = set([k for op in args for k in op.keys()])
+    all_powers = set([k for op in args1 for k in op.keys()])
     if mode == 'general':
         # use hard-edge element objects which are intended to carry general objects.
-        hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args[m].get(k, 0)], lengths={1: lengths[m]}) for m in range(n_operators)]) for k in all_powers}
+        hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args1[m].get(k, 0)], lengths={1: lengths1[m]}) for m in range(n_operators)]) for k in all_powers}
     if mode == 'default':
         # use fast hard-edge element class which is optimized to work with numpy arrays.
-        hamiltonian_values = {k: fast_hard_edge_chain(values=[args[m].get(k, 0) for m in range(n_operators)], 
-                                                      lengths=lengths, blocksize=kwargs.get('blocksize', power + 2)) for k in all_powers}
+        hamiltonian_values = {k: fast_hard_edge_chain(values=[args1[m].get(k, 0) for m in range(n_operators)], lengths=lengths1, blocksize=kwargs.get('blocksize', power + 2)) for k in all_powers}
     hamiltonian = poly(values=hamiltonian_values, **kwargs)
     
     # Now perform the integration up to the requested power.
