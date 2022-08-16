@@ -35,8 +35,7 @@ def action(lo, y, **kwargs):
 
 def calcOrbits(lo, components):
     '''
-    Compute the summands in the series of the Lie operator g(:x:)y, for every requested y,
-    by utilizing the routine self.action.
+    Compute the summands in the series of the Lie operator g(:x:)y, for every requested y.
 
     Parameters
     ----------

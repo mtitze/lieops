@@ -125,13 +125,17 @@ class lieoperator:
     '''
     def __init__(self, x, **kwargs):
         self.init_kwargs = kwargs
-        self.flow_parameter = kwargs.get('t', 1) # can be changed in self.calcFlow
+        self.flow_parameter = kwargs.get('t', 1) # An optional parameter t so that the Lie operator has the form g(t:x:). The purpose of that parameter is that it may be slow to compute g(:x:) once, but, as soon as g(:x:) has been computed, g(t:x:) is faster (using the expansion of g). Furthermore, it may deal as integration step for routines in case of g = exp.
         self.set_argument(x, **kwargs)
         
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
+        
         if 'components' in kwargs.keys():
-            _ = self.calcOrbits(**kwargs)
+            self.components = kwargs['components']
+        else:
+            self.components = create_coords(dim=self.argument.dim, **kwargs)
+        
         if 't' in kwargs.keys():
             _ = self.calcFlow(**kwargs)
             
@@ -173,17 +177,15 @@ class lieoperator:
         self.power = len(self.generator) - 1
         
     def calcOrbits(self, **kwargs):
+        '''
+        Compute the polynomials g(:x:)y for every requested y.
+        '''
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
-        elif not hasattr(self, 'components'):
-            self.components = create_coords(dim=self.argument.dim, **kwargs)
         self.orbits = calcOrbits(self, components=self.components)
         return self.orbits
-    
-    def flowFunc(self, t, *z):
-        return flowFunc(self.orbits, t, *z)
      
-    def calcFlow(self, **kwargs):
+    def calcFlow(self, method='bruteforce', **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
         
@@ -200,21 +202,25 @@ class lieoperator:
         list
             A list containing the flow of every component function of the Lie-operator.
         '''
-        t = kwargs.get('t', self.flow_parameter)
+        #if 'components' in kwargs.keys():
+        #    self.components = kwargs['components']
+        
         if 'orbits' in kwargs.keys():
             orbits = kwargs['orbits']
         elif not hasattr(self, 'orbits'):
             orbits = self.calcOrbits(**kwargs)
         else:
             orbits = self.orbits
-        # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
-        # standing on the left, then numpy would put the poly classes into its array, something we do not want. 
-        # Instead, we want to put the numpy arrays into our poly class.
+            
+        t = kwargs.get('t', self.flow_parameter)
         flow = calcFlow(orbits, t)
         self.orbits = orbits
         self.flow = flow
         self.flow_parameter = t
         return flow
+    
+    def flowFunc(self, t, *z):
+        return flowFunc(self.orbits, t, *z)
 
     def evaluate(self, *z, **kwargs):
         '''
@@ -223,37 +229,20 @@ class lieoperator:
         Parameters
         ----------
         z: subscriptable
-            The vector z in the expression (g(:x:)y)(z)
+            The vector z in the expression (g(t:x:)y)(z)
             
         Returns
         -------
         list
-            The values (g(:x:)y)(z) for y in self.components.
+            The values (g(t:x:)y)(z) for y in self.components.
         '''
-        if 't' in kwargs.keys(): # re-evaluate the flow at the requested flow parameter t.
-            flow = self.calcFlow(**kwargs)
+        if 't' in kwargs.keys():
+            if kwargs['t'] != self.flow_parameter: # re-evaluate the flow at the requested flow parameter t.
+                flow = self.calcFlow(**kwargs)
         else:
             assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
-            flow = self.flow
-            
-        if hasattr(z, 'shape') and hasattr(z, 'reshape') and hasattr(self.flow_parameter, 'shape'): # TODO: not checked recently
-            # If it happens that both self.flow_parameter and z have a shape (e.g. if both are numpy arrays)
-            # then we reshape z to be able to broadcast z and self.flow_parameter into a common array.
-            # After the application of self.flow, a reshape on the result is performed in order to
-            # shift the two first indices to the last, so that the @ operator can be applied as expected
-            # (see PEP 456).
-            # In this way it is possible to compute n coordinate points for m flow parameters, while
-            # keeping the current self.flow_parameter untouched.
-            # TODO: may need to check speed for various reshaping options.
-            trailing_ones = [1]*len(self.flow_parameter.shape)
-            z = z.reshape(*z.shape, *trailing_ones)
-            result = np.array([flow[k](*z) for k in range(len(flow))])
-            # Now the result has z.shape in its first len(z.shape) indices. We need to bring the first two
-            # indices to the rear in order to have an object by which we can apply the conventional matmul operation(s).
-            transp_indices = np.roll(np.arange(result.ndim), shift=-2)
-            return result.transpose(transp_indices)
-        else:
-            return [flow[k](*z) for k in range(len(flow))]
+            flow = self.flow    
+        return [flow[k](*z) for k in range(len(flow))]
         
     def act(self, *z, **kwargs):
         '''
