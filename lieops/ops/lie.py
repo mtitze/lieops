@@ -13,7 +13,7 @@ from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 class poly(_poly):
     
-    def flow(self, t=-1, *args, **kwargs):
+    def flow(self, *args, **kwargs):
         '''
         Let f: R^n -> R be a differentiable function and :x: the current polynomial Lie map. 
         Then this routine will compute the components of M: R^n -> R^n,
@@ -27,7 +27,6 @@ class poly(_poly):
         t: float, optional
             The flow parameter t so that we have the following interpretation:
             self.flow(t) = lexp(t*:self:)
-            Note that the flow will have t=-1 by default.
         
         *args
             Arguments passed to lieoperator class.
@@ -41,7 +40,7 @@ class poly(_poly):
             Class of type lieoperator, modeling the flow of the current Lie polynomial.
         '''
         kwargs['max_power'] = kwargs.get('max_power', self.max_power)
-        return lexp(self, t=t, *args, **kwargs)
+        return lexp(self, *args, **kwargs)
     
     def bnf(self, order: int=1, power=10, **kwargs):
         '''
@@ -135,9 +134,6 @@ class lieoperator:
             self.components = kwargs['components']
         else:
             self.components = create_coords(dim=self.argument.dim, **kwargs)
-        
-        if 't' in kwargs.keys():
-            _ = self.calcFlow(**kwargs)
             
     def set_argument(self, x, **kwargs):
         assert isinstance(x, poly)
@@ -182,8 +178,8 @@ class lieoperator:
         
         Parameters
         ----------
-        t: float (or e.g. numpy array), optional
-            Parameter in the argument at which the Lie operator should be evaluated.
+        method: str
+            The method to be applied in calculating the flow.
             
         **kwargs
             Optional arguments passed to flow subroutines.
@@ -202,6 +198,8 @@ class lieoperator:
             self.flow = flow
             self.flow_parameter = kwargs['t']
             return flow
+        else:
+            raise NotImplementedError(f"method '{method}' not recognized.")
 
     def evaluate(self, *z, **kwargs):
         '''
@@ -218,9 +216,10 @@ class lieoperator:
             The values (g(t:x:)y)(z) for y in self.components.
         '''
         if 't' in kwargs.keys():
-            if kwargs['t'] != self.flow_parameter: # re-evaluate the flow for the requested new flow parameter t.
+            if kwargs['t'] != self.flow_parameter or not hasattr(self, 'flow'): # re-evaluate the flow for the requested new flow parameter t.
                 _ = self.calcFlow(**kwargs)
-        assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."   
+        if not hasattr(self, 'flow'):
+            _ = self.calcFlow(**kwargs)
         return [self.flow[k](*z) for k in range(len(self.flow))]
 
     def __call__(self, *z, **kwargs):
@@ -475,7 +474,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     
 class lexp(lieoperator):
     
-    def __init__(self, x, power=10, *args, **kwargs):
+    def __init__(self, x, *args, **kwargs):
         '''
         Class to describe Lie operators of the form
           exp(:x:),
@@ -484,8 +483,8 @@ class lexp(lieoperator):
         In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
         '''
         self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
-        kwargs['generator'] = genexp(power)
-        self.code = kwargs.get('code', 'numpy')
+        if 'power' in kwargs.keys():
+            self.set_generator(kwargs['power'])
         lieoperator.__init__(self, x=x, *args, **kwargs)
         
     def set_argument(self, H, **kwargs):
@@ -495,10 +494,14 @@ class lexp(lieoperator):
             assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
             self.order = kwargs['order']
             # obtain an expansion of H in terms of complex first-order normal form coordinates
-            taylor_coeffs, self.nfdict = first_order_nf_expansion(H, code=self.code, **kwargs)
+            taylor_coeffs, self.nfdict = first_order_nf_expansion(H, **kwargs)
             lieoperator.set_argument(self, x=poly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
         else:
             raise RuntimeError(f"Argument of type '{H.__class__.__name__}' not supported.")
+            
+    def set_generator(self, power):
+        self.generator = genexp(power)
+        self.power = len(self.generator) - 1
         
     def bch(self, *z, **kwargs):
         '''
@@ -539,35 +542,46 @@ class lexp(lieoperator):
         else:
             raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
             
-    def act(self, *z, method='taylor', **kwargs):
-        if method == 'taylor':
-            return lieoperator.act(self, *z, **kwargs)
-        elif method == 'heyoka':
+    def calcFlow(self, method='bruteforce', **kwargs):
+        
+        if 'components' in kwargs.keys():
+            self.components = kwargs['components']
+        self.flow_parameter = kwargs.get('t', self.flow_parameter)
+            
+        if method == 'heyoka':
             # We shall use the fact that exp(:f:)p(x) = p(exp(:f:)x) holds.
             
             # Step 1: Transport the coordinate functions to their final values, using the Heyoka solver:
-            self.flow_parameter = kwargs.get('t', self.flow_parameter)
-            solver = heyoka(self.argument, t=self.flow_parameter, **kwargs)
-            dim = z[0].dim
-            vects = [[0 if k != j else 1 for k in range(dim*2)] for j in range(dim*2)]
-            xietaf = solver(*vects)
+            if not hasattr(self, 'heyoka_solver'):
+                self.heyoka_solver = heyoka(self.argument, **kwargs)
+            self.heyoka_solver.t = self.flow_parameter
+            qp0 = [np.array([0 if k != j else 1 for k in range(self.n_args)]) for j in range(self.n_args)]
+            qf, pf = self.heyoka_solver(*qp0, real=True)
+            sqrt2 = float(np.sqrt(2))
+            xif, etaf = (qf + pf*1j)/sqrt2, (qf - pf*1j)/sqrt2
             
-            print (solver(1, 0))
-            print (solver(0, 1))
+            print (self.flow_parameter)
+            print (xif)
+            print (etaf)
+            #print (self.heyoka_solver(1, 0))
+            #print (self.heyoka_solver(0, 1))
             
 #            print (vects)
 #            print (xietaf)
             
             # Step 2: Act on each entry of p
-            self.components = z # store the components, just for the record
+            #self.components = z # store the components, just for the record
             #for p in z:
                 #print (p)
                 #print (xietaf)
-            result = [p(*xietaf) for p in z]
-        
-            if len(result) == 1:
-                result = result[0]
+            print (xif[0])
+            result = []
+            for k in range(len(xif)):
+                result.append([p(xif[k], etaf[k]) for p in self.components])
             return result
+            #return [p(*xif) for p in self.components] + [p(*etaf) for p in self.components]
+        else:
+            return lieoperator.calcFlow(self, **kwargs)
     
     
 def combine(*args, power: int, mode='default', **kwargs):
