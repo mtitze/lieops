@@ -8,6 +8,8 @@ from .magnus import fast_hard_edge_chain, hard_edge, hard_edge_chain, norsett_is
 from .poly import poly as _poly
 
 from lieops.solver.common import getRealHamiltonFunction
+from lieops.solver import heyoka
+from lieops.solver.bruteforce import flowFunc, calcFlow, calcOrbits
 
 class poly(_poly):
     
@@ -167,86 +169,19 @@ class lieoperator:
             taylor_coeffs = dg(0, mult_drv= False)
             self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
         else:
-            raise NotImplementedError('Input function not recognized.')
+            raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1
-            
-    def action(self, y, **kwargs):
-        '''
-        Apply the Lie operator g(:x:) to a given lie polynomial y, to return the elements
-        in the series of g(:x:)y.
-        
-        Parameters
-        ----------
-        y: poly
-            The Lie polynomial on which the Lie operator should be applied on.
-            
-        Returns
-        -------
-        list
-            List containing (g[n]*:x:**n)(y) if g = [g[0], g[1], ...] denotes the underlying generator.
-            The list goes on up to the maximal power N determined by self.argument.ad routine (see
-            documentation there).
-        '''
-        assert hasattr(self, 'generator'), 'No generator set (check self.set_generator).'
-        assert hasattr(self, 'argument'), 'No Lie polynomial in argument set (check self.set_argument)'
-        ad_action = self.argument.ad(y, power=self.power)
-        assert len(ad_action) > 0
-        # N.B. if self.generator[j] = 0, then k_action[j]*self.generator[j] = {}. It will remain in the list below (because 
-        # it always holds len(ad_action) > 0 by construction).
-        # This is important when calculating the flow later on. In order to check for this consistency, we have added 
-        # the above assert statement.
-        return [ad_action[j]*self.generator[j] for j in range(len(ad_action))]
         
     def calcOrbits(self, **kwargs):
-        '''
-        Compute the summands in the series of the Lie operator g(:x:)y, for every requested y,
-        by utilizing the routine self.action.
-        
-        Parameters
-        ----------
-        components: list, optional
-            List of poly objects on which the Lie operator g(:x:) should be applied on.
-            If nothing specified, then the canonical xi-coordinates are used.
-            
-        store: bool, optinal
-            If true (default), store the current orbits in the field self.orbits.
-            
-        **kwargs
-            Optional arguments passed to lie.create_coords.
-            
-        Returns
-        -------
-        list
-            A list containing the actions [(g[n]*:x:**n)(y) for n=0, ..., N] (see self.action) as elements, 
-            where y is running over the requested Lie-operator components.
-        '''
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
         elif not hasattr(self, 'components'):
             self.components = create_coords(dim=self.argument.dim, **kwargs)
-        orbits = [self.action(y) for y in self.components] # orbits: A list of lists
-        if kwargs.get('store', True):
-            self.orbits = orbits
-        return orbits
+        self.orbits = calcOrbits(self, components=self.components)
+        return self.orbits
     
     def flowFunc(self, t, *z):
-        '''
-        Return the flow function phi(t, z) = [g(t:x:) y](z).
-        
-        Parameters
-        ----------
-        t: float
-            The requested t-value of the flow.
-            
-        z: subscriptable
-            The point at which to evaluate the flow.
-        
-        Returns
-        -------
-        phi: callable
-            The flow of the current Lie operator, as described above.
-        '''
-        return [sum([self.orbits[k][j](*z)*t**j for j in range(len(self.orbits[k]))]) for k in range(len(self.orbits))]
+        return flowFunc(self.orbits, t, *z)
      
     def calcFlow(self, **kwargs):
         '''
@@ -275,16 +210,15 @@ class lieoperator:
         # N.B. We multiply with the parameter t on the right-hand side, because if t is e.g. a numpy array and
         # standing on the left, then numpy would put the poly classes into its array, something we do not want. 
         # Instead, we want to put the numpy arrays into our poly class.
-        flow = [sum([orbits[k][j]*t**j for j in range(len(orbits[k]))]) for k in range(len(orbits))]
-        if kwargs.get('store', True):
-            self.orbits = orbits
-            self.flow = flow
-            self.flow_parameter = t
+        flow = calcFlow(orbits, t)
+        self.orbits = orbits
+        self.flow = flow
+        self.flow_parameter = t
         return flow
 
     def evaluate(self, *z, **kwargs):
         '''
-        Evaluate current flow of Lie operator at a specific point.
+        Evaluate current flow of Lie operator at a specific point, using finite Taylor series.
         
         Parameters
         ----------
@@ -333,7 +267,7 @@ class lieoperator:
             
         Returns
         -------
-        self.flow[0] or self.flow
+        poly or list
             Depending on the input, either the poly g(:x:)y is returned, or a list g(:x:)y for the given
             poly elements y.
         '''
@@ -368,12 +302,13 @@ class lieoperator:
             3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
         '''
         if isinstance(z[0], poly):
+            assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
             return self.act(*z, **kwargs)
-        elif isinstance(z, type(self)):
+        elif isinstance(z[0], type(self)):
             if hasattr(self, 'bch'):
-                return self.bch(z, **kwargs)
+                return self.bch(*z, **kwargs) # Baker-Campbell-Hausdorff (using Magnus/combine routine)
             else:
-                raise NotImplementedError(f"Composition of two objects of type '{self.__class__.__name__}' not supported.")
+                raise NotImplementedError(f"Composition of objects of type '{self.__class__.__name__}' not supported.")
         else:
             return self.evaluate(*z, **kwargs)
             
@@ -616,16 +551,17 @@ class lexp(lieoperator):
         else:
             raise RuntimeError(f"Argument of type '{H.__class__.__name__}' not supported.")
         
-    def bch(self, other, **kwargs):
+    def bch(self, *z, **kwargs):
         '''
-        Compute the composition of the current Lie operator exp(:x:) with another one exp(:y:), 
+        Compute the composition of the current Lie operator exp(:x:) with other ones exp(:y_1:),
+        ..., exp(:y_N:)
         to return the Lie operator exp(:z:) given as
-           exp(:z:) = exp(:x:) exp(:y:).
+           exp(:z:) = exp(:x:) exp(:y_1:) exp(:y_2:) ... exp(:y_N:).
            
         Parameters
         ----------
-        z: lieoperator
-            The Lie operator z = exp(:y:) to be composed with the current Lie operator from the right.
+        z: lieoperators
+            The Lie operators z = exp(:y:) to be composed with the current Lie operator from the right.
             
         power: int, optional
             The power in the integration variable, to control the degree of accuracy of the result.
@@ -639,9 +575,9 @@ class lexp(lieoperator):
         lieoperator
             The resulting Lie operator of the composition.
         '''
-        assert isinstance(self, type(other))
+        assert isinstance(self, type(z[0]))
         kwargs['power'] = kwargs.get('power', self._compose_power_default)
-        comb, _, _ = combine(self.argument, other.argument, **kwargs)
+        comb, _, _ = combine(self.argument, *[other.argument for other in z], **kwargs)
         if len(comb) > 0:
             outp = sum(comb.values())
         else: # return zero poly
@@ -653,6 +589,36 @@ class lexp(lieoperator):
             return self.bch(other)
         else:
             raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
+            
+    def act(self, *z, method='taylor', **kwargs):
+        if method == 'taylor':
+            return lieoperator.act(self, *z, **kwargs)
+        elif method == 'heyoka':
+            # We shall use the fact that exp(:f:)p(x) = p(exp(:f:)x) holds.
+            
+            # Step 1: Transport the coordinate functions to their final values, using the Heyoka solver:
+            self.flow_parameter = kwargs.get('t', self.flow_parameter)
+            solver = heyoka(self.argument, t=self.flow_parameter, **kwargs)
+            dim = z[0].dim
+            vects = [[0 if k != j else 1 for k in range(dim*2)] for j in range(dim*2)]
+            xietaf = solver(*vects)
+            
+            print (solver(1, 0))
+            print (solver(0, 1))
+            
+#            print (vects)
+#            print (xietaf)
+            
+            # Step 2: Act on each entry of p
+            self.components = z # store the components, just for the record
+            #for p in z:
+                #print (p)
+                #print (xietaf)
+            result = [p(*xietaf) for p in z]
+        
+            if len(result) == 1:
+                result = result[0]
+            return result
     
     
 def combine(*args, power: int, mode='default', **kwargs):
