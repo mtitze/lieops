@@ -9,7 +9,8 @@ from .poly import poly as _poly
 
 from lieops.solver.common import getRealHamiltonFunction
 from lieops.solver import heyoka
-from lieops.solver.bruteforce import flowFunc, calcFlow, calcOrbits
+from lieops.solver.bruteforce import flowFunc, calcOrbits
+from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 class poly(_poly):
     
@@ -202,24 +203,21 @@ class lieoperator:
         list
             A list containing the flow of every component function of the Lie-operator.
         '''
-        #if 'components' in kwargs.keys():
-        #    self.components = kwargs['components']
-        
-        if 'orbits' in kwargs.keys():
-            orbits = kwargs['orbits']
-        elif not hasattr(self, 'orbits'):
-            orbits = self.calcOrbits(**kwargs)
-        else:
-            orbits = self.orbits
+        if 'components' in kwargs.keys():
+            self.components = kwargs['components']
             
-        t = kwargs.get('t', self.flow_parameter)
-        flow = calcFlow(orbits, t)
-        self.orbits = orbits
-        self.flow = flow
-        self.flow_parameter = t
-        return flow
+        if method == 'bruteforce':
+            kwargs['t'] = kwargs.get('t', self.flow_parameter)
+            kwargs['lo'] = self
+            flow = BFcalcFlow(**kwargs)
+
+            self.flow = flow
+            self.flow_parameter = kwargs['t']
+            return flow
     
     def flowFunc(self, t, *z):
+        if not hasattr(self, 'orbits'):
+            self.orbits = calcOrbits(self, components=self.components)
         return flowFunc(self.orbits, t, *z)
 
     def evaluate(self, *z, **kwargs):

@@ -33,7 +33,7 @@ def action(lo, y, **kwargs):
     # the above assert statement.
     return [ad_action[j]*lo.generator[j] for j in range(len(ad_action))]
 
-def calcOrbits(lo, components):
+def calcOrbits(lo, **kwargs):
     '''
     Compute the summands in the series of the Lie operator g(:x:)y, for every requested y.
 
@@ -42,9 +42,9 @@ def calcOrbits(lo, components):
     lo: lieoperator
         The Lie operator to be used.
         
-    components: list
+    components: list, optional
         List of poly objects on which the Lie operator g(:x:) should be applied on.
-        If nothing specified, then the canonical xi-coordinates are used.
+        If nothing specified, then its canonical (xi/eta)-coordinates are used.
 
     Returns
     -------
@@ -52,9 +52,9 @@ def calcOrbits(lo, components):
         A list containing the actions [(g[n]*:x:**n)(y) for n=0, ..., N] (see self.action) as elements, 
         where y is running over the requested Lie-operator components.
     '''
-    return [action(lo, y) for y in components] # orbits: A list of lists
+    return [action(lo, y) for y in kwargs.get('components', lo.components)] # orbits: A list of lists
 
-def calcFlow(orbits, t):
+def calcFlow(t, **kwargs):
     '''
     Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
 
@@ -70,7 +70,13 @@ def calcFlow(orbits, t):
     -------
     list
         A list containing the flow of every component function of the Lie-operator.
-    '''
+    '''    
+    if not 'orbits' in kwargs.keys():
+        assert 'lo' in kwargs.keys(), "Flow calculation without 'orbits' parameter requires lieoperator parameter 'lo' to be set."
+        orbits = calcOrbits(**kwargs)
+    else:
+        orbits = kwargs['orbits']
+
     return [sum([orbits[k][j]*t**j for j in range(len(orbits[k]))]) for k in range(len(orbits))]
 
 def flowFunc(orbits, t, *z):
