@@ -9,7 +9,6 @@ from .poly import poly as _poly
 
 from lieops.solver.common import getRealHamiltonFunction
 from lieops.solver import heyoka
-from lieops.solver.bruteforce import flowFunc, calcOrbits
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 class poly(_poly):
@@ -122,11 +121,11 @@ class lieoperator:
         The function in the argument of the Lie operator.
     
     **kwargs
-        Optional arguments may be passed to self.set_generator, self.calcOrbits and self.calcFlow.
+        Optional arguments may be passed to self.set_generator and (possible) self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
         self.init_kwargs = kwargs
-        self.flow_parameter = kwargs.get('t', 1) # An optional parameter t so that the Lie operator has the form g(t:x:). The purpose of that parameter is that it may be slow to compute g(:x:) once, but, as soon as g(:x:) has been computed, g(t:x:) is faster (using the expansion of g). Furthermore, it may deal as integration step for routines in case of g = exp.
+        self.flow_parameter = kwargs.get('t', 1) # An optional parameter t with the interpretation that the Lie operator will have the form g(t:x:). The purpose of this parameter is that it may be slow to compute g(:x:) once, but -- as soon as g(:x:) has been computed -- the calculation of other g(t:x:) may be faster (using the expansion of g). Furthermore, it may deal as integration step for routines in case of g = exp.
         self.set_argument(x, **kwargs)
         
         if 'generator' in kwargs.keys():
@@ -176,15 +175,6 @@ class lieoperator:
         else:
             raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1
-        
-    def calcOrbits(self, **kwargs):
-        '''
-        Compute the polynomials g(:x:)y for every requested y.
-        '''
-        if 'components' in kwargs.keys():
-            self.components = kwargs['components']
-        self.orbits = calcOrbits(self, components=self.components)
-        return self.orbits
      
     def calcFlow(self, method='bruteforce', **kwargs):
         '''
@@ -196,7 +186,7 @@ class lieoperator:
             Parameter in the argument at which the Lie operator should be evaluated.
             
         **kwargs
-            Optional arguments passed to self.calcOrbits, if the orbits were not yet computed.
+            Optional arguments passed to flow subroutines.
             
         Returns
         -------
@@ -208,17 +198,10 @@ class lieoperator:
             
         if method == 'bruteforce':
             kwargs['t'] = kwargs.get('t', self.flow_parameter)
-            kwargs['lo'] = self
-            flow = BFcalcFlow(**kwargs)
-
+            flow = BFcalcFlow(lo=self, **kwargs)
             self.flow = flow
             self.flow_parameter = kwargs['t']
             return flow
-    
-    def flowFunc(self, t, *z):
-        if not hasattr(self, 'orbits'):
-            self.orbits = calcOrbits(self, components=self.components)
-        return flowFunc(self.orbits, t, *z)
 
     def evaluate(self, *z, **kwargs):
         '''
@@ -235,34 +218,10 @@ class lieoperator:
             The values (g(t:x:)y)(z) for y in self.components.
         '''
         if 't' in kwargs.keys():
-            if kwargs['t'] != self.flow_parameter: # re-evaluate the flow at the requested flow parameter t.
-                flow = self.calcFlow(**kwargs)
-        else:
-            assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."
-            flow = self.flow    
-        return [flow[k](*z) for k in range(len(flow))]
-        
-    def act(self, *z, **kwargs):
-        '''
-        Let g(:x:) be the current Lie operator. Then act onto a single poly class or a list of poly classes.
-        This function is basically intended as a shortcut for the successive call of self.calcOrbits and self.calcFlow.
-        
-        Parameters
-        ----------
-        z: poly classe(s)
-            The polynomial(s) on which the current Lie operator should act on.
-            
-        Returns
-        -------
-        poly or list
-            Depending on the input, either the poly g(:x:)y is returned, or a list g(:x:)y for the given
-            poly elements y.
-        '''
-        _ = self.calcOrbits(components=z, **kwargs)
-        result = self.calcFlow(**kwargs)
-        if len(result) == 1:
-            result = result[0]
-        return result
+            if kwargs['t'] != self.flow_parameter: # re-evaluate the flow for the requested new flow parameter t.
+                _ = self.calcFlow(**kwargs)
+        assert hasattr(self, 'flow'), "Flow needs to be calculated first (check self.calcFlow)."   
+        return [self.flow[k](*z) for k in range(len(self.flow))]
 
     def __call__(self, *z, **kwargs):
         '''
@@ -290,12 +249,17 @@ class lieoperator:
         '''
         if isinstance(z[0], poly):
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
-            return self.act(*z, **kwargs)
+            result = self.calcFlow(components=z, **kwargs)#
+            if len(result) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
+                result = result[0]
+            return result
+        
         elif isinstance(z[0], type(self)):
             if hasattr(self, 'bch'):
                 return self.bch(*z, **kwargs) # Baker-Campbell-Hausdorff (using Magnus/combine routine)
             else:
                 raise NotImplementedError(f"Composition of objects of type '{self.__class__.__name__}' not supported.")
+                
         else:
             return self.evaluate(*z, **kwargs)
             
@@ -311,12 +275,10 @@ class lieoperator:
         kwargs = {}
         kwargs.update(self.init_kwargs)
         kwargs['t'] = self.flow_parameter
+        kwargs['components'] = self.components
         if hasattr(self, 'generator'):
             kwargs['generator'] = self.generator
         out = self.__class__(self.argument, **kwargs)
-        if hasattr(self, 'orbits'):
-            out.orbits = [o.copy() for o in self.orbits]
-            out.components = [c.copy() for c in self.components]
         if hasattr(self, 'flow'):
             out.flow = [l.copy() for l in self.flow]
         return out

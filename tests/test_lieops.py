@@ -410,7 +410,7 @@ def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
     t_ref = 1
     L1 = lexp(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, max_power=max_power)
     # check Symplecticity of the flow of L1 at position p:
-    dL1flow = derive(lambda *x: L1.flowFunc(t_ref, *x), order=1, n_args=2)
+    dL1flow = derive(lambda *x: L1.evaluate(*x, t=t_ref), order=1, n_args=2)
     ep, epc = dL1flow.eval(p, p.conjugate())
     jacobi = [[dL1flow.get_taylor_coefficients(ep)[(1, 0)], dL1flow.get_taylor_coefficients(ep)[(0, 1)]],
               [dL1flow.get_taylor_coefficients(epc)[(1, 0)], dL1flow.get_taylor_coefficients(epc)[(0, 1)]]]

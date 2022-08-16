@@ -79,24 +79,3 @@ def calcFlow(t, **kwargs):
 
     return [sum([orbits[k][j]*t**j for j in range(len(orbits[k]))]) for k in range(len(orbits))]
 
-def flowFunc(orbits, t, *z):
-    '''
-    Return the flow function phi(t, z) = [g(t:x:) y](z).
-
-    Parameters
-    ----------
-    orbits: list
-        The orbits to be used.
-        
-    t: float
-        The requested t-value of the flow.
-
-    z: subscriptable
-        The point at which to evaluate the flow.
-
-    Returns
-    -------
-    phi: callable
-        The flow of the current Lie operator, as described above.
-    '''
-    return [sum([orbits[k][j](*z)*t**j for j in range(len(orbits[k]))]) for k in range(len(orbits))]
