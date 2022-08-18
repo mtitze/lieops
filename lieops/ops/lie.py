@@ -482,7 +482,7 @@ class lexp(lieoperator):
 
         In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
         '''
-        self._compose_power_default = 6 # the default power when composing two Lie-operators (used in self.compose)
+        self._bch_power_default = 6 # the default power when composing two Lie-operators (used in self.bch)
         if 'power' in kwargs.keys():
             self.set_generator(kwargs['power'])
         lieoperator.__init__(self, x=x, *args, **kwargs)
@@ -517,7 +517,7 @@ class lexp(lieoperator):
             
         power: int, optional
             The power in the integration variable, to control the degree of accuracy of the result.
-            See also lie.combine routine. If nothing specified, self._compose_power_default will be used.
+            See also lie.combine routine. If nothing specified, self._bch_power_default will be used.
             
         **kwargs
             Additional parameters sent to lie.combine routine.
@@ -528,7 +528,7 @@ class lexp(lieoperator):
             The resulting Lie operator of the composition.
         '''
         assert isinstance(self, type(z[0]))
-        kwargs['power'] = kwargs.get('power', self._compose_power_default)
+        kwargs['power'] = kwargs.get('power', self._bch_power_default)
         comb, _, _ = combine(self.argument, *[other.argument for other in z], **kwargs)
         if len(comb) > 0:
             outp = sum(comb.values())
@@ -549,40 +549,24 @@ class lexp(lieoperator):
         self.flow_parameter = kwargs.get('t', self.flow_parameter)
             
         if method == 'heyoka':
-            # We shall use the fact that exp(:f:)p(x) = p(exp(:f:)x) holds.
+            # We shall use the fact that exp(:f:)g(x) = g(exp(:f:)x) holds.
             
             # Step 1: Transport the coordinate functions to their final values, using the Heyoka solver:
             if not hasattr(self, 'heyoka_solver'):
                 self.heyoka_solver = heyoka(self.argument, **kwargs)
             self.heyoka_solver.t = self.flow_parameter
-            qp0 = [np.array([0 if k != j else 1 for k in range(self.n_args)]) for j in range(self.n_args)]
-            qf, pf = self.heyoka_solver(*qp0, real=True)
-            sqrt2 = float(np.sqrt(2))
-            xif, etaf = (qf + pf*1j)/sqrt2, (qf - pf*1j)/sqrt2
-            
-            print (self.flow_parameter)
-            print (xif)
-            print (etaf)
-            #print (self.heyoka_solver(1, 0))
-            #print (self.heyoka_solver(0, 1))
-            
-#            print (vects)
-#            print (xietaf)
-            
-            # Step 2: Act on each entry of p
-            #self.components = z # store the components, just for the record
-            #for p in z:
-                #print (p)
-                #print (xietaf)
-            print (xif[0])
-            result = []
-            for k in range(len(xif)):
-                result.append([p(xif[k], etaf[k]) for p in self.components])
-            return result
-            #return [p(*xif) for p in self.components] + [p(*etaf) for p in self.components]
+            dim = self.argument.dim
+            # Apply the exp(:f:)-operator on the diagonal (1, 1, 1, ...), corresponding to (xi_1, xi_2, ..., eta_1, eta_2, ...)
+            xieta0 = np.array([[1]]*2*dim)
+            xietaf = self.heyoka_solver(*xieta0)
+            xieta_poly = create_coords(dim)
+            xieta = []
+            for j in range(dim*2):
+                xieta.append(xieta_poly[j]*xietaf[j][0])
+            return [p(*xieta) for p in self.components]
         else:
             return lieoperator.calcFlow(self, **kwargs)
-    
+        
     
 def combine(*args, power: int, mode='default', **kwargs):
     r'''
