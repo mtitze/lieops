@@ -136,16 +136,16 @@ def exp_ad1(mu=-0.2371, power=18, tol=1e-14, **kwargs):
     H2 = lambda x, px: 0.5*(x**2 + px**2)
     expansion, nfdict = first_order_nf_expansion(H2, check=True, code='numpy', **kwargs)
     HLie = poly(values=expansion)
-    Hop = lexp(HLie, t=mu, power=power)
+    Hop = lexp(HLie, power=power)
     Kinv = nfdict['Kinv'] # K(p, q) = (xi, eta)
     xieta = create_coords(1)
 
     # first apply K, then exp_ad:
     xy_mapped = [xieta[0]*Kinv[0, 0] + xieta[1]*Kinv[0, 1], xieta[0]*Kinv[1, 0] + xieta[1]*Kinv[1, 1]]    
-    xy_final_mapped = Hop(*xy_mapped)
+    xy_final_mapped = Hop(*xy_mapped, t=mu)
     
     # first apply exp_ad, then K:
-    xy_fin = Hop(*xieta)
+    xy_fin = Hop(*xieta, t=mu)
     xy_final = [xy_fin[0]*Kinv[0, 0] + xy_fin[1]*Kinv[0, 1], xy_fin[0]*Kinv[1, 0] + xy_fin[1]*Kinv[1, 1]]
     
     # Both results must be equal.

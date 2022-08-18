@@ -54,7 +54,7 @@ def calcOrbits(lo, **kwargs):
     '''
     return [action(lo, y) for y in kwargs.get('components', lo.components)] # orbits: A list of lists
 
-def calcFlow(t=1, **kwargs):
+def calcFlow(t=-1, **kwargs):
     '''
     Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
 

@@ -43,7 +43,7 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0, nf=[], **kwargs):
         Intended to be used with the output matrix K of lieops.linalg.nf.normal_form routine.
         Background:
         It can happen that the given Hamiltonian has been constructed by means of (complex) normal form. 
-        This means that we need to apply an additional transformation to rever the K-map (otherwise
+        This means that we need to apply an additional transformation to revert the K-map (otherwise
         we would get a complex-valued Hamiltonian. (see lieops.linalg.nf.first_order_nf_expansion routine).
         If nf is given, then the map needs to ensure that the resulting Hamiltonian is real-valued.
     

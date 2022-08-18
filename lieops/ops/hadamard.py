@@ -60,7 +60,7 @@ def lo2mat(p):
     out[1, 1] = a1*1j
     return out
 
-def mat2lo(mat):
+def mat2lp(mat):
     '''
     Transform a 2x2 matrix of zero trace to a poynomial of 2nd order.
     '''
@@ -152,8 +152,8 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
             if len(current_g1_op) == 0:
                 new_hamiltonians.append(hamiltonian)
             else:
-                op = lexp(mat2lo(current_g1_op), **kwargs)
-                new_hamiltonians.append(op(hamiltonian))
+                op = lexp(mat2lp(current_g1_op), **kwargs)
+                new_hamiltonians.append(op(hamiltonian, **kwargs))
     if len(current_g1_op) == 0 or len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
-    return new_hamiltonians, mat2lo(current_g1_op)
+    return new_hamiltonians, mat2lp(current_g1_op)

@@ -90,7 +90,10 @@ class heyoka_solver:
         sqrt2 = float(np.sqrt(2))
         q = (xi + eta)/sqrt2
         p = (xi - eta)/sqrt2/1j
-        return np.concatenate([q, p], axis=0)
+        qp = np.concatenate([q, p], axis=0)
+        if len(qp.shape) == 1:
+            qp = qp.reshape(len(qp), 1)
+        return qp
     
     def _qp2xieta(self, *qp, **kwargs):
         '''

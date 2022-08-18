@@ -124,7 +124,6 @@ class lieoperator:
     '''
     def __init__(self, x, **kwargs):
         self.init_kwargs = kwargs
-        self.flow_parameter = kwargs.get('t', 1) # An optional parameter t with the interpretation that the Lie operator will have the form g(t:x:). The purpose of this parameter is that it may be slow to compute g(:x:) once, but -- as soon as g(:x:) has been computed -- the calculation of other g(t:x:) may be faster (using the expansion of g). Furthermore, it may deal as integration step for routines in case of g = exp.
         self.set_argument(x, **kwargs)
         
         if 'generator' in kwargs.keys():
@@ -193,10 +192,8 @@ class lieoperator:
             self.components = kwargs['components']
             
         if method == 'bruteforce':
-            kwargs['t'] = kwargs.get('t', self.flow_parameter)
             flow = BFcalcFlow(lo=self, **kwargs)
             self.flow = flow
-            self.flow_parameter = kwargs['t']
             return flow
         else:
             raise NotImplementedError(f"method '{method}' not recognized.")
@@ -216,8 +213,9 @@ class lieoperator:
             The values (g(t:x:)y)(z) for y in self.components.
         '''
         if 't' in kwargs.keys():
-            if kwargs['t'] != self.flow_parameter or not hasattr(self, 'flow'): # re-evaluate the flow for the requested new flow parameter t.
+            if getattr(self, '_flow_parameter', None) != kwargs['t']:
                 _ = self.calcFlow(**kwargs)
+                self._flow_parameter = kwargs['t']
         if not hasattr(self, 'flow'):
             _ = self.calcFlow(**kwargs)
         return [self.flow[k](*z) for k in range(len(self.flow))]
@@ -273,7 +271,6 @@ class lieoperator:
         '''
         kwargs = {}
         kwargs.update(self.init_kwargs)
-        kwargs['t'] = self.flow_parameter
         kwargs['components'] = self.components
         if hasattr(self, 'generator'):
             kwargs['generator'] = self.generator
@@ -546,25 +543,30 @@ class lexp(lieoperator):
         
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
-        self.flow_parameter = kwargs.get('t', self.flow_parameter)
             
         if method == 'heyoka':
             # We shall use the fact that exp(:f:)g(x) = g(exp(:f:)x) holds.
-            
-            # Step 1: Transport the coordinate functions to their final values, using the Heyoka solver:
             if not hasattr(self, 'heyoka_solver'):
                 self.heyoka_solver = heyoka(self.argument, **kwargs)
-            self.heyoka_solver.t = self.flow_parameter
+            self.heyoka_solver.t = kwargs.get('t', 1)
             dim = self.argument.dim
-            # Apply the exp(:f:)-operator on the diagonal (1, 1, 1, ...), corresponding to (xi_1, xi_2, ..., eta_1, eta_2, ...)
-            xieta0 = np.array([[1]]*2*dim)
+            # Apply the exp(:f:)-operator on the 'diagonal' (1, 1, 1, ...), which corresponds to (xi_1, xi_2, ..., eta_1, eta_2, ...)
+            xieta0 = np.array([[0 if k != j else 1 for k in range(2*dim)] for j in range(2*dim)])
+            # interpretation: The row xieta0[j] corresponds to the j-th coordinate which should be
+            # passed through the Hamiltonian. This coordinate has value xieta0[j][k] for the k-th
+            # iteration. This means that the final coordinate of xieta0[j] will be given
+            # at the j-th iterate, where the other coordinates have been set to zero.
             xietaf = self.heyoka_solver(*xieta0)
             xieta_poly = create_coords(dim)
             xieta = []
             for j in range(dim*2):
-                xieta.append(xieta_poly[j]*xietaf[j][0])
+                xieta.append(xieta_poly[j]*xietaf[j][j])
             return [p(*xieta) for p in self.components]
         else:
+            if 'power' in kwargs.keys():
+                self.set_generator(kwargs['power'])
+            else:
+                assert hasattr(self, 'generator'), f"Flow calculation using method '{method}' requires 'power' argument to be set."
             return lieoperator.calcFlow(self, **kwargs)
         
     
