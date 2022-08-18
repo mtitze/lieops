@@ -546,10 +546,12 @@ class lexp(lieoperator):
             
         if method == 'heyoka':
             # We shall use the fact that exp(:f:)g(x) = g(exp(:f:)x) holds.
+            dim = self.argument.dim            
             if not hasattr(self, 'heyoka_solver'):
                 self.heyoka_solver = heyoka(self.argument, **kwargs)
+                self._xieta_basis = create_coords(dim)
             self.heyoka_solver.t = kwargs.get('t', 1)
-            dim = self.argument.dim
+
             # Apply the exp(:f:)-operator on the 'diagonal' (1, 1, 1, ...), which corresponds to (xi_1, xi_2, ..., eta_1, eta_2, ...)
             xieta0 = np.array([[0 if k != j else 1 for k in range(2*dim)] for j in range(2*dim)])
             # interpretation: The row xieta0[j] corresponds to the j-th coordinate which should be
@@ -557,10 +559,8 @@ class lexp(lieoperator):
             # iteration. This means that the final coordinate of xieta0[j] will be given
             # at the j-th iterate, where the other coordinates have been set to zero.
             xietaf = self.heyoka_solver(*xieta0)
-            xieta_poly = create_coords(dim)
-            xieta = []
-            for j in range(dim*2):
-                xieta.append(xieta_poly[j]*xietaf[j][j])
+            # The final value of xietaf[j] has components xietaf[j][k] with respect to the xieta-basis. Therefore: 
+            xieta = [sum([self._xieta_basis[k]*xietaf[j][k] for k in range(dim*2)]) for j in range(dim*2)]
             return [p(*xieta) for p in self.components]
         else:
             if 'power' in kwargs.keys():

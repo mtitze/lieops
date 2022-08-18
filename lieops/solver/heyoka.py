@@ -91,7 +91,7 @@ class heyoka_solver:
         q = (xi + eta)/sqrt2
         p = (xi - eta)/sqrt2/1j
         qp = np.concatenate([q, p], axis=0)
-        if len(qp.shape) == 1:
+        if len(qp.shape) == 1: # the case the user inputs a single point
             qp = qp.reshape(len(qp), 1)
         return qp
     
