@@ -58,7 +58,9 @@ class heyoka_solver:
         dim2 = len(qp0)
         assert dim2//2 == self.dim, f'Input vector dimension {dim2//2} not consistent with dimension {self.dim} of given Hamiltonian.'
         
-        kwargs['t'] = kwargs.get('t', self.t)
+        t = kwargs.get('t', self.t)
+        if hasattr(t, '__iter__'):
+            kind = 'grid'
         
         # create a generator, taking a taylor adaptive object and modifying the state according to the
         # vector components.
@@ -73,14 +75,17 @@ class heyoka_solver:
             return tacp
 
         if kind == 'until':
-            return hy.ensemble_propagate_until(self.integrator, n_iter=n_iter, gen=gen, **kwargs)
+            self.results = hy.ensemble_propagate_until(self.integrator, n_iter=n_iter, gen=gen, t=t)
+            return np.array([e[0].state for e in self.results]).transpose()        
         elif kind == 'for':
-            return hy.ensemble_propagate_for(self.integrator, n_iter=n_iter, gen=gen, **kwargs) # todo
+            self.results = hy.ensemble_propagate_for(self.integrator, n_iter=n_iter, gen=gen, t=t)
+            return np.array([e[0].state for e in self.results]).transpose()
         elif kind == 'grid':
-            return hy.ensemble_propagate_grid(self.integrator, n_iter=n_iter, gen=gen, **kwargs) # todo
+            self.results = hy.ensemble_propagate_grid(self.integrator, n_iter=n_iter, gen=gen, grid=t)
+            return np.array([e[5] for e in self.results]).transpose()
         else:
             raise RuntimeError(f"Requested kind '{kind}' not recognized.")
-    
+                
     def _xieta2qp(self, *xieta, **kwargs):
         '''
         Helper class to deal with user-defined input.
@@ -134,13 +139,11 @@ class heyoka_solver:
             # TODO: perhaps this can be improved by providing a wrapper?
             qp0 = self._xieta2qp(*xieta0)
             qp1 = np.concatenate([qp0.real, qp0.imag], axis=1)
-            self.results = self.ensemble_propagation(qp1, **kwargs)
-            out1 = np.array([e[0].state for e in self.results]).transpose()
-            out = out1[:,:out1.shape[1]//2] + out1[:,out1.shape[1]//2:]*1j
+            out1 = self.ensemble_propagation(qp1, **kwargs)
+            out = out1[..., :out1.shape[-1]//2] + out1[..., out1.shape[-1]//2:]*1j # the dots here indicate either a single index running over the dimension -- or two indices: an index running over the dimension and another index corresponding to given t-values. The final index corresponds to the number of different start vectors.
             out = self._qp2xieta(*out)
         else:
-            self.results = self.ensemble_propagation(np.array(xieta0).real, **kwargs)
-            out = np.array([e[0].state for e in self.results]).transpose()
+            out = self.ensemble_propagation(np.array(xieta0).real, **kwargs)
         return out
         
     

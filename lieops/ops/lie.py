@@ -558,9 +558,9 @@ class lexp(lieoperator):
             # passed through the Hamiltonian. This coordinate has value xieta0[j][k] for the k-th
             # iteration. This means that the final coordinate of xieta0[j] will be given
             # at the j-th iterate, where the other coordinates have been set to zero.
-            xietaf = self.heyoka_solver(*xieta0)
-            # The final value of xietaf[j] has components xietaf[j][k] with respect to the xieta-basis. Therefore: 
-            xieta = [sum([self._xieta_basis[k]*xietaf[j][k] for k in range(dim*2)]) for j in range(dim*2)]
+            xietaf = self.heyoka_solver(*xieta0, **kwargs)
+            # The final value of xietaf[j] has components xietaf[j][..., k] with respect to the xieta-basis. The dots in between may indicate another (third) index running over various t-values. Overall: 
+            xieta = [sum([self._xieta_basis[k]*xietaf[j][..., k] for k in range(dim*2)]) for j in range(dim*2)]
             return [p(*xieta) for p in self.components]
         else:
             if 'power' in kwargs.keys():
