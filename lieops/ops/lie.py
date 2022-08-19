@@ -13,7 +13,7 @@ from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 class poly(_poly):
     
-    def flow(self, *args, **kwargs):
+    def lieop(self, *args, **kwargs):
         '''
         Let f: R^n -> R be a differentiable function and :x: the current polynomial Lie map. 
         Then this routine will compute the components of M: R^n -> R^n,
@@ -546,12 +546,12 @@ class lexp(lieoperator):
             
         if method == 'heyoka':
             # We shall use the fact that exp(:f:)g(x) = g(exp(:f:)x) holds.
-            dim = self.argument.dim            
+            dim = self.argument.dim
             if not hasattr(self, 'heyoka_solver'):
                 self.heyoka_solver = heyoka(self.argument, **kwargs)
                 self._xieta_basis = create_coords(dim)
-            self.heyoka_solver.t = kwargs.get('t', 1)
 
+            self.heyoka_solver.t = kwargs.get('t', 1)
             # Apply the exp(:f:)-operator on the 'diagonal' (1, 1, 1, ...), which corresponds to (xi_1, xi_2, ..., eta_1, eta_2, ...)
             xieta0 = np.array([[0 if k != j else 1 for k in range(2*dim)] for j in range(2*dim)])
             # interpretation: The row xieta0[j] corresponds to the j-th coordinate which should be
