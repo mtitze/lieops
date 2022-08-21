@@ -13,7 +13,7 @@ from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 class poly(_poly):
     
-    def lieop(self, *args, **kwargs):
+    def lexp(self, *args, **kwargs):
         '''
         Let f: R^n -> R be a differentiable function and :x: the current polynomial Lie map. 
         Then this routine will compute the components of M: R^n -> R^n,
@@ -551,15 +551,16 @@ class lexp(lieoperator):
                 self.heyoka_solver = heyoka(self.argument, **kwargs)
                 self._xieta_basis = create_coords(dim)
 
-            self.heyoka_solver.t = kwargs.get('t', 1)
+            self.heyoka_solver.t = kwargs.get('t', 1) # N.B. t=1 here by default, because t corresponds to the time in the Heyoka integrator. In contrast to the 'brute-force' flow, which requires a "-1" in the exponent, the signum is already taken care of by integrating the equations of motion in the Heyoka solver.
+
             # Apply the exp(:f:)-operator on the 'diagonal' (1, 1, 1, ...), which corresponds to (xi_1, xi_2, ..., eta_1, eta_2, ...)
             xieta0 = np.array([[0 if k != j else 1 for k in range(2*dim)] for j in range(2*dim)])
-            # interpretation: The row xieta0[j] corresponds to the j-th coordinate which should be
+            # Interpretation: The row xieta0[j] corresponds to the j-th coordinate which should be
             # passed through the Hamiltonian. This coordinate has value xieta0[j][k] for the k-th
             # iteration. This means that the final coordinate of xieta0[j] will be given
             # at the j-th iterate, where the other coordinates have been set to zero.
             xietaf = self.heyoka_solver(*xieta0, **kwargs)
-            # The final value of xietaf[j] has components xietaf[j][..., k] with respect to the xieta-basis. The dots in between may indicate another (third) index running over various t-values. Overall: 
+            # The final value of xietaf[j] has components xietaf[j][..., k] with respect to the xieta-basis. The dots in between may indicate another (third) index corresponding to various t-values. Overall therefore: 
             xieta = [sum([self._xieta_basis[k]*xietaf[j][..., k] for k in range(dim*2)]) for j in range(dim*2)]
             return [p(*xieta) for p in self.components]
         else:
