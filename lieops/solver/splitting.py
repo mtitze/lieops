@@ -1,6 +1,6 @@
 import numpy as np
 
-class symint:
+class yoshida:
     
     def __init__(self, scheme=[1, 1/2]):
         '''

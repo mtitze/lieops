@@ -537,11 +537,14 @@ class lexp(lieoperator):
             raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
             
     def calcFlow(self, method='bruteforce', **kwargs):
-        if 'power' in kwargs.keys():
-            self.set_generator(kwargs['power'])
+        if method != 'bruteforce':
+            raise NotImplementedError(f"Method '{method}' not supported.")
         else:
-            assert hasattr(self, 'generator'), f"Flow calculation using method '{method}' requires 'power' argument to be set."
-        lieoperator.calcFlow(self, **kwargs)
+            if 'power' in kwargs.keys():
+                self.set_generator(kwargs['power'])
+            else:
+                assert hasattr(self, 'generator'), f"Flow calculation using method '{method}' requires 'power' argument to be set."
+            lieoperator.calcFlow(self, **kwargs)
         
     
 def combine(*args, power: int, mode='default', **kwargs):

@@ -75,10 +75,10 @@ class heyoka_solver:
             return tacp
 
         if kind == 'until':
-            self.results = hy.ensemble_propagate_until(self.integrator, n_iter=n_iter, gen=gen, t=t)
+            self.results = hy.ensemble_propagate_until(self.integrator, n_iter=n_iter, gen=gen, t=t, c_output=True)
             return np.array([e[0].state for e in self.results]).transpose()        
         elif kind == 'for':
-            self.results = hy.ensemble_propagate_for(self.integrator, n_iter=n_iter, gen=gen, t=t)
+            self.results = hy.ensemble_propagate_for(self.integrator, n_iter=n_iter, gen=gen, delta_t=t, c_output=True)
             return np.array([e[0].state for e in self.results]).transpose()
         elif kind == 'grid':
             self.results = hy.ensemble_propagate_grid(self.integrator, n_iter=n_iter, gen=gen, grid=t)
