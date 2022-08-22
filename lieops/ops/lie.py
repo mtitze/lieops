@@ -124,20 +124,21 @@ class lieoperator:
     '''
     def __init__(self, x, **kwargs):
         self.init_kwargs = kwargs
-        self.set_argument(x, **kwargs)
-        
+        self.set_argument(x, **kwargs)        
+        self.set_components(**kwargs)
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
-        
-        if 'components' in kwargs.keys():
-            self.components = kwargs['components']
-        else:
-            self.components = create_coords(dim=self.argument.dim, **kwargs)
             
     def set_argument(self, x, **kwargs):
         assert isinstance(x, poly)
         self.argument = x
         self.n_args = 2*self.argument.dim
+
+    def set_components(self, **kwargs):
+        if 'components' in kwargs.keys():
+            self.components = kwargs['components']
+        else:
+            self.components = create_coords(dim=self.argument.dim, **kwargs)
         
     def set_generator(self, generator, **kwargs):
         '''
@@ -187,14 +188,9 @@ class lieoperator:
         -------
         list
             A list containing the flow of every component function of the Lie-operator.
-        '''
-        if 'components' in kwargs.keys():
-            self.components = kwargs['components']
-            
+        ''' 
         if method == 'bruteforce':
-            flow = BFcalcFlow(lo=self, **kwargs)
-            self.flow = flow
-            return flow
+            self.flow = BFcalcFlow(lo=self, **kwargs)
         else:
             raise NotImplementedError(f"method '{method}' not recognized.")
 
@@ -213,9 +209,9 @@ class lieoperator:
             The values (g(t:x:)y)(z) for y in self.components.
         '''
         if 't' in kwargs.keys():
-            if getattr(self, '_flow_parameter', None) != kwargs['t']:
+            if getattr(self, '_flow_parameter', None) != kwargs['t']: 
                 _ = self.calcFlow(**kwargs)
-                self._flow_parameter = kwargs['t']
+                self._flow_parameter = kwargs['t'] # self._flow_parameter stored here to enable comparison and therefore prevent re-calculation of the flow if it hasn't changed.
         if not hasattr(self, 'flow'):
             _ = self.calcFlow(**kwargs)
         return [self.flow[k](*z) for k in range(len(self.flow))]
@@ -246,7 +242,8 @@ class lieoperator:
         '''
         if isinstance(z[0], poly):
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
-            result = self.calcFlow(components=z, **kwargs)#
+            self.calcFlow(components=z, **kwargs)#
+            result = self.flow
             if len(result) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
                 result = result[0]
             return result
@@ -540,35 +537,11 @@ class lexp(lieoperator):
             raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
             
     def calcFlow(self, method='bruteforce', **kwargs):
-        
-        if 'components' in kwargs.keys():
-            self.components = kwargs['components']
-            
-        if method == 'heyoka':
-            # We shall use the fact that exp(:f:)g(x) = g(exp(:f:)x) holds.
-            dim = self.argument.dim
-            if not hasattr(self, 'heyoka_solver'):
-                self.heyoka_solver = heyoka(self.argument, **kwargs)
-                self._xieta_basis = create_coords(dim)
-
-            self.heyoka_solver.t = kwargs.get('t', 1) # N.B. t=1 here by default, because t corresponds to the time in the Heyoka integrator. In contrast to the 'brute-force' flow, which requires a "-1" in the exponent, the signum is already taken care of by integrating the equations of motion in the Heyoka solver.
-
-            # Apply the exp(:f:)-operator on the 'diagonal' (1, 1, 1, ...), which corresponds to (xi_1, xi_2, ..., eta_1, eta_2, ...)
-            xieta0 = np.array([[0 if k != j else 1 for k in range(2*dim)] for j in range(2*dim)])
-            # Interpretation: The row xieta0[j] corresponds to the j-th coordinate which should be
-            # passed through the Hamiltonian. This coordinate has value xieta0[j][k] for the k-th
-            # iteration. This means that the final coordinate of xieta0[j] will be given
-            # at the j-th iterate, where the other coordinates have been set to zero.
-            xietaf = self.heyoka_solver(*xieta0, **kwargs)
-            # The final value of xietaf[j] has components xietaf[j][..., k] with respect to the xieta-basis. The dots in between may indicate another (third) index corresponding to various t-values. Overall therefore: 
-            xieta = [sum([self._xieta_basis[k]*xietaf[j][..., k] for k in range(dim*2)]) for j in range(dim*2)]
-            return [p(*xieta) for p in self.components]
+        if 'power' in kwargs.keys():
+            self.set_generator(kwargs['power'])
         else:
-            if 'power' in kwargs.keys():
-                self.set_generator(kwargs['power'])
-            else:
-                assert hasattr(self, 'generator'), f"Flow calculation using method '{method}' requires 'power' argument to be set."
-            return lieoperator.calcFlow(self, **kwargs)
+            assert hasattr(self, 'generator'), f"Flow calculation using method '{method}' requires 'power' argument to be set."
+        lieoperator.calcFlow(self, **kwargs)
         
     
 def combine(*args, power: int, mode='default', **kwargs):

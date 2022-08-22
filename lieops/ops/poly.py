@@ -234,6 +234,9 @@ class poly:
     
     def __sub__(self, other):
         return self + -other
+    
+    def __rsub__(self, other):
+        return -self + other
 
     def __matmul__(self, other):
         return self.poisson(other)
