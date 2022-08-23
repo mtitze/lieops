@@ -186,7 +186,7 @@ class integrator:
             xieta = self.step(*xieta)
             xieta_all.append(xieta)
         if r > 0:
-            xieta = self.step(*xieta, delta=r*self.delta)
+            xieta = self.step(*xieta, delta=r)
             xieta_all.append(xieta)
             
         if trajectory:
