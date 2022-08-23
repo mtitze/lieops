@@ -1,8 +1,7 @@
 import numpy as np
 from njet import derive
 import warnings
-
-from njet.functions import sin, cos
+import itertools
 
 from .common import getRealHamiltonFunction
 
@@ -28,7 +27,7 @@ class integrator:
         self.delta = delta # the underlying step size
         self.omega = omega # the coupling between the two phase spaces
         self.set_order(order) # the order of the integrator (must be even)
-        self.error_estimations() # perform some error estimations regarding the input parameters
+        self.make_error_estimations() # perform some error estimations regarding the input parameters
         
         # njet.poly keys required in dhamiltonian to obtain the gradient of the Hamiltonian for each Q and P index (starting from 0 to self.dim)
         self._component1_keys = {w: tuple(0 if k != w else 1 for k in range(2*self.dim)) for w in range(self.dim)}
@@ -50,27 +49,31 @@ class integrator:
         self.scheme = scheme[order]
         self.cos_sin = [[np.cos(2*self.omega*delta), np.sin(2*self.omega*delta)] for delta in self.scheme]
         
-    def error_estimations(self, show=False, warn=True):
+    def make_error_estimations(self, show=False, warn=True):
         '''
         Perform some checks to help deciding whether omega, delta and the order
         have been properly chosen for the given problem.
         
+        After executing this routine, the error estimations are found in self.error_estimations.
+        
         Parameters
         ----------
-        t:
-            Simulation time
-            
         show: boolean, optional
             Print the error estimates.
+            
+        warn: boolean, optional
+            Warn in case that delta > omega**(-1/order) holds.
         '''
         l = self.order
-        self.err = self.delta**l*self.omega # the global error of the solution towards the exact result (for integrable systems)
-        self.err_qx_py = 1/np.sqrt(self.omega) # the error q - x, resp. p - y.
-        self.err_tmax = min([self.delta**(-l)/self.omega, np.sqrt(self.omega)])
-        self.err_delta_vs_omega = [self.delta, self.omega**(-1/l)]
-        if self.delta*10 > self.err_delta_vs_omega[1] and warn:
-            warnings.warn(f'It appears that {self.delta} = delta << omega**(-1/order) = {self.err_delta_vs_omega[1]} is not satisfied.')
+        error_estimations = {}
+        error_estimations['error'] = self.delta**l*self.omega # the global error of the solution towards the exact result (for integrable systems)
+        error_estimations['qx_py'] = 1/np.sqrt(self.omega) # the error q - x, resp. p - y.
+        error_estimations['tmax'] = min([self.delta**(-l)/self.omega, np.sqrt(self.omega)])
+        error_estimations['delta_vs_omega'] = [self.delta, self.omega**(-1/l)]
+        if self.delta*10 > error_estimations['delta_vs_omega'][1] and warn:
+            warnings.warn(f"It appears that {self.delta} = delta << omega**(-1/order) = {error_estimations['delta_vs_omega'][1]} is not satisfied.")
             
+        self.error_estimations = error_estimations
         if show:
             print ('Integrator')
             print ('----------')
@@ -79,9 +82,9 @@ class integrator:
             print (f'delta: {self.delta}')
             print ('\nError estimates')
             print ('---------------')
-            print (f'    Against exact solution: O({self.err}*t)')
-            print (f'          Up to (t=) T_max: O({self.err_tmax})')
-            print (f'delta << omega**(-1/order): {self.err_delta_vs_omega} (?)')
+            print (f"    Against exact solution: O({error_estimations['error']}*t)")
+            print (f"          Up to (t=) T_max: O({error_estimations['tmax']})")
+            print (f"delta << omega**(-1/order): {error_estimations['delta_vs_omega']} (?)")
             # print (f'         |q - x|, |p - y| ~ O({self.err_qx_py})')
                         
     def second_order_map(self, *qp, delta, w):
@@ -92,10 +95,7 @@ class integrator:
         z3 = self.phi_HC(*z2, w)
         z4 = self.phi_HB(*z3, delta=delta/2)
         z5 = self.phi_HA(*z4, delta=delta/2)
-        out = []
-        for z in z5[:2*self.dim]: # only return the first 2 coordinates, which are q & p
-            out += z # the elements z are lists, we concatenate them together to have consistent output
-        return out 
+        return list(itertools.chain.from_iterable(z5[:2*self.dim])) # the elements of z5 are lists, we concatenate them together to have consistent output; see https://stackoverflow.com/questions/716477/join-list-of-lists-in-python
         
     def phi_HA(self, q, p, x, y, delta):
         dham = self.dhamiltonian(*(q + y))
