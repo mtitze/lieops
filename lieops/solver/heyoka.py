@@ -3,6 +3,24 @@ import numpy as np
 
 from .common import realHamiltonEqs
 
+def trf(func):
+    '''
+    Return wrapper to perform transformations to/from complex coordinates within the heyoka_solver class.
+    '''
+    def xietaqp(self, *xieta0, real=False, **kwargs):
+        if not real:
+            # Transform to qp-coordinates and propagate their real and imaginary parts separately.
+            qp0 = self._xieta2qp(*xieta0)
+            qp1 = np.concatenate([qp0.real, qp0.imag], axis=1)
+            out1 = func(self, qp1, **kwargs)
+            out = out1[..., :out1.shape[-1]//2] + out1[..., out1.shape[-1]//2:]*1j # the dots here indicate either a single index running over the dimension -- or two indices: an index running over the dimension and another index corresponding to given t-values. The final index corresponds to the number of different start vectors.
+            out = self._qp2xieta(*out)
+        else:
+            out = func(self, np.array(xieta0).real, **kwargs)
+        return out
+    return xietaqp
+
+
 class heyoka_solver:
 
     def __init__(self, hamiltonian, **kwargs):
@@ -29,6 +47,7 @@ class heyoka_solver:
         hameqs_hy = hameqs(*qp) # hameqs represents the Hamilton-equations for the real variables q and p.
         return qp, [e for e in zip(*[qp, hameqs_hy])], rham
         
+    @trf
     def ensemble_propagation(self, qp0, kind='until', **kwargs):
         '''
         Ensemble propagation according to https://bluescarni.github.io/heyoka/tut_ensemble.html
@@ -67,7 +86,7 @@ class heyoka_solver:
         # The first index should be related to the dimension (i.e indexing the number of components of q and p),
         # while the second index should correspond to the number of variations. Therefore:
         if len(qp0.shape) == 1:
-            qp0.reshape([qp0.shape[0], 1])
+            qp0 = qp0.reshape(qp0.shape[0], 1)
         n_iter = qp0.shape[1]
         
         def gen(tacp, i):
@@ -111,7 +130,7 @@ class heyoka_solver:
         eta = (q - p*1j)/sqrt2
         return np.concatenate([xi, eta], axis=0)
     
-    def __call__(self, *xieta0, real=False, **kwargs):
+    def __call__(self, *xieta0, **kwargs):
         '''
         Apply the solver on start coordinates; this is a short-cut for calling
         self.ensemble_propagation and using self._xieta2qp and self._qp2xieta helper routines.
@@ -133,17 +152,5 @@ class heyoka_solver:
             
         **kwargs
             Optional keyworded arguments passed to self.ensemble_propagation routine.
-        '''    
-        if not real:
-            # Transform to qp-coordinates and propagate their real and imaginary parts separately.
-            # TODO: perhaps this can be improved by providing a wrapper?
-            qp0 = self._xieta2qp(*xieta0)
-            qp1 = np.concatenate([qp0.real, qp0.imag], axis=1)
-            out1 = self.ensemble_propagation(qp1, **kwargs)
-            out = out1[..., :out1.shape[-1]//2] + out1[..., out1.shape[-1]//2:]*1j # the dots here indicate either a single index running over the dimension -- or two indices: an index running over the dimension and another index corresponding to given t-values. The final index corresponds to the number of different start vectors.
-            out = self._qp2xieta(*out)
-        else:
-            out = self.ensemble_propagation(np.array(xieta0).real, **kwargs)
-        return out
-        
-    
+        '''  
+        return self.ensemble_propagation(*xieta0, **kwargs)

@@ -163,7 +163,6 @@ class integrator:
         '''
         Integrate the equations of motion using a single delta-step of the integrator.
         '''
-        n = len(self.scheme)
         if 'delta' in kwargs.keys():
             delta = kwargs['delta']
             cs = [[np.cos(2*self.omega*f*delta), np.sin(2*self.omega*f*delta)] for f in self.scheme]
@@ -174,15 +173,17 @@ class integrator:
         cs = kwargs.get('cs', self.cos_sin)
         xieta = xieta0
         # TODO: combine adjacent phi_HA-maps
+        n = len(self.scheme)
         for w in range(n):
             xieta = self.second_order_map(*xieta, delta=self.scheme[n - 1 - w]*delta, cs=cs[n - 1 - w])
         return xieta
     
     def __call__(self, *xieta0, trajectory=False):
         n_reps, r = divmod(self.t, self.delta)
+        self.n_reps = int(n_reps)
         xieta_all = []
         xieta = xieta0
-        for k in range(int(n_reps)):
+        for k in range(self.n_reps):
             xieta = self.step(*xieta)
             xieta_all.append(xieta)
         if r > 0:
