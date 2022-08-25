@@ -7,7 +7,7 @@ from .common import getRealHamiltonFunction
 
 class integrator:
     
-    def __init__(self, hamiltonian, order: int=2, real=False, **kwargs):
+    def __init__(self, hamiltonian, order: int=2, t=1, real=False, **kwargs):
         '''
         Class to manage Tao's l'th order symplectic integrator for non-separable Hamiltonians.
         
@@ -20,7 +20,7 @@ class integrator:
             The order of the integrator.
             
         f: float, optional
-            A factor so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)". 
+            A factor f so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)". 
             This factor is only used in automatically selecting suitable omega and delta-values 
             for a given order. Any value given to omega or delta will ignore/overwrite the values
             suggested by f.
@@ -41,22 +41,18 @@ class integrator:
         '''
         self.set_hamiltonian(hamiltonian, real=real, **kwargs)
 
-        self.t = kwargs.get('t', 1)
-        f = kwargs.get('f', 100) # the factor f so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)"
-        self.omega = kwargs.get('omega', min([self.t**2, f**(2*order)])) # the coupling between the two phase spaces
+        f = kwargs.get('f', 100) # A factor f so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)"
+        self.omega = kwargs.get('omega', 0.5) # the coupling between the two phase spaces
         self.delta = kwargs.get('delta', self.omega**(-1/order)/f) # the underlying step size; the default value here comes from the fact that delta << omega**(-1/order) should hold (see Ref. [1]). We consider a factor of 100 for "<<" to hold.
         self.set_order(order) # the order of the integrator (must be even)
-        # also compute the estimated number of repetitions:
-        n_reps, r = divmod(self.t, self.delta)
-        self.n_reps = int(n_reps)
-        self.n_reps_r = r
-        
+        self.set_time(t=t)
+    
         self.make_error_estimations()
         
         # njet.poly keys required in dhamiltonian to obtain the gradient of the Hamiltonian for each Q and P index (starting from 0 to self.dim)
         self._component1_keys = {w: tuple(0 if k != w else 1 for k in range(2*self.dim)) for w in range(self.dim)}
         self._component2_keys = {w: tuple(0 if k != w + self.dim else 1 for k in range(2*self.dim)) for w in range(self.dim)}
-        
+                
     def set_hamiltonian(self, hamiltonian, real=False, **kwargs):
         self.dim = hamiltonian.dim
         if not real:
@@ -66,6 +62,12 @@ class integrator:
             self.realHamiltonian = getRealHamiltonFunction(hamiltonian, **kwargs)
             self.dhamiltonian = derive(self.realHamiltonian, order=1, n_args=self.dim*2)
         self.hamiltonian = hamiltonian
+        
+    def set_time(self, t):
+        self.t = t
+        n_reps, r = divmod(self.t, self.delta)
+        self.n_reps = int(n_reps)
+        self.n_reps_r = r
             
     def set_order(self, order):
         '''
@@ -105,12 +107,10 @@ class integrator:
         error_estimations['omega'] = self.omega
         error_estimations['error'] = self.delta**l*self.omega # the global error of the solution towards the exact result (for integrable systems)
         error_estimations['qx_py'] = 1/np.sqrt(self.omega) # the error q - x, resp. p - y.
-        error_estimations['tmax'] = min([self.delta**(-l)/self.omega, np.sqrt(self.omega)])
+        error_estimations['tmax_o'] = min([self.delta**(-l)/self.omega, np.sqrt(self.omega)])
         error_estimations['delta_vs_omega'] = [self.delta, self.omega**(-1/l)]
         if self.delta*10 > error_estimations['delta_vs_omega'][1] and warn:
             warnings.warn(f"It appears that {self.delta} = delta << omega**(-1/order) = {error_estimations['delta_vs_omega'][1]} is not satisfied.")
-        if self.t > error_estimations['tmax']:
-            warnings.warn(f"Requested end time {self.t} > {error_estimations['tmax']} ~ T_max.")
             
         self.error_estimations = error_estimations
         if show:
@@ -124,7 +124,7 @@ class integrator:
             print ('\nError estimates')
             print ('---------------')
             print (f"    Against exact solution: O({error_estimations['error']}*t) = O({error_estimations['error']*self.t})")
-            print (f"          up to (t=) T_max: O({error_estimations['tmax']})")
+            print (f"                t/t_max_o = {self.t/error_estimations['tmax_o']}")
             print (f"delta << omega**(-1/order): {error_estimations['delta_vs_omega']} (?)")
             # print (f'         |q - x|, |p - y| ~ O({self.err_qx_py})')
             
@@ -189,7 +189,7 @@ class integrator:
             xieta = self.second_order_map(*xieta, delta=self.scheme[n - 1 - w]*delta, cs=cs[n - 1 - w])
         return xieta
     
-    def __call__(self, *xieta0, trajectory=False):
+    def __call__(self, *xieta0, trajectory=False, **kwargs):
         xieta_all = []
         xieta = xieta0
         for k in range(self.n_reps):
