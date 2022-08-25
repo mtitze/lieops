@@ -131,7 +131,7 @@ class integrator:
             print (f"    Against exact solution: O({error_estimations['error']}*t) = O({error_estimations['error']*self.t})")
             print (f"                t/t_max_o = {self.t/error_estimations['tmax_o']}")
             print (f"delta << omega**(-1/order): {error_estimations['delta_vs_omega']} (?)")
-            # print (f'         |q - x|, |p - y| ~ O({self.err_qx_py})')
+            print (f"         |q - x|, |p - y| ~ O({error_estimations['qx_py']})")
             
     def second_order_map(self, *qp, delta, cs):
         q, p = list(qp[:self.dim]), list(qp[self.dim:])

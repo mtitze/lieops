@@ -5,7 +5,7 @@ from lieops.linalg.nf import first_order_nf_expansion, _create_umat_xieta
 
 from .genfunc import genexp
 from .magnus import fast_hard_edge_chain, hard_edge, hard_edge_chain, norsett_iserles
-from .poly import poly as _poly
+from .poly import _poly
 
 from lieops.solver.common import getRealHamiltonFunction
 from lieops.solver import heyoka

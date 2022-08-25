@@ -6,7 +6,7 @@ import numpy as np
 from njet import derive, jetpoly
 from njet.common import check_zero, factorials
 
-class poly:
+class _poly:
     '''
     Class to model the Lie operator :p:, where p is a polynomial given in terms of
     complex (xi, eta)-coordinates. For the notation of these coordinates see Ref. [1] p. 33 onwards.
@@ -657,3 +657,4 @@ def construct(f, *lps, **kwargs):
         dcomp = derive(construction, order=power, n_args=2*dim_poly)
         taylor_coeffs = dcomp(*point, mult_drv=False)
         return lps[0].__class__(values=taylor_coeffs, dim=dim_poly, max_power=max_power)
+    
