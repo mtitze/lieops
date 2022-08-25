@@ -7,7 +7,7 @@ from .common import getRealHamiltonFunction
 
 class integrator:
     
-    def __init__(self, hamiltonian, order: int=2, t=1, real=False, **kwargs):
+    def __init__(self, hamiltonian, order: int=2, t=1, omega=0.5, real=False, **kwargs):
         '''
         Class to manage Tao's l'th order symplectic integrator for non-separable Hamiltonians.
         
@@ -41,8 +41,8 @@ class integrator:
         '''
         self.set_hamiltonian(hamiltonian, real=real, **kwargs)
 
-        f = kwargs.get('f', 100) # A factor f so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)"
-        self.omega = kwargs.get('omega', 0.5) # the coupling between the two phase spaces
+        f = kwargs.get('f', 100) # An optional factor f so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)"
+        self.omega = omega # the coupling between the two phase spaces
         self.delta = kwargs.get('delta', self.omega**(-1/order)/f) # the underlying step size; the default value here comes from the fact that delta << omega**(-1/order) should hold (see Ref. [1]). We consider a factor of 100 for "<<" to hold.
         self.set_order(order) # the order of the integrator (must be even)
         self.set_time(t=t)
@@ -68,6 +68,11 @@ class integrator:
         n_reps, r = divmod(self.t, self.delta)
         self.n_reps = int(n_reps)
         self.n_reps_r = r
+        
+    def set_n_reps(self, n_reps):
+        self.t = n_reps*self.delta
+        self.n_reps = n_reps
+        self.n_reps_r = 0
             
     def set_order(self, order):
         '''
