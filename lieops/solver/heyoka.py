@@ -11,18 +11,23 @@ def trf(func):
         if not real:
             # Transform to qp-coordinates and propagate their real and imaginary parts separately.
             qp0 = self._xieta2qp(*xieta0)
+            if len(qp0.shape) == 1: # the case the user inputs a single point
+                qp0 = qp0.reshape(qp0.shape[0], 1)
             qp1 = np.concatenate([qp0.real, qp0.imag], axis=1)
             out1 = func(self, qp1, **kwargs)
             out = out1[..., :out1.shape[-1]//2] + out1[..., out1.shape[-1]//2:]*1j # the dots here indicate either a single index running over the dimension -- or two indices: an index running over the dimension and another index corresponding to given t-values. The final index corresponds to the number of different start vectors.
             out = self._qp2xieta(*out)
         else:
-            out = func(self, np.array(xieta0).real, **kwargs)
+            qp0 = np.array(xieta0).real
+            if len(qp0.shape) == 1: # the case the user inputs a single point
+                qp0 = qp0.reshape(qp0.shape[0], 1)
+            out = func(self, qp0, **kwargs)
         return out
     return xietaqp
 
 
 class heyoka_solver:
-
+    
     def __init__(self, hamiltonian, **kwargs):
         self.hamiltonian = hamiltonian
         self.dim = self.hamiltonian.dim
@@ -46,7 +51,7 @@ class heyoka_solver:
         hameqs, rham = realHamiltonEqs(self.hamiltonian, **kwargs)
         hameqs_hy = hameqs(*qp) # hameqs represents the Hamilton-equations for the real variables q and p.
         return qp, [e for e in zip(*[qp, hameqs_hy])], rham
-        
+
     @trf
     def ensemble_propagation(self, qp0, kind='until', **kwargs):
         '''
@@ -74,7 +79,8 @@ class heyoka_solver:
             Object according to https://bluescarni.github.io/heyoka/tut_ensemble.html
         '''        
         
-        dim2 = len(qp0)
+        assert len(qp0.shape) == 2
+        dim2, n_iter = qp0.shape
         assert dim2//2 == self.dim, f'Input vector dimension {dim2//2} not consistent with dimension {self.dim} of given Hamiltonian.'
         
         t = kwargs.get('t', self.t)
@@ -85,19 +91,15 @@ class heyoka_solver:
         # vector components.
         # The first index should be related to the dimension (i.e indexing the number of components of q and p),
         # while the second index should correspond to the number of variations. Therefore:
-        if len(qp0.shape) == 1:
-            qp0 = qp0.reshape(qp0.shape[0], 1)
-        n_iter = qp0.shape[1]
-        
         def gen(tacp, i):
             tacp.state[:] = qp0[:, i]
             return tacp
 
         if kind == 'until':
-            self.results = hy.ensemble_propagate_until(self.integrator, n_iter=n_iter, gen=gen, t=t, c_output=True)
+            self.results = hy.ensemble_propagate_until(self.integrator, n_iter=n_iter, gen=gen, t=t, write_tc=True, c_output=True)
             return np.array([e[0].state for e in self.results]).transpose()        
         elif kind == 'for':
-            self.results = hy.ensemble_propagate_for(self.integrator, n_iter=n_iter, gen=gen, delta_t=t, c_output=True)
+            self.results = hy.ensemble_propagate_for(self.integrator, n_iter=n_iter, gen=gen, delta_t=t, write_tc=True, c_output=True)
             return np.array([e[0].state for e in self.results]).transpose()
         elif kind == 'grid':
             self.results = hy.ensemble_propagate_grid(self.integrator, n_iter=n_iter, gen=gen, grid=t)
@@ -114,10 +116,7 @@ class heyoka_solver:
         sqrt2 = float(np.sqrt(2))
         q = (xi + eta)/sqrt2
         p = (xi - eta)/sqrt2/1j
-        qp = np.concatenate([q, p], axis=0)
-        if len(qp.shape) == 1: # the case the user inputs a single point
-            qp = qp.reshape(len(qp), 1)
-        return qp
+        return np.concatenate([q, p], axis=0)
     
     def _qp2xieta(self, *qp, **kwargs):
         '''

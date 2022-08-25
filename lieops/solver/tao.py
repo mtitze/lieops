@@ -7,7 +7,7 @@ from .common import getRealHamiltonFunction
 
 class integrator:
     
-    def __init__(self, hamiltonian, order: int=2, omega=1, real=False, **kwargs):
+    def __init__(self, hamiltonian, order: int=2, real=False, **kwargs):
         '''
         Class to manage Tao's l'th order symplectic integrator for non-separable Hamiltonians.
         
@@ -18,6 +18,12 @@ class integrator:
         
         order: int, optional
             The order of the integrator.
+            
+        f: float, optional
+            A factor so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)". 
+            This factor is only used in automatically selecting suitable omega and delta-values 
+            for a given order. Any value given to omega or delta will ignore/overwrite the values
+            suggested by f.
         
         omega: float, optional
             The coupling constant between the two phase spaces.
@@ -33,21 +39,25 @@ class integrator:
         [1]: Molei Tao: "Explicit symplectic approximation of nonseparable Hamiltonians: 
                          algorithm and long time performance", PhysRevE.94.043303 (2016).
         '''
-        self.set_hamiltonian(hamiltonian, real=real)
+        self.set_hamiltonian(hamiltonian, real=real, **kwargs)
 
-        
-        
         self.t = kwargs.get('t', 1)
-        self.omega = omega # the coupling between the two phase spaces
-        self.delta = kwargs.get('delta', omega**(-1/order)/100) # the underlying step size; the default value here comes from the fact that delta << omega**(-1/order) should hold (see Ref. [1]). We consider a factor of 100 for "<<" to hold.
+        f = kwargs.get('f', 100) # the factor f so that "delta << omega**(-1/order), then "f*delta == omega**(-1/order)"
+        self.omega = kwargs.get('omega', min([self.t**2, f**(2*order)])) # the coupling between the two phase spaces
+        self.delta = kwargs.get('delta', self.omega**(-1/order)/f) # the underlying step size; the default value here comes from the fact that delta << omega**(-1/order) should hold (see Ref. [1]). We consider a factor of 100 for "<<" to hold.
         self.set_order(order) # the order of the integrator (must be even)
+        # also compute the estimated number of repetitions:
+        n_reps, r = divmod(self.t, self.delta)
+        self.n_reps = int(n_reps)
+        self.n_reps_r = r
+        
         self.make_error_estimations()
         
         # njet.poly keys required in dhamiltonian to obtain the gradient of the Hamiltonian for each Q and P index (starting from 0 to self.dim)
         self._component1_keys = {w: tuple(0 if k != w else 1 for k in range(2*self.dim)) for w in range(self.dim)}
         self._component2_keys = {w: tuple(0 if k != w + self.dim else 1 for k in range(2*self.dim)) for w in range(self.dim)}
         
-    def set_hamiltonian(self, hamiltonian, real=False):
+    def set_hamiltonian(self, hamiltonian, real=False, **kwargs):
         self.dim = hamiltonian.dim
         if not real:
             hamiltonian = hamiltonian*-1j
@@ -106,10 +116,11 @@ class integrator:
         if show:
             print ('Integrator')
             print ('----------')
-            print (f'order: {l}')
-            print (f'omega: {self.omega}')
-            print (f'delta: {self.delta}')
-            print (f' time: {self.t}')
+            print (f' order: {l}')
+            print (f' omega: {self.omega}')
+            print (f' delta: {self.delta}')
+            print (f'  time: {self.t}')
+            print (f'n_reps: {self.n_reps}')
             print ('\nError estimates')
             print ('---------------')
             print (f"    Against exact solution: O({error_estimations['error']}*t) = O({error_estimations['error']*self.t})")
@@ -179,15 +190,13 @@ class integrator:
         return xieta
     
     def __call__(self, *xieta0, trajectory=False):
-        n_reps, r = divmod(self.t, self.delta)
-        self.n_reps = int(n_reps)
         xieta_all = []
         xieta = xieta0
         for k in range(self.n_reps):
             xieta = self.step(*xieta)
             xieta_all.append(xieta)
-        if r > 0:
-            xieta = self.step(*xieta, delta=r)
+        if self.n_reps_r > 0:
+            xieta = self.step(*xieta, delta=self.n_reps_r)
             xieta_all.append(xieta)
             
         if trajectory:
