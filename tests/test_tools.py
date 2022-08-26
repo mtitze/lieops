@@ -4,7 +4,7 @@ import numpy as np
 from lieops.ops.tools import poly2ad, ad2poly
 from lieops import create_coords
 
-def test_adjoint_repr(n=4, tol=1e-15):
+def test_adjoint_repr(n=4, tol=1e-14):
     '''
     Test to check whether the adjoint representation of a 2nd order homogeneous polynomial properly reflects
     the commutator relations.
@@ -12,8 +12,8 @@ def test_adjoint_repr(n=4, tol=1e-15):
     for k in range(n):
         f, g = [], []
         for k in range(10):
-            f.append(1 - np.random.rand()*2)
-            g.append(1 - np.random.rand()*2)
+            f.append(1 - np.random.rand()*2 + (1 - np.random.rand()*2)*1j)
+            g.append(1 - np.random.rand()*2 + (1 - np.random.rand()*2)*1j)
 
         q1, q2, p1, p2 = create_coords(2, real=True)
         h1 = f[0]*q1**2 + f[1]*q2**2 + f[2]*p1**2 + f[3]*p2**2 + \

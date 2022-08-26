@@ -219,3 +219,35 @@ class cmat: # TODO: May work on a class to conveniently switch between numpy and
 
     def _repr_html_(self):
         return f'<samp>{self.__str__()}</samp>'
+    
+    
+def vecmat(mat):
+    '''
+    Map a given NxN-matrix to a vector
+    '''
+    return np.concatenate([mat[k, :] for k in range(mat.shape[0])])
+
+def matvec(vec):
+    '''
+    Map a given vector of length N**2 to an NxN matrix. This map is the
+    inverse of the vecmat routine.
+    '''
+    n = len(vec)
+    assert np.sqrt(n)%1 == 0, 'Vector does not appear to originate from square matrix.'
+    m = int(np.sqrt(n))
+    return np.array([[vec[j + k*m] for j in range(m)] for k in range(m)])
+
+def adjoint(mat):
+    '''
+    Map a given NxN-matrix to its adjoint representation with respect to the vecmat and matvec routines.
+    '''
+    assert mat.shape[0] == mat.shape[1], 'Matrix not square.'
+    n = mat.shape[0]
+    delta = lambda *z: 1 if z[0] == z[1] else 0
+    result = np.zeros([n**2, n**2], dtype=np.complex128)
+    for u in range(n**2):
+        alpha, beta = divmod(u, n)
+        for v in range(n**2):
+            i, j = divmod(v, n)
+            result[v, u] = mat[i, alpha]*delta(beta, j) - delta(alpha, i)*mat[beta, j]      
+    return result
