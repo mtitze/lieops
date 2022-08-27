@@ -350,7 +350,9 @@ class _poly:
         self._values[key] = other
         
     def pop(self, *args, **kwargs):
-        self._values.pop(*args, **kwargs)
+        new_values = {k: v for k, v in self._values.items()}
+        new_values.pop(*args, **kwargs)
+        return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
         
     def update(self, d):
         new_values = {k: v for k, v in self.items()}

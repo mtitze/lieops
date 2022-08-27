@@ -145,10 +145,10 @@ def poly3ad(pin):
     array-like
         A complex matrix corresponding to the representation.
     '''
-    assert pin.maxdeg() <= 2
+    assert pin.maxdeg() <= 2 and pin.mindeg() >= 1 # To the second condition: Constants have zero-effect as 'ad' and therefore can not yield an invertible map. Since we want poly3ad to be invertible, we have to restrict to polynomials without constant terms.
     dim = pin.dim
     dim2 = dim*2
-    pin.pop(tuple([0]*dim2), None) # remove any constants if they exist, since their ad-effect is zero on extended space: (xi/eta)-phase space + constants.
+    # extended space: (xi/eta)-phase space + constants.
     pmat = np.zeros([dim2 + 1, dim2 + 1], dtype=np.complex128) 
     # 1. Add the representation with respect to 2x2-matrices:
     pin2 = pin.homogeneous_part(2)
