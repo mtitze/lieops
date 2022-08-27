@@ -148,11 +148,12 @@ def poly3ad(pin):
     assert pin.maxdeg() <= 2
     dim = pin.dim
     dim2 = dim*2
-    pmat = np.zeros([dim2 + 1, dim2 + 1], dtype=np.complex128)
+    pin.pop(tuple([0]*dim2), None) # remove any constants if they exist, since their ad-effect is zero on extended space: (xi/eta)-phase space + constants.
+    pmat = np.zeros([dim2 + 1, dim2 + 1], dtype=np.complex128) 
     # 1. Add the representation with respect to 2x2-matrices:
     pin2 = pin.homogeneous_part(2)
     if len(pin2) != 0:
-        pmat[:dim2, :dim2] = poly2ad(pin.homogeneous_part(2))
+        pmat[:dim2, :dim2] = poly2ad(pin2)
     # 2. Add the representation with respect to the scalar:
     pin1 = pin.homogeneous_part(1)
     if len(pin1) != 0:
@@ -175,7 +176,7 @@ def ad3poly(amat, **kwargs):
     assert dim2%2 == 0
     dim = dim2//2
     # 1. Get the 2nd-order polynomial associated to the dim2xdim2 submatrix:
-    p2 = ad2poly(amat[:dim2, :dim2])
+    p2 = ad2poly(amat[:dim2, :dim2], **kwargs)
     if len(p2) == 0:
         p2 = 0
     # 2. Get the first-order polynomials associated to the remaining line:
