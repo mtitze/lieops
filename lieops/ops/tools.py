@@ -246,7 +246,7 @@ def get_2flow(ham):
             An optional parameter to control the flow (see above).
         '''
         if t != 1:
-            expH_t = Mi@np.diag(np.exp(t*evals))@M
+            expH_t = M@np.diag(np.exp(t*evals))@Mi
         else:
             expH_t = expH
         p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
