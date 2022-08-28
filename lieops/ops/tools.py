@@ -205,11 +205,13 @@ def get_2flow(ham):
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
     evals, M = np.linalg.eig(adHmat)
-    M = M.transpose()
+    #M = M.transpose()
     Mi = np.linalg.inv(M) # so that Mi@np.diag(evals)@M = adHmat holds.
     
+    print (M@np.diag(evals)@Mi - adHmat)
+    
     # compute the exponential exp(t*adHmat) = exp(Mi@(t*D)@M) = Mi@exp(t*D)@M:
-    expH = Mi@np.diag(np.exp(evals))@M
+    expH = M@np.diag(np.exp(evals))@Mi
     
     # Let Y be a (m**2)-vector (or (m**2)x(m**2)-matrix) and @ the composition
     # with respect to the (m**2)-dimensional space. Then
