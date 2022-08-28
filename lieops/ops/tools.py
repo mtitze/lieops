@@ -128,8 +128,9 @@ def repr1poly(v):
 
 def poly3ad(pin):
     '''
-    Compute a (2n + 1)x(2n + 1)-matrix representation of a second-order polynomial, given
-    in terms of complex xi/eta coordinates, so that if z_j denote the basis vectors, then:
+    Compute a (2n + 1)x(2n + 1)-matrix representation of a second-order polynomial (without
+    constant term), given in terms of complex xi/eta coordinates, 
+    so that if z_j denote the basis vectors, then:
     
     {p, z_j} = p_{ij} z_i + r_j
     
@@ -204,6 +205,7 @@ def get_2flow(ham):
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
     evals, M = np.linalg.eig(adHmat)
+    M = M.transpose()
     Mi = np.linalg.inv(M) # so that Mi@np.diag(evals)@M = adHmat holds.
     
     # compute the exponential exp(t*adHmat) = exp(Mi@(t*D)@M) = Mi@exp(t*D)@M:
