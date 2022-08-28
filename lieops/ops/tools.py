@@ -205,9 +205,9 @@ def get_2flow(ham):
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
     evals, M = np.linalg.eig(adHmat)
-    Mi = np.linalg.inv(M) # so that Mi@np.diag(evals)@M = adHmat holds.
+    Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = adHmat holds.
     
-    # compute the exponential exp(t*adHmat) = exp(Mi@(t*D)@M) = Mi@exp(t*D)@M:
+    # compute the exponential exp(t*adHmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
     expH = M@np.diag(np.exp(evals))@Mi
     
     # Let Y be a (m**2)-vector (or (m**2)x(m**2)-matrix) and @ the composition
@@ -240,7 +240,7 @@ def get_2flow(ham):
         Parameters
         ----------
         p: poly
-            The start polynomial.
+            The start polynomial of order <= 2.
             
         t: float, optional
             An optional parameter to control the flow (see above).
@@ -249,7 +249,12 @@ def get_2flow(ham):
             expH_t = Mi@np.diag(np.exp(t*evals))@M
         else:
             expH_t = expH
-        Y = vecmat(poly3ad(p))
-        Z = expH_t@Y
-        return ad3poly(matvec(Z))
+        p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
+        p1 = p.extract(key_cond=lambda x: sum(x) >= 1)
+        result = p0
+        if len(p1) > 0:
+            Y = vecmat(poly3ad(p1))
+            Z = expH_t@Y
+            result += ad3poly(matvec(Z))
+        return result
     return flow
