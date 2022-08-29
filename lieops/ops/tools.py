@@ -192,7 +192,7 @@ def ad3poly(amat, **kwargs):
         p2 += xieta[k + dim]*eta_k_coeff
     return p2
 
-def get_2flow(ham):
+def get_2flow(ham, tol=1e-12):
     '''
     Compute the exact flow of a 2nd-order Hamiltonian, for polynomials up to second-order.
     I.e. compute the solution of
@@ -204,18 +204,27 @@ def get_2flow(ham):
     ----------
     ham: poly
         A polynomial of order <= 2.
+        
+    tol: float, optional
+        A tolerance to check whether the adjoint matrix of the matrix-representation of the given Hamiltonian
+        admits an invertible matrix of eigenvalues according to np.linalg.eig. In this case, one can use
+        fast matrix multiplication in the resulting flow. Otherwise we have to rely on scipy.linalg.expm.
     '''
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
-    expH = expm(adHmat)
+
     
     # Alternative:
-    #evals, M = np.linalg.eig(adHmat)    
-    #Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = adHmat holds.
-    # compute the exponential exp(t*adHmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
-    #expH = M@np.diag(np.exp(evals))@Mi
-    # The problem with this alternative is that adHmat may have a very small (or zero)
-    # determinant, thus making that code unstable.
+    evals, M = np.linalg.eig(adHmat)
+    check = abs(np.linalg.det(M)) < tol
+    if check:
+        # in this case we have to rely on a different method to calculate the matrix exponential.
+        # for the time being we shall use scipy's expm routine.
+        expH = expm(adHmat)
+    else:
+        Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = adHmat holds.
+        # compute the exponential exp(t*adHmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
+        expH = M@np.diag(np.exp(evals))@Mi
     
     # Let Y be a (m**2)-vector (or (m**2)x(m**2)-matrix) and @ the composition
     # with respect to the (m**2)-dimensional space. Then
@@ -256,8 +265,10 @@ def get_2flow(ham):
             return p
         
         if t != 1:
-            expH_t = expm(t*adHmat)
-            #expH_t = M@np.diag(np.exp(t*evals))@Mi
+            if check:
+                expH_t = expm(t*adHmat)
+            else:
+                expH_t = M@np.diag(np.exp(t*evals))@Mi                
         else:
             expH_t = expH
         p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
