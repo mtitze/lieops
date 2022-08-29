@@ -1,8 +1,11 @@
 # collection of specialized tools operating on polynomials
 
 import numpy as np
+from scipy.linalg import expm
+
 from .lie import poly, create_coords
 from lieops.linalg.matrix import adjoint, vecmat, matvec
+
 
 def poly2ad(pin):
     '''
@@ -204,11 +207,15 @@ def get_2flow(ham):
     '''
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
-    evals, M = np.linalg.eig(adHmat)
-    Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = adHmat holds.
+    expH = expm(adHmat)
     
+    # Alternative:
+    #evals, M = np.linalg.eig(adHmat)    
+    #Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = adHmat holds.
     # compute the exponential exp(t*adHmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
-    expH = M@np.diag(np.exp(evals))@Mi
+    #expH = M@np.diag(np.exp(evals))@Mi
+    # The problem with this alternative is that adHmat may have a very small (or zero)
+    # determinant, thus making that code unstable.
     
     # Let Y be a (m**2)-vector (or (m**2)x(m**2)-matrix) and @ the composition
     # with respect to the (m**2)-dimensional space. Then
@@ -249,7 +256,8 @@ def get_2flow(ham):
             return p
         
         if t != 1:
-            expH_t = M@np.diag(np.exp(t*evals))@Mi
+            expH_t = expm(t*adHmat)
+            #expH_t = M@np.diag(np.exp(t*evals))@Mi
         else:
             expH_t = expH
         p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
