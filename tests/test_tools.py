@@ -83,30 +83,6 @@ def test_poly3ad(n=4, tol=1e-14):
         diff_c = np.array(list((h12_back - h12_no_const).values()))
         assert (diff_c < tol).all()
 
-        
-def test_2flow(tol):
-    '''
-    Various tests for the exact flow exp(:H:), for H a 2nd order polynomial.
-    '''
-    hh = make_random_cmplx(10)
-    xi1, xi2, eta1, eta2 = create_coords(2)
-    testham = hh[0]*xi1**2 + hh[1]*xi2**2 + hh[2]*eta1**2 + hh[3]*eta2**2 + \
-              hh[4]*xi1*xi2 + hh[5]*xi1*eta1 + hh[6]*xi1*eta2 + hh[7]*xi2*eta1 + \
-              hh[8]*xi2*eta2 + hh[9]*eta1*eta2
-    
-    f = make_random_cmplx(15)
-    g = make_random_cmplx(15)
-    testpl1 = f[10] + f[11]*xi1 + f[12]*xi2 + f[13]*eta1 + f[14]*eta2 + \
-              f[0]*xi1**2 + f[1]*xi2**2 + f[2]*eta1**2 + f[3]*eta2**2 + \
-              f[4]*xi1*xi2 + f[5]*xi1*eta1 + f[6]*xi1*eta2 + f[7]*xi2*eta1 + \
-              f[8]*xi2*eta2 + f[9]*eta1*eta2
-    
-    testpl2 = g[10] + g[11]*xi1 + g[12]*xi2 + g[13]*eta1 + g[14]*eta2 + \
-              g[0]*xi1**2 + g[1]*xi2**2 + g[2]*eta1**2 + g[3]*eta2**2 + \
-              g[4]*xi1*xi2 + g[5]*xi1*eta1 + g[6]*xi1*eta2 + g[7]*xi2*eta1 + \
-              g[8]*xi2*eta2 + g[9]*eta1*eta2
-
-
 def test_2flow(tol=5e-12, tol2=1e-7, tol3=1e-5):
     '''
     Various tests for the exact flow exp(:H:), for H a 2nd order polynomial.
