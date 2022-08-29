@@ -245,6 +245,9 @@ def get_2flow(ham):
         t: float, optional
             An optional parameter to control the flow (see above).
         '''
+        if not isinstance(p, poly):
+            return p
+        
         if t != 1:
             expH_t = M@np.diag(np.exp(t*evals))@Mi
         else:

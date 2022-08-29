@@ -325,7 +325,7 @@ class _poly:
             if self.maxdeg() != 0:
                 return False
             else:
-                return self.get((0, 0), 0) == other
+                return self.get(tuple([0]*2*self.dim), 0) == other
             
     def keys(self):
         return self._values.keys()
