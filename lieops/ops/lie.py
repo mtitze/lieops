@@ -239,7 +239,7 @@ class lieoperator:
         '''
         params_updated = self._update_flow_parameters(**kwargs)
         if params_updated or not hasattr(self, 'flow'):
-            self.calcFlow(post_update=False, **kwargs)
+            self.calcFlow(update=~params_updated, **kwargs)
         return [self.flow[k](*z) for k in range(len(self.flow))]
 
     def __call__(self, *z, **kwargs):
