@@ -125,6 +125,8 @@ class lieoperator:
         Optional arguments may be passed to self.set_generator and (possible) self.calcFlow.
     '''
     def __init__(self, x, **kwargs):
+        self._flow_parameters = {'t': 1, 'method': 'bruteforce'} # default parameters for flow calculations.
+        
         self.init_kwargs = kwargs
         self.set_argument(x, **kwargs)        
         self.set_components(**kwargs)
@@ -174,14 +176,17 @@ class lieoperator:
             raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1
      
-    def calcFlow(self, method='bruteforce', **kwargs):
+    def calcFlow(self, method='bruteforce', update=True, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
         
         Parameters
         ----------
-        method: str
+        method: str, optional
             The method to be applied in calculating the flow.
+            
+        update: boolean, optional
+            An internal switch to update the current flow parameters which were used in the flow calculation.
             
         **kwargs
             Optional arguments passed to flow subroutines.
@@ -195,7 +200,28 @@ class lieoperator:
             self.flow = BFcalcFlow(lo=self, **kwargs)
         else:
             raise NotImplementedError(f"method '{method}' not recognized.")
-        self._flow_parameter = kwargs.get('t', 1) # update _flow_parameter; attention, this step is important, otherwise the code may not update the flow if t has been changed at a later point.
+        if update:
+            _ = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if t has been changed at a later point.
+        
+    def _update_flow_parameters(self, **kwargs):
+        '''
+        Update self._flow_parameters if necessary; return boolean if they have been updated 
+        (and therefore self.flow may have to be re-calculated).
+        
+        This internal routine is indended to help in speeding up flow calculations, so that the flow
+        is only calculated if parameters have been changed.
+        '''
+        updated = False
+        if 't' in kwargs.keys():
+            if self._flow_parameters['t'] != kwargs['t']:
+                self._flow_parameters['t'] = kwargs['t']
+                updated = True
+                
+        if 'method' in kwargs.keys():
+            if self._flow_parameters['method'] != kwargs['method']:
+                self._flow_parameters['method'] = kwargs['method']
+                updated = True
+        return updated
 
     def evaluate(self, *z, **kwargs):
         '''
@@ -211,12 +237,9 @@ class lieoperator:
         list
             The values (g(t:x:)y)(z) for y in self.components.
         '''
-        if 't' in kwargs.keys():
-            if getattr(self, '_flow_parameter', None) != kwargs['t']: 
-                self.calcFlow(**kwargs)
-                self._flow_parameter = kwargs['t'] # self._flow_parameter stored here to enable comparison and therefore prevent re-calculation of the flow if it hasn't changed.
-        if not hasattr(self, 'flow'):
-            self.calcFlow(**kwargs)
+        params_updated = self._update_flow_parameters(**kwargs)
+        if params_updated or not hasattr(self, 'flow'):
+            self.calcFlow(post_update=False, **kwargs)
         return [self.flow[k](*z) for k in range(len(self.flow))]
 
     def __call__(self, *z, **kwargs):
@@ -539,14 +562,18 @@ class lexp(lieoperator):
         else:
             raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
             
-    def calcFlow(self, method='bruteforce', **kwargs):
+    def calcFlow(self, method='bruteforce', update=True, **kwargs):
+        '''
+        See lieops.ops.lie.calcFlow for a description.
+        '''
         if method == '2flow':
             # if self.argument has order <= 2, one can compute the flow exactly
             if not hasattr(self, '_2flow'):
-                self._2flow = lieops.ops.tools.get_2flow(self.argument, **kwargs)
+                self._2flow = lieops.ops.tools.get_2flow(self.argument, tol=kwargs.get('tol', 1e-12))
             components = kwargs.get('components', self.components)
             self.flow = [self._2flow(c, **kwargs) for c in components]
-            self._flow_parameter = kwargs.get('t', 1) # update _flow_parameter; attention, this step is important, otherwise the code may not update the flow if t has been changed at a later point.
+            if update:
+                _ = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if a parameters has been changed at a later point.
         else:
             if 'power' in kwargs.keys():
                 self.set_generator(kwargs['power'])
