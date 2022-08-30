@@ -121,7 +121,7 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         Whether to distinguish the Hamiltonians of group 1 by the given keys (True) or a subset of the given keys (False).
         
     **kwargs
-        Optional keyworded arguments passed to the lexp routine.
+        Optional keyworded arguments passed to the lexp.calcFlow routine.
     
     Returns
     -------
@@ -152,7 +152,7 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
             if len(current_g1_op) == 0:
                 new_hamiltonians.append(hamiltonian)
             else:
-                op = lexp(mat2lp(current_g1_op), **kwargs)
+                op = lexp(mat2lp(current_g1_op))
                 new_hamiltonians.append(op(hamiltonian, **kwargs))
     if len(current_g1_op) == 0 or len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')

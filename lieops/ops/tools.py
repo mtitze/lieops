@@ -3,7 +3,7 @@
 import numpy as np
 from scipy.linalg import expm
 
-from .lie import poly, create_coords
+import lieops.ops.lie
 from lieops.linalg.matrix import adjoint, vecmat, matvec
 
 
@@ -105,7 +105,7 @@ def ad2poly(amat, tol=0):
             if tol > 0:
                 assert abs(amat[i + dim, j] - amat[j + dim, i]) < tol # consistency check; if this fails, amat is not a representation
             values[tuple(hom_key_eta)] = amat[i + dim, j]*-1j/ff
-    return poly(values=values)
+    return lieops.ops.lie.poly(values=values)
 
 def poly1repr(p):
     '''
@@ -126,7 +126,7 @@ def repr1poly(v):
     '''
     dim2 = len(v)
     assert dim2%2 == 0, 'Dimension must be even.'
-    xieta = create_coords(dim2//2)
+    xieta = lieops.ops.lie.create_coords(dim2//2)
     return sum([xieta[k]*v[k] for k in range(dim2)])
 
 def poly3ad(pin):
@@ -184,7 +184,7 @@ def ad3poly(amat, **kwargs):
     if len(p2) == 0:
         p2 = 0
     # 2. Get the first-order polynomials associated to the remaining line:
-    xieta = create_coords(dim)
+    xieta = lieops.ops.lie.create_coords(dim)
     for k in range(dim):
         eta_k_coeff = amat[dim2, k]*-1j
         xi_k_coeff = amat[dim2, k + dim]*1j
@@ -212,7 +212,6 @@ def get_2flow(ham, tol=1e-12):
     '''
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
-
     
     # Alternative:
     evals, M = np.linalg.eig(adHmat)
@@ -261,7 +260,7 @@ def get_2flow(ham, tol=1e-12):
         t: float, optional
             An optional parameter to control the flow (see above).
         '''
-        if not isinstance(p, poly):
+        if not isinstance(p, lieops.ops.lie.poly):
             return p
         
         if t != 1:

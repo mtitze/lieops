@@ -11,6 +11,8 @@ from lieops.solver.common import getRealHamiltonFunction
 from lieops.solver import heyoka
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
+import lieops.ops.tools
+
 class poly(_poly):
     
     def lexp(self, *args, **kwargs):
@@ -193,6 +195,7 @@ class lieoperator:
             self.flow = BFcalcFlow(lo=self, **kwargs)
         else:
             raise NotImplementedError(f"method '{method}' not recognized.")
+        self._flow_parameter = kwargs.get('t', 1) # update _flow_parameter; attention, this step is important, otherwise the code may not update the flow if t has been changed at a later point.
 
     def evaluate(self, *z, **kwargs):
         '''
@@ -210,10 +213,10 @@ class lieoperator:
         '''
         if 't' in kwargs.keys():
             if getattr(self, '_flow_parameter', None) != kwargs['t']: 
-                _ = self.calcFlow(**kwargs)
+                self.calcFlow(**kwargs)
                 self._flow_parameter = kwargs['t'] # self._flow_parameter stored here to enable comparison and therefore prevent re-calculation of the flow if it hasn't changed.
         if not hasattr(self, 'flow'):
-            _ = self.calcFlow(**kwargs)
+            self.calcFlow(**kwargs)
         return [self.flow[k](*z) for k in range(len(self.flow))]
 
     def __call__(self, *z, **kwargs):
@@ -537,8 +540,13 @@ class lexp(lieoperator):
             raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
             
     def calcFlow(self, method='bruteforce', **kwargs):
-        if method != 'bruteforce':
-            raise NotImplementedError(f"Method '{method}' not supported.")
+        if method == '2flow':
+            # if self.argument has order <= 2, one can compute the flow exactly
+            if not hasattr(self, '_2flow'):
+                self._2flow = lieops.ops.tools.get_2flow(self.argument, **kwargs)
+            components = kwargs.get('components', self.components)
+            self.flow = [self._2flow(c, **kwargs) for c in components]
+            self._flow_parameter = kwargs.get('t', 1) # update _flow_parameter; attention, this step is important, otherwise the code may not update the flow if t has been changed at a later point.
         else:
             if 'power' in kwargs.keys():
                 self.set_generator(kwargs['power'])
