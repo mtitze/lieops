@@ -562,18 +562,22 @@ class lexp(lieoperator):
         else:
             raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
             
-    def calcFlow(self, method='bruteforce', update=True, **kwargs):
+    def calcFlow(self, method='bruteforce', **kwargs):
         '''
         See lieops.ops.lie.calcFlow for a description.
         '''
         if method == '2flow':
             # if self.argument has order <= 2, one can compute the flow exactly
+            updated = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if a parameters has been changed at a later point.
             if not hasattr(self, '_2flow'):
                 self._2flow = lieops.ops.tools.get_2flow(self.argument, tol=kwargs.get('tol', 1e-12))
+                self._2flow_xieta = create_coords(self.argument.dim)
+                # apply self._2flow on the individual xi/eta-coordinates. They will be used
+                # later on, for each of the given components, using the pull-back property of the flow
+            if not hasattr(self, '_2flow_xietaf') or updated:
+                self._2flow_xietaf = [self._2flow(xe, **kwargs) for xe in self._2flow_xieta]
             components = kwargs.get('components', self.components)
-            self.flow = [self._2flow(c, **kwargs) for c in components]
-            if update:
-                _ = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if a parameters has been changed at a later point.
+            self.flow = [c(*self._2flow_xietaf) for c in components]
         else:
             if 'power' in kwargs.keys():
                 self.set_generator(kwargs['power'])

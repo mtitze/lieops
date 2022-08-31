@@ -186,7 +186,7 @@ class _poly:
             The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim,
             in which case the components of z are assumed to be xi-values. Otherwise, it is assumed that len(z) == 2*self.dim,
             where z = (xi, eta) denote a set of complex conjugated coordinates.
-        '''
+        '''        
         # prepare input vector
         if len(z) == self.dim:
             z = [e for e in z] + [e.conjugate() for e in z]

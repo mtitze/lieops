@@ -242,7 +242,7 @@ def get_2flow(ham, tol=1e-12):
     # start conditions, with (m)x(m)-matrix y.
     #
     # Using this notation, we define the flow function as follows:
-    def flow(p, t=1):
+    def flow(p, t=1, **kwargs):
         '''
         Compute the solution z so that
         dz/dt = {H, z}, z(0) = p,
