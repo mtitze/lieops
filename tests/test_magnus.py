@@ -7,7 +7,6 @@ from njet.jet import factorials
 from lieops.ops.magnus import forests, fast_hard_edge_chain
 from lieops.ops.lie import combine, create_coords, lexp, poly
 
-
 def number_of_graphs(order):
     '''
     The number of trees of a given order.
@@ -133,7 +132,7 @@ def bch_vs_reference(x, y, result, tol=1e-11):
             hh = max(hh)
         else:
             hh = 0
-        assert hh < tol
+        assert hh < tol, f'{hh} >= {tol} at order {r}'
 
 #########
 # Tests #
