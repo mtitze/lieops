@@ -152,7 +152,7 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
             if len(current_g1_op) == 0:
                 new_hamiltonians.append(hamiltonian)
             else:
-                op = lexp(mat2lp(current_g1_op))
+                op = lexp(mat2lp(current_g1_op), **kwargs)
                 new_hamiltonians.append(op(hamiltonian, **kwargs))
     if len(current_g1_op) == 0 or len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
