@@ -44,7 +44,7 @@ def bch_2x2(A, B):
     I = np.eye(2)
     return k*I + p*A + q*B + r*C
 
-def lo2mat(p):
+def lp2mat(p):
     '''
     Transform a polynomial of order 2 to its respective matrix form (the resulting
     matrix will be traceless).
@@ -145,9 +145,9 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
             # in this case the entry k belongs to group 1, which will be exchanged with the
             # entries in group 2.
             if len(current_g1_op) == 0:
-                current_g1_op = lo2mat(hamiltonian)
+                current_g1_op = lp2mat(hamiltonian)
             else:
-                current_g1_op = bch_2x2(current_g1_op, lo2mat(hamiltonian))
+                current_g1_op = bch_2x2(current_g1_op, lp2mat(hamiltonian))
         else:
             if len(current_g1_op) == 0:
                 new_hamiltonians.append(hamiltonian)

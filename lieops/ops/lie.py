@@ -579,10 +579,6 @@ class lexp(lieoperator):
             components = kwargs.get('components', self.components)
             self.flow = [c(*self._2flow_xietaf) for c in components]
         else:
-            if 'power' in kwargs.keys():
-                self.set_generator(kwargs['power'])
-            else:
-                assert hasattr(self, 'generator'), f"Flow calculation using method '{method}' requires 'power' argument to be set."
             lieoperator.calcFlow(self, **kwargs)
         
     

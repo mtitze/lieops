@@ -684,7 +684,7 @@ class tree:
             assert bound > var # This should be the case by construction of the trees; otherwise the following commutator may have to be reversed.
             
             integrands[bound] = Iham@integrands[bound] # TODO: calculation time bottleneck here
-
+            
         return Iham
     
     def fourier_integral_terms(self, consistency_checks=False):
