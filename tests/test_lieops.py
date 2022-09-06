@@ -316,7 +316,7 @@ def test_shift():
     
     assert dH.hess(*z, mult_drv=False) == dH_shift.hess(*z0, mult_drv=False)
     assert dH.hess(*z, mult_drv=True) == dH_shift.hess(*z0, mult_drv=True)
-    assert dH_shift.get_taylor_coefficients(dH_shift.eval(*z0)) == dH.get_taylor_coefficients(dH.eval(*z))
+    assert dH_shift(*z0) == dH(*z)
     
     
 @pytest.mark.parametrize("tol1, tol2, code", [(1e-18, 1e-10, 'numpy'), (1e-35, 1e-28, 'mpmath')])
@@ -412,8 +412,8 @@ def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
     # check Symplecticity of the flow of L1 at position p:
     dL1flow = derive(lambda *x: L1.evaluate(*x, t=t_ref), order=1, n_args=2)
     ep, epc = dL1flow.eval(p, p.conjugate())
-    jacobi = [[dL1flow.get_taylor_coefficients(ep)[(1, 0)], dL1flow.get_taylor_coefficients(ep)[(0, 1)]],
-              [dL1flow.get_taylor_coefficients(epc)[(1, 0)], dL1flow.get_taylor_coefficients(epc)[(0, 1)]]]
+    jacobi = [[ep.get_taylor_coefficients(n_args=2)[(1, 0)], ep.get_taylor_coefficients(n_args=2)[(0, 1)]],
+              [epc.get_taylor_coefficients(n_args=2)[(1, 0)], epc.get_taylor_coefficients(n_args=2)[(0, 1)]]]
     jacobi = np.array(jacobi)
     Jc = -1j*column_matrix_2_code(create_J(1), code='numpy')
     check = jacobi.transpose()@Jc@jacobi - Jc
@@ -444,6 +444,7 @@ def test_construct(a: int=3, b: int=5, k: int=7, tol=1e-14):
     diff3 = exp_eps**k@eps_ab - k*exp_eps**k*eps_ab
     assert max([abs(v) for v in diff3.values()]) < tol
     
+    
 def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     # Check if the flow function of a Lie-polynomial gives the same result as the
     # flow of the Lie-operator, having this polynomial as argument (exponent).
@@ -463,6 +464,7 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     argflow = L1.argument.lexp(power=L1.power)
     return argflow(*z) == L1(*z)
 
+
 def test_gjst_consistency(n=101, dim=6, tol=5e-15):
     '''
     Test the consistency of gj_symplectic_takagi routine:
@@ -478,6 +480,7 @@ def test_gjst_consistency(n=101, dim=6, tol=5e-15):
         Dout = S@D@S.transpose()
         diff = Dout - D
         assert max(np.absolute(diff.flatten())) < tol
+        
 
 def test_bnf_diagonalization(tol=5e-15, **kwargs):
     '''
@@ -504,6 +507,7 @@ def test_bnf_diagonalization(tol=5e-15, **kwargs):
     bnfdict = heff.bnf(order=3, **kwargs)
     assert all([abs(v) for v in (heff - bnfdict['H']).values()])
     
+    
 def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     # Test if any modification of the bnf main routine will be slower than the reference bnf routine (defined in this script).
     
@@ -529,6 +533,7 @@ def test_bnf_performance(order=8, threshold=1.1, tol=1e-15):
     for key in chifinal_ref.keys():
         v1, v2 = chifinal_ref[key], chifinal[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
+        
     
 def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=5e-16):
     '''
