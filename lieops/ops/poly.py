@@ -567,7 +567,7 @@ class _poly:
             return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
     
-    def split(self, keys, scheme=[0.5, 1, 0.5], check=True, **kwargs):
+    def split(self, keys, scheme, check=True, **kwargs):
         '''
         Split the Hamiltonian with respect to a set of keys. 
         Return a list of polynomials according to the requested number of slices and the splitting.
@@ -585,7 +585,6 @@ class _poly:
             F = [a1*H1, b1*H2, a2*H1, b2*H2, ...]
             according to the requested input list above.
         '''
-        
         ham1 = self.extract(key_cond=lambda x: x in keys)
         ham2 = self.extract(key_cond=lambda x: x not in keys)
         out = []

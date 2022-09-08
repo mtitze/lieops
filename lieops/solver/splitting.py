@@ -69,6 +69,10 @@ class yoshida:
                 k += 1
         return out
     
+################
+# General tools
+################
+    
 def get_scheme_ordering(scheme):
     '''
     For a Yoshida-decomposition scheme obtain a list of indices defining
@@ -98,3 +102,63 @@ def get_scheme_ordering(scheme):
             index_map[ind] = max_index
             max_index += 1
     return [index_map[ind] for ind in indices]
+
+    
+def combine_equal_hamiltonians(hamiltonians):
+    '''
+    Combine Hamiltonians which are adjacent to each other and admit the same keys.
+    '''
+    n_parts = len(hamiltonians)
+    new_hamiltonians = []
+    k = 0
+    while k < n_parts:
+        part_k = hamiltonians[k]
+        new_part = part_k
+        for j in range(k + 1, n_parts):
+            part_j = hamiltonians[j]
+            if part_k.keys() == part_j.keys():
+                new_part += part_j
+                k = j
+            else:
+                break
+        k += 1
+        new_hamiltonians.append(new_part)
+    return new_hamiltonians
+
+
+def split_by_order(hamiltonian, scheme):
+    '''
+    Split a Hamiltonian according to its orders.
+    '''
+    maxdeg = hamiltonian.maxdeg()
+    mindeg = hamiltonian.mindeg()
+    hom_parts = [hamiltonian.homogeneous_part(k) for k in range(mindeg, maxdeg + 1)]
+    hamiltonians = [hamiltonian]
+    for k in range(len(hom_parts)):
+        keys1 = [u for u in hom_parts[k].keys()]
+        new_hamiltonians = []
+        for e in hamiltonians:
+            new_hamiltonians += [h for h in e.split(keys=keys1, scheme=scheme) if h != 0]
+        hamiltonians = new_hamiltonians
+    return combine_equal_hamiltonians(new_hamiltonians) # combine_equal_hamiltonians is necessary here, because otherwise there may be adjacent Hamiltonians having the same keys, using the above algorithm.
+
+
+def recursive_monomial_split(*hamiltonians, scheme):
+    '''
+    Split a Hamiltonian into its monomials according to a given scheme,
+    by recursively applying the scheme.
+    '''
+    new_hamiltonians = []
+    recursion_required = False
+    for h in hamiltonians:
+        keys = list(h.keys())
+        if len(keys) > 1:
+            hsplits = h.split(keys=[keys[0]], scheme=scheme)
+            recursion_required = True
+        else:
+            hsplits = [h]
+        new_hamiltonians += hsplits
+    if recursion_required:
+        return recursive_monomial_split(*new_hamiltonians, scheme=scheme)
+    else:
+        return new_hamiltonians
