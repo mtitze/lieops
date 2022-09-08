@@ -413,6 +413,10 @@ class _poly:
             all_results.append(result)
         return all_results
     
+    def __abs__(self):
+        new_values = {k: abs(v) for k, v in self.items()}
+        return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
+    
     def __str__(self):
         out = ''
         for k, v in self.items():

@@ -263,7 +263,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
 #########
 
 def test_version():
-    assert __version__ == '0.1.3'
+    assert __version__ == '0.1.5'
     
 def test_jacobi():
     # Test the Jacobi-identity for the poly class
@@ -300,6 +300,28 @@ def test_poisson(tol=1e-15):
     for key in p1.keys():
         v1, v2 = p1[key], p2[key]
         assert abs(v1 - v2)/(min([abs(v1), abs(v2)])) < tol
+        
+        
+def test_transform(tol=1e-15):
+    '''
+    Test some transformations from complex to real representation and reverse.
+    '''
+    
+    ham1 = poly(values={(1, 1): (0.5035851182583087+0j), (0, 2): (-0.24820744087084556+0j), 
+                        (2, 0): (-0.24820744087084556+0j), (2, 1): (0.014968964264246843+0j), 
+                        (1, 2): (0.014968964264246843+0j), (0, 3): (-0.014968964264246843+0j), 
+                        (3, 0): (-0.014968964264246843+0j)})
+    
+    ham1_r = ham1.realBasis()
+    assert max(abs(ham1_r.complexBasis() - ham1).values()) < tol
+    
+    # some consistency checks
+    q, p = create_coords(1, real=True)
+    assert max(abs(q@p - 1).values()) < tol
+    qq, pp = q.realBasis(), p.realBasis()
+    assert max(abs(qq@pp - 1).values()) < tol
+    qc, pc = q.complexBasis(), p.complexBasis()
+    assert max(abs(qc@pc - 1j).values()) < tol # -1j*{qc, pc} = {q, p} = 1, see eq. (19) in "M. Titze - PhD thesis."
         
     
 def test_shift():
