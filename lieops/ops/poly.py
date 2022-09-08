@@ -40,6 +40,8 @@ class _poly:
     
     def __init__(self, **kwargs):
         # self.dim denotes the number of xi (or eta)-factors.
+        self._poisson_factor = kwargs.get('poisson_factor', -1j) # determines the poisson bracket (see self.__matmul__) and therefore one can control if the polynomial is given in terms of xi/eta or q/p variables.
+        
         if 'values' in kwargs.keys():
             self._values = {k: v for k, v in kwargs['values'].items() if not check_zero(v)}
         elif 'a' in kwargs.keys() or 'b' in kwargs.keys(): # simplified building
@@ -188,7 +190,8 @@ class _poly:
             where z = (xi, eta) denote a set of complex conjugated coordinates.
         '''        
         # prepare input vector
-        if len(z) == self.dim:
+        if len(z) == self.dim and self._poisson_factor == -1j:
+            # for xi/eta-variables we conveniently conjugate the remaining components if they are not explicitly given
             z = [e for e in z] + [e.conjugate() for e in z]
         assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim} (or {self.dim})'
         
@@ -264,7 +267,7 @@ class _poly:
                         continue
                     new_power = tuple([a[j] + c[j] if j != k else a[j] + c[j] - 1 for j in range(self.dim)] + \
                                 [b[j] + d[j] if j != k else b[j] + d[j] - 1 for j in range(self.dim)])
-                    poisson_values[new_power] = v1*v2*det*-1j + poisson_values.get(new_power, 0)
+                    poisson_values[new_power] = v1*v2*det*self._poisson_factor + poisson_values.get(new_power, 0)
         return self.__class__(values=poisson_values, dim=self.dim, max_power=max_power)
     
     def __mul__(self, other):
@@ -529,20 +532,54 @@ class _poly:
             out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.items()}
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
     
-    def realBasis(self, mult_drv=False, mult_prm=False, **kwargs):
+    def realBasis(self, **kwargs):
         '''
-        Cast the current polynomial into its real form, depending on
-        p and q canonical coordinates.
-        
         Note that it holds xi = (q + 1j*p)/sqrt2, eta = (q - 1j*p)/sqrt2.
+        '''
+        sqrt2 = float(np.sqrt(2))
+        def trf(q, p):
+            xi = (q + p*1j)/sqrt2
+            eta = (q - p*1j)/sqrt2 # = xi.conjugate()
+            return xi, eta
+        return self.transform(trf=trf, poisson_factor=1, **kwargs)
+        
+    def complexBasis(self, **kwargs):
+        '''
+        Note that it holds xi = (q + 1j*p)/sqrt2, eta = (q - 1j*p)/sqrt2.
+        '''
+        sqrt2 = float(np.sqrt(2))
+        def trf(xi, eta):
+            q = (xi + eta)/sqrt2
+            p = (xi - eta)/sqrt2/1j
+            return q, p
+        return self.transform(trf=trf, poisson_factor=-1j, **kwargs)
+        
+    def transform(self, trf, poisson_factor, mult_drv=False, mult_prm=False, **kwargs):
+        '''
+        Cast the current polynomial into a different form.
         
         Parameters
         ----------
+        trf: callable
+            A linear transformation mapping a pair of new variables q2, p2 to original variables q1, p1.
+            
+        poisson_factor: The factor f so that {q1, p1}_{q1, p1} = f*{q1, p1}_{q2, p2} hold, where
+        the brackets are given with respect to the old/new coordinates. For example, if q1 = q, p1 = p
+        and q2 = xi = (q + p*1j)/sqrt2, p2 = eta = (q - p*1j)/sqrt2, then
+        1 = {q1, p1}_{q1, p1} and -1j = {q1, p1}_{xi, eta}. Therefore, if transforming from q/p to xi/eta,
+        the poisson factor f has to be -1j.
+        
+        At the moment only 2d transformations are supported; more sophisticated transformations require
+        some overwork in the poisson bracket routine self.__matmul__.
+        
         mult_drv: boolean, optional
             Control of factorial and permutation coefficients. See njet.poly.jetpoly.get_taylor_coefficients for details.
             
         mult_prm: boolean, optional
             Control of factorial and permutation coefficients. See njet.poly.jetpoly.get_taylor_coefficients for details.
+            
+        **kwargs
+            Arguments passed to self.__class__.
 
         Returns
         -------
@@ -551,21 +588,21 @@ class _poly:
             The keys correspond to the powers with respect to (q_1, ..., q_dim, p1, ..., p_dim).
         ''' 
         sqrt2 = float(np.sqrt(2))
-        xi, eta = [], []
+        q2, p2 = [], []
         for k in range(self.dim):
             # we insert polynomials with coefficients 1 and power 1 into the current Hamiltonian
             qk = jetpoly(1, index=k, power=1)
             pk = jetpoly(1, index=k + self.dim, power=1)
-            xik = (qk + pk*1j)/sqrt2
-            etak = xik.conjugate()
-            xi.append(xik)
-            eta.append(etak)
-        h1 = self(*(xi + eta))
+            q2k, p2k = trf(qk, pk)
+            q2.append(q2k)
+            p2.append(p2k)
+        h1 = self(*(q2 + p2))
         if h1 == 0:
-            return {(0,)*self.dim*2: 0}
+            rbv = {(0,)*self.dim*2: 0}
         else:
-            return h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
+            rbv = h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
+        return self.__class__(values=rbv, poisson_factor=poisson_factor)
     
     def split(self, keys, scheme, check=True, **kwargs):
         '''
