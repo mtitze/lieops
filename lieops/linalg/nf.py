@@ -1039,7 +1039,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     if check:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
         # normal form with the values predicted by linear theory.
-        HK_hesse_dict = dHK.hess(Df=results)
+        HK_hesse_dict = dHK.hess(tc=results)
         HK_hesse_dict = {k: v for k, v in HK_hesse_dict.items() if abs(v) > tol}
         for k in HK_hesse_dict.keys():
             diff = abs(HK_hesse_dict[k] - nfdict['cnf'][k[0], k[1]]) # (++)

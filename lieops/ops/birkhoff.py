@@ -52,10 +52,11 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     ----------
     H: callable or dict
         Defines the Hamiltonian to be normalized. 
-        I) If H is of type poly, then either H should
-        already be in complex normal form, i.e. its second-order coefficients must
-        be a sum of xi*eta-terms.
-        II) If H is callable, then a transformation to complex normal form is performed beforehand.
+        I) If H is callable, then a transformation to complex normal form is performed prior to
+           applying the general algorithm.
+        II) If H is a dictionary (e.g. from poly.items()), then its off-diagonal entries
+            are ignored (so it is assumed that H has already been prepared to be in first-order
+            normal form).
                 
     order: int
         The order up to which we build the normal form. Here order = k means that we compute
@@ -123,7 +124,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     dim = dim2//2
             
     # define mu and H0. For H0 we skip any (small) off-diagonal elements as they must be zero by construction.
-    H0 = {}
+    H0_values = {}
     mu = []
     for j in range(dim): # add the second-order coefficients (tunes)
         tpl = tuple([0 if k != j and k != j + dim else 1 for k in range(dim2)])
@@ -134,9 +135,9 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
             # by default we assume that the coefficients in front of the 2nd order terms are real.
             assert muj.imag < tol, f'Imaginary part of entry {j} above tolerance: {muj.imag} >= {tol}. Check input or try cmplx=True option.'
             muj = muj.real
-        H0[tpl] = muj
+        H0_values[tpl] = muj
         mu.append(muj)
-    H0 = lieops.ops.lie.poly(values=H0, dim=dim, max_power=max_power)
+    H0 = lieops.ops.lie.poly(values=H0_values, dim=dim, max_power=max_power)
     assert len({k: v for k, v in taylor_coeffs.items() if sum(k) == 2 and abs(v) >= tol}) == 0 # All other 2nd order Taylor coefficients must be zero.
 
     # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 

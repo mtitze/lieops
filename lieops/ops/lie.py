@@ -328,7 +328,7 @@ class lexp(lieoperator):
             taylor_coeffs, self.nfdict = first_order_nf_expansion(H, **kwargs)
             lieoperator.set_argument(self, argument=poly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
         else:
-            raise RuntimeError(f"Argument of type '{H.__class__.__name__}' not supported.")
+            raise TypeError(f"Argument of type '{H.__class__.__name__}' not supported.")
             
     def set_generator(self, power):
         self.generator = genexp(power)
