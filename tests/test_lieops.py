@@ -8,8 +8,10 @@ from njet.functions import cos, sin, exp
 from njet import derive
 
 from lieops import __version__
-from lieops.ops import poly, create_coords, construct, bnf, lexp
-from lieops.ops.lie import homological_eq, first_order_nf_expansion
+from lieops.ops import poly, create_coords, construct, lexp
+from lieops.ops.lie import first_order_nf_expansion
+from lieops.ops.birkhoff import homological_eq, bnf
+
 from lieops.linalg.matrix import expandingSum, column_matrix_2_code, create_J
 from lieops.linalg.nf import gj_symplectic_takagi
 
@@ -263,7 +265,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
 #########
 
 def test_version():
-    assert __version__ == '0.1.5'
+    assert __version__ == '0.1.6'
     
 def test_jacobi():
     # Test the Jacobi-identity for the poly class

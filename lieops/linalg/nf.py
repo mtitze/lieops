@@ -4,6 +4,8 @@ import numpy as np
 import mpmath as mp
 import cmath
 
+import warnings
+
 from sympy import Matrix as sympy_matrix
 from sympy import diag as sympy_diag
 
@@ -1017,13 +1019,12 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     Hesse_dict = dHshift.hess(*z0)
     Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code, n_rows=dim, n_cols=dim)
 
-    # Optional: Raise a warning in case the shifted Hamiltonian still has first-order terms.
+    # Optional: Raise a warning in case the shifted Hamiltonian has first-order terms.
     if check:
         gradient = dHshift.grad() # the gradient of H is evaluated at z0 (note that H has been shifted to z0 above, so that z0 corresponds to the original point z).
         grad_vector = [gradient.get((k,), 0) for k in range(dim)]
         if any([abs(c) > tol for c in grad_vector]) > 0:
-            print (f'Warning: H has a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:')
-            print (grad_vector)
+            warnings.warn(f'H has a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:\n{grad_vector}')
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
     nfdict = normal_form(Hesse_matrix, tol=tol, check=check, **kwargs)

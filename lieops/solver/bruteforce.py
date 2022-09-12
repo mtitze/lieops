@@ -23,8 +23,8 @@ def action(lo, y, **kwargs):
         The list goes on up to the maximal power N determined by self.argument.ad routine (see
         documentation there).
     '''
-    assert hasattr(lo, 'generator'), 'No generator set (check self.set_generator).'
-    assert hasattr(lo, 'argument'), 'No Lie polynomial in argument set (check self.set_argument)'
+    assert hasattr(lo, 'generator'), "No generator set (see also liops.ops.lie.set_generator for further details); Try instantiating your Lie operator(s) with a 'power' argument."
+    assert hasattr(lo, 'argument'), 'No Lie polynomial in argument set (see also lieops.solver.bruteforce.set_argument).'
     ad_action = lo.argument.ad(y, power=lo.power)
     assert len(ad_action) > 0
     # N.B. if self.generator[j] = 0, then k_action[j]*self.generator[j] = {}. It will remain in the list below (because 
@@ -49,7 +49,7 @@ def calcOrbits(lo, **kwargs):
     Returns
     -------
     list
-        A list containing the actions [(g[n]*:x:**n)(y) for n=0, ..., N] (see self.action) as elements, 
+        A list containing the actions [(g[n]*:x:**n)(y) for n=0, ..., N] (see lieops.solver.bruteforce.action routine) as elements, 
         where y is running over the requested Lie-operator components.
     '''
     return [action(lo, y) for y in kwargs.get('components', lo.components)] # orbits: A list of lists
