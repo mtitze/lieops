@@ -29,14 +29,15 @@ def poly2ad(pin):
     assert pin.maxdeg() == 2 and pin.mindeg() == 2
     dim = pin.dim
     dim2 = dim*2
+    poisson_factor = pin._poisson_factor
     pmat = np.zeros([dim2, dim2], dtype=np.complex128)
     for i in range(dim):
         for j in range(dim):
             mixed_key = [0]*dim2 # key belonging to xi_i*eta_j
             mixed_key[i] += 1
             mixed_key[j + dim] += 1
-            pmat[i, j] = pin.get(tuple(mixed_key), 0)*1j
-            pmat[j + dim, i + dim] = pin.get(tuple(mixed_key), 0)*-1j
+            pmat[i, j] = pin.get(tuple(mixed_key), 0)*-poisson_factor
+            pmat[j + dim, i + dim] = pin.get(tuple(mixed_key), 0)*poisson_factor
             
             if i != j: # if i and j are different, than the key in the polynomial already
                 # corresponds to the sum of the ij and the ji-coefficient. But if they are equal,
@@ -48,15 +49,15 @@ def poly2ad(pin):
             hom_key_xi = [0]*dim2 # key belonging to xi_i*xi_j
             hom_key_xi[i] += 1
             hom_key_xi[j] += 1
-            pmat[i, j + dim] = pin.get(tuple(hom_key_xi), 0)*-1j*ff
+            pmat[i, j + dim] = pin.get(tuple(hom_key_xi), 0)*poisson_factor*ff
 
             hom_key_eta = [0]*dim2 # key belonging to eta_i*eta_j
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
-            pmat[i + dim, j] = pin.get(tuple(hom_key_eta), 0)*1j*ff
+            pmat[i + dim, j] = pin.get(tuple(hom_key_eta), 0)*-poisson_factor*ff
     return pmat
 
-def ad2poly(amat, tol=0):
+def ad2poly(amat, tol=0, poisson_factor=-1j):
     '''
     Transform a complex (2n)x(2n)-matrix representation of a polynomial back to 
     its polynomial xi/eta-representation. This is the inverse of the 'poly2ad' routine.
@@ -69,6 +70,10 @@ def ad2poly(amat, tol=0):
     tol: float, optional
         A tolerance to check a sufficient property of the given matrix to be a valid representation.
         No check will be made if 'tol' is zero (default).
+        
+    poisson_factor: complex, optional
+        A factor defining the poisson structure of the sought polynomial. By default this factor
+        is -1j, corresponding to the poisson structure of the complex xi/eta coordinates.
         
     Returns
     -------
@@ -97,8 +102,9 @@ def ad2poly(amat, tol=0):
             mixed_key = [0]*dim2 # key belonging to a coefficient of mixed xi/eta variables.
             mixed_key[i] += 1
             mixed_key[j + dim] += 1            
-            values[tuple(mixed_key)] = amat[i, j]*-1j
+            values[tuple(mixed_key)] = amat[i, j]*-1/poisson_factor
             
+            # The factor 'ff' comes from the fact that the poly objects terms of the form xi_i*xi_j (for i != j) and xi_j*xi_i are equal.
             if i != j:
                 ff = 1
             else:
@@ -109,15 +115,15 @@ def ad2poly(amat, tol=0):
             hom_key_xi[j] += 1
             if tol > 0:
                 assert abs(amat[i, j + dim] - amat[j, i + dim]) < tol # consistency check
-            values[tuple(hom_key_xi)] = amat[i, j + dim]*1j/ff
+            values[tuple(hom_key_xi)] = amat[i, j + dim]/ff/poisson_factor
             
             hom_key_eta = [0]*dim2 # key belonging to a coefficient eta-eta variables.
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
             if tol > 0:
                 assert abs(amat[i + dim, j] - amat[j + dim, i]) < tol # consistency check
-            values[tuple(hom_key_eta)] = amat[i + dim, j]*-1j/ff
-    return lieops.ops.lie.poly(values=values)
+            values[tuple(hom_key_eta)] = amat[i + dim, j]/ff*-1/poisson_factor
+    return lieops.ops.lie.poly(values=values, poisson_factor=poisson_factor)
 
 def poly1repr(p):
     '''
@@ -164,6 +170,7 @@ def poly3ad(pin):
     assert pin.maxdeg() <= 2 and pin.mindeg() >= 1 # To the second condition: Constants have zero-effect as 'ad' and therefore can not yield an invertible map. Since we want poly3ad to be invertible, we have to restrict to polynomials without constant terms.
     dim = pin.dim
     dim2 = dim*2
+    poisson_factor = pin._poisson_factor
     # extended space: (xi/eta)-phase space + constants.
     pmat = np.zeros([dim2 + 1, dim2 + 1], dtype=np.complex128) 
     # 1. Add the representation with respect to 2x2-matrices:
@@ -176,11 +183,11 @@ def poly3ad(pin):
         for k in range(dim):
             xi_key = [0]*dim2
             xi_key[k] = 1
-            pmat[dim2, k + dim] = pin1.get(tuple(xi_key), 0)*-1j
+            pmat[dim2, k + dim] = pin1.get(tuple(xi_key), 0)*poisson_factor
 
             eta_key = [0]*dim2
             eta_key[k + dim] = 1
-            pmat[dim2, k] = pin1.get(tuple(eta_key), 0)*1j
+            pmat[dim2, k] = pin1.get(tuple(eta_key), 0)*-poisson_factor
     return pmat
 
 def ad3poly(amat, **kwargs):
@@ -196,10 +203,11 @@ def ad3poly(amat, **kwargs):
     if len(p2) == 0:
         p2 = 0
     # 2. Get the first-order polynomials associated to the remaining line:
+    poisson_factor = kwargs.get('poisson_factor', -1j)
     xieta = lieops.ops.lie.create_coords(dim)
     for k in range(dim):
-        eta_k_coeff = amat[dim2, k]*-1j
-        xi_k_coeff = amat[dim2, k + dim]*1j
+        eta_k_coeff = amat[dim2, k]/-poisson_factor
+        xi_k_coeff = amat[dim2, k + dim]/poisson_factor
         p2 += xieta[k]*xi_k_coeff
         p2 += xieta[k + dim]*eta_k_coeff
     return p2
@@ -222,6 +230,8 @@ def get_2flow(ham, tol=1e-12):
         admits an invertible matrix of eigenvalues according to np.linalg.eig. In this case, one can use
         fast matrix multiplication in the resulting flow. Otherwise we have to rely on scipy.linalg.expm.
     '''
+    poisson_factor = ham._poisson_factor
+    
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
     
@@ -275,6 +285,8 @@ def get_2flow(ham, tol=1e-12):
         if not isinstance(p, lieops.ops.lie.poly):
             return p
         
+        assert poisson_factor == p._poisson_factor, 'Hamiltonian and given polynomial are instantiated with respect to different poisson structures.'
+        
         if t != 1:
             if check:
                 expH_t = expm(t*adHmat)
@@ -288,6 +300,6 @@ def get_2flow(ham, tol=1e-12):
         if len(p1) > 0:
             Y = vecmat(poly3ad(p1))
             Z = expH_t@Y
-            result += ad3poly(matvec(Z))
+            result += ad3poly(matvec(Z), poisson_factor=poisson_factor)
         return result
     return flow
