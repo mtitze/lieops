@@ -67,8 +67,8 @@ def ad2poly(amat, tol=0):
         Matrix representing the polynomial.
         
     tol: float, optional
-        A tolerance to check if the input matrix actually is a valid representation. 
-        No check if set to zero (default).
+        A tolerance to check a sufficient property of the given matrix to be a valid representation.
+        No check will be made if 'tol' is zero (default).
         
     Returns
     -------
@@ -79,9 +79,21 @@ def ad2poly(amat, tol=0):
     dim2 = amat.shape[0]
     assert dim2%2 == 0
     dim = dim2//2
+    
     values = {}
     for i in range(dim):
         for j in range(dim):
+            
+            if tol > 0:
+                # If the following check fails, amat is not an adjoint representation.
+                # This condition can be derived by considering a general second-order polynomial Q
+                # which has to satisfy:
+                # {Q, xi_k} = amat[i, k]*xi_i + amat[i + dim, k]*eta_i
+                # and
+                # {Q, eta_k} = amat[i, dim + k]*xi_i + amat[i + dim, k + dim]*eta_i
+                # (where repeated indices are summed up).
+                assert abs(amat[i, j] + amat[j + dim, i + dim]) < tol, f'The given matrix does not appear to be an adjoint representation of a polynomial (tol: {tol}).'
+            
             mixed_key = [0]*dim2 # key belonging to a coefficient of mixed xi/eta variables.
             mixed_key[i] += 1
             mixed_key[j + dim] += 1            
@@ -96,14 +108,14 @@ def ad2poly(amat, tol=0):
             hom_key_xi[i] += 1
             hom_key_xi[j] += 1
             if tol > 0:
-                assert abs(amat[i, j + dim] - amat[j, i + dim]) < tol # consistency check; if this fails, amat is not a representation
+                assert abs(amat[i, j + dim] - amat[j, i + dim]) < tol # consistency check
             values[tuple(hom_key_xi)] = amat[i, j + dim]*1j/ff
             
             hom_key_eta = [0]*dim2 # key belonging to a coefficient eta-eta variables.
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
             if tol > 0:
-                assert abs(amat[i + dim, j] - amat[j + dim, i]) < tol # consistency check; if this fails, amat is not a representation
+                assert abs(amat[i + dim, j] - amat[j + dim, i]) < tol # consistency check
             values[tuple(hom_key_eta)] = amat[i + dim, j]*-1j/ff
     return lieops.ops.lie.poly(values=values)
 
