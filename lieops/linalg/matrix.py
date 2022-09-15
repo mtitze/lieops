@@ -59,20 +59,30 @@ def create_J(dim: int):
     return J1 + J2 
 
 
-def expandingSum(dim):
-    '''Compute a transformation matrix T by which we can transform a given
+def expandingSum(pairs):
+    '''Compute a transformation matrix T, to transform a given
     (2n)x(2n) matrix M, represented in (q1, p1, q2, p2, ..., qn, pn)-coordinates, into
     a (q1, q2, ..., qn, p1, p2, ..., pn)-representation via
     M' = T^(-1)*M*T. T will be orthogonal (and unitary), i.e. T^(-1) = T.transpose().
     
-    See also Refs. [1, 2] or (alternatively) in Ref. [3], p. 292., here. In particular, M
-    is given in terms of 2x2 block matrices, then M' is called the 'expanding Sum' of M. This explains the name
-    of this routine.
+    See also Refs. [1, 2] or (alternatively) in Ref. [3], p. 292. In particular, M
+    is given in terms of 2x2 block matrices, then M' is called the 'expanding Sum' of M.
     
     Parameters
     ----------
-    dim: int
-        number of involved coordinates (i.e. 2*dim dimension of phase space)
+        
+    pairs: int or list
+        If an integer is given, then it is assumed that this integer denotes
+        the dimension of the current problem. A respective square matrix T
+        (array-like) will be constructed as described above.
+        
+        If a list is given, then it is assumed that this list consists of
+        tuples by which one can tweak the order of the original coordinates:
+        In this case the list must unambigously identify each pair (q_i, p_j) by a specific tuple
+        (i, j) in the list. The outcome will be an orthogonal (and unitary) matrix T
+        which transformations the coordinates (q_i, ..., p_j, ...) into 
+        (q_i, ..., q_n, p_j, ..., p_n). Herby the k'th element in the list will be cast to
+        positions k, k + dim.
         
     Returns
     -------
@@ -84,15 +94,19 @@ def expandingSum(dim):
     [2]: M. Titze: "On emittance and optics calculation from the tracking data in periodic lattices", arXiv.org (2019)
     [3]: R. J. de la Cruz and H. Faßbender: "On the diagonalizability of a matrix by a symplectic equivalence, similarity or congruence transformation (2016).
     '''
-    dim2 = dim*2
-    T = np.zeros([dim2, dim2])
+    if type(pairs) == int:
+        dim = pairs
+        # the 'default' ordering is used, transforming (q1, p1, q2, p2, ...) into (q1, q2, ..., p1, p2, ...)
+        indices_1 = [(j, j//2) if j%2 == 0 else (j, dim + (j - 1)//2) for j in range(2*dim)]
+    else:
+        dim = len(pairs)
+        indices_1 = [(pairs[k][0], k) for k in range(dim)] + [(pairs[k][1], k + dim) for k in range(dim)]
+        
+    T = np.zeros([dim*2, dim*2])
     # define the columns of T:
-    for j in range(dim2):
-        if j%2 == 0: # note that j starts from 0, in contrast to what is given in Refs. [1, 2]. Therefore the conditions are reversed.
-            T[j//2, j] = 1
-        else:
-            T[dim + (j - 1)//2, j] = 1
-    return T.transpose()
+    for i, j in indices_1:
+        T[i, j] = 1
+    return T
 
 
 def matrix_from_dict(M, code, symmetry: int=0, **kwargs):
