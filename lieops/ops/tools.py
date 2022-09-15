@@ -97,7 +97,8 @@ def ad2poly(amat, tol=0, poisson_factor=-1j):
                 # and
                 # {Q, eta_k} = amat[i, dim + k]*xi_i + amat[i + dim, k + dim]*eta_i
                 # (where repeated indices are summed up).
-                assert abs(amat[i, j] + amat[j + dim, i + dim]) < tol, f'The given matrix does not appear to be an adjoint representation of a polynomial (tol: {tol}).'
+                err = abs(amat[i, j] + amat[j + dim, i + dim])
+                assert err < tol, f'The given matrix does not appear to be an adjoint representation of a polynomial: {err} >= {tol} (tol).'
             
             mixed_key = [0]*dim2 # key belonging to a coefficient of mixed xi/eta variables.
             mixed_key[i] += 1
@@ -200,10 +201,10 @@ def ad3poly(amat, **kwargs):
     dim = dim2//2
     # 1. Get the 2nd-order polynomial associated to the dim2xdim2 submatrix:
     p2 = ad2poly(amat[:dim2, :dim2], **kwargs)
+    poisson_factor = p2._poisson_factor
     if len(p2) == 0:
         p2 = 0
     # 2. Get the first-order polynomials associated to the remaining line:
-    poisson_factor = kwargs.get('poisson_factor', -1j)
     xieta = lieops.ops.lie.create_coords(dim)
     for k in range(dim):
         eta_k_coeff = amat[dim2, k]/-poisson_factor

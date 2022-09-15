@@ -134,7 +134,7 @@ def _rotate_2block(x):
         \ -x   0 /
         
     by means of a unitary matrix U so that U.transpose()@M@U has the same form as M, but
-    where which x has no imaginary part and is >= 0.
+    in which x has no imaginary part and is >= 0.
     
     Parameters
     ----------
@@ -284,25 +284,26 @@ def cortho_symmetric_decomposition(M):
     # G@Q = M
     return Q, G
 
-def _identifyPairs(D, tol=1e-10, **kwargs):
+def _identifyPairs(D, condition, **kwargs):
     '''
-    Let D = [a, b, ..., -a, ..., -b, ...] be a list of complex values.
-    This routine will identify the pairs (a, -a), (b, -b), ... and return
-    their indices.
+    Let D = [a, b, ..., c, ..., d, ...] be a list of complex values.
+    This routine will identify the pairs (a, c), (b, d), ... and return
+    their indices, according to a given condition.
     
     Parameters
     ----------
     D: list
         A list of even length containing the pairs of values.
         
-    tol: float, optional
-        An optional tolerance by which we identify two pairs.
+    condition: callable
+        A function f taking two values and returning a boolean, so that we will
+        return the indices where f(a, b) is true.
     '''
     dim2 = len(D)
     assert dim2%2 == 0
     dim = dim2//2
 
-    error_msg = f'Error identifying pairs. Check input or tolerance ({tol}).'
+    error_msg = f'Error identifying pairs. Check input or condition.'
 
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     ind1, ind2 = [], []
@@ -312,7 +313,7 @@ def _identifyPairs(D, tol=1e-10, **kwargs):
         for j in range(len(D)):
             if j in ind1 or j in ind2 or j == i:
                 continue
-            if abs(D[i] + D[j]) < tol:
+            if condition(D[i], D[j]):
                 ind1.append(i)
                 ind2.append(j)
                 break # index i consumed
@@ -328,7 +329,7 @@ def _get_orientation(Dref, D, tol=1e-10):
     '''
     For two lists of values Dref = [a, b, ..., -a, ..., -b, ...], D = [c, d, ..., -c, ..., -d, ...], this routine
     will attempt to identify the indices of those values from list Dref with the one of D in such a way that
-    whenever one value can be transformed by +/- i to another, this value will be determined.
+    whenever one value can be transformed by multiplication by +/-i to another, the indices will be determined.
     
     Parameters
     ----------
@@ -416,7 +417,7 @@ def _diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
         omat = _get_orientation(orientation + orientation, D, **kwargs) # orientation is copied twice here, because _get_orientation is made to work with two general lists of the same length.
         
     # Step 1: Determine the pairs on the diagonal which should be mapped.
-    pairs = _identifyPairs(D, tol=tol, **kwargs)
+    pairs = _identifyPairs(D, condition=lambda x, y: abs(x + y) < tol, **kwargs)
     
     # Step 2: Construct U, assuming that it will transform a matrix with the above order
     if code == 'numpy':
@@ -1024,7 +1025,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
         gradient = dHshift.grad() # the gradient of H is evaluated at z0 (note that H has been shifted to z0 above, so that z0 corresponds to the original point z).
         grad_vector = [gradient.get((k,), 0) for k in range(dim)]
         if any([abs(c) > tol for c in grad_vector]) > 0:
-            warnings.warn(f'H has a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:\n{grad_vector}')
+            warnings.warn(f'Input appears to have a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:\n{grad_vector}')
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
     nfdict = normal_form(Hesse_matrix, tol=tol, check=check, **kwargs)

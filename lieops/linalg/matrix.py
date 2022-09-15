@@ -63,7 +63,7 @@ def expandingSum(dim):
     '''Compute a transformation matrix T by which we can transform a given
     (2n)x(2n) matrix M, represented in (q1, p1, q2, p2, ..., qn, pn)-coordinates, into
     a (q1, q2, ..., qn, p1, p2, ..., pn)-representation via
-    M' = T^(-1)*M*T. T will be orthogonal, i.e. T^(-1) = T.transpose().
+    M' = T^(-1)*M*T. T will be orthogonal (and unitary), i.e. T^(-1) = T.transpose().
     
     See also Refs. [1, 2] or (alternatively) in Ref. [3], p. 292., here. In particular, M
     is given in terms of 2x2 block matrices, then M' is called the 'expanding Sum' of M. This explains the name
@@ -89,9 +89,9 @@ def expandingSum(dim):
     # define the columns of T:
     for j in range(dim2):
         if j%2 == 0: # note that j starts from 0, in contrast to what is given in Refs. [1, 2]. Therefore the conditions are reversed.
-            T[(j + 1)//2, j] = 1
+            T[j//2, j] = 1
         else:
-            T[dim + j//2, j] = 1
+            T[dim + (j - 1)//2, j] = 1
     return T.transpose()
 
 
