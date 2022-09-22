@@ -19,7 +19,11 @@ def lemma9(u):
     # 3) J = U.transpose()@J@U, since det U = 1 and SL(2; C) = Sp(2; C) in this case
     return np.array([[v[0], -v[1].conj()], [v[1], v[0].conj()]]) # the second column of P contains a vector orthogonal to v
 
+
 def thm10(u, tol=0):
+    '''
+    For every complex vector u construct a unitary and symplectic matrix U so that U(e_1) = u holds.
+    '''
     u = np.array(u, dtype=np.complex128)
     norm_u = np.linalg.norm(u)
     assert norm_u > 0
@@ -63,4 +67,52 @@ def thm10(u, tol=0):
     zeros = np.zeros(HH.shape)
     V = np.block([[HH, zeros], [zeros, HH.conj()]])
     # now it holds V@P@v = V@w_full = HH@w = e_1 and V@P is unitary and symplectic.
-    return V@P
+    return (V@P).transpose().conj()
+
+
+def cor29(A):
+    A = np.array(A, dtype=np.complex128)
+    assert A.shape[0] == A.shape[1]
+    dim2 = A.shape[0]
+    assert dim2%2 == 0
+    dim = dim2//2
+    
+    # get one eigenvalue and corresponding eigenvector of the given matrix
+    eigenvalues, eigenvectors = eigs(A, k=1)
+    eigenvector = eigenvectors[:,0]
+    v = eigenvector/np.linalg.norm(eigenvector)
+    U = thm10(v)
+    U_inv = U.transpose().conj()
+    B = U_inv@A@U
+    
+    if dim >= 2:
+        # obtain submatrix from B; TODO: May use masked array, if code is stable
+        B11 = B[1:dim, 1:dim]
+        B12 = B[1:dim, dim + 1:]
+        B21 = B[dim + 1:, 1:dim]
+        B22 = B[dim + 1:, dim + 1:]
+        U_sub = cor29(np.block([[B11, B12], [B21, B22]]))
+        
+        dim_sub = dim - 1
+        # combine U with U_sub;
+        # 1) Split U_sub at its dimension in half
+        U_sub_11 = U_sub[:dim_sub, :dim_sub]
+        U_sub_12 = U_sub[:dim_sub, dim_sub:]
+        U_sub_21 = U_sub[dim_sub:, :dim_sub]
+        U_sub_22 = U_sub[dim_sub:, dim_sub:]
+        
+        # 2) Include the individual U_sub components into the grander U-matrix
+        zeros_v = np.zeros([1, dim_sub])
+        zeros_vt = np.zeros([dim_sub, 1])
+        one = np.array([[1]])
+        zero = np.array([[0]])
+        
+        U_sub_full = np.block([[one,      zeros_v, zero,     zeros_v],
+                               [zeros_vt, U_sub_11, zeros_vt, U_sub_12],
+                               [zero,     zeros_v, one,      zeros_v],
+                               [zeros_vt, U_sub_21, zeros_vt, U_sub_22]])
+        
+        U = U@U_sub_full
+    
+    return U
+
