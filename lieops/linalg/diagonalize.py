@@ -1,10 +1,12 @@
 import numpy as np
+from scipy.sparse.linalg import eigs
 
 '''
-Implementation of various diagonalization routines. The notation follows the paper [1].
+Implementation of various diagonalization routines as given in Ref. [1]. 
+The notation of the routines follows the description in [1].
 
 Reference(s):
-[1] R. de la Cruz and H. Fassbender: "On the diagonalizability of a matrix by a symplectic equivalence, similarity or congruence transformation", Linear Algebra and its Applications 496 (2016) pp. 288 -- 306
+[1] R. de la Cruz and H. Fassbender: "On the diagonalizability of a matrix by a symplectic equivalence, similarity or congruence transformation", Linear Algebra and its Applications 496 (2016) pp. 288 -- 306.
 '''
 
 def lemma9(u):
@@ -22,18 +24,31 @@ def lemma9(u):
 
 def thm10(u, tol=0):
     '''
-    For every complex vector u construct a unitary and symplectic matrix U so that U(e_1) = u holds.
+    For every complex vector u construct a unitary and symplectic matrix U so that U(e_1) = a*u holds, where
+    'a' is a complex number.
+    
+    Parameters
+    ----------
+    u: array-like
+        A complex 2n-dimensional vector.
+        
+    Returns
+    -------
+    U: array-like
+        A complex (2n)x(2n)-dimensional unitary and symplectic matrix so that U(e_1) = a*u holds, where 'e_1' is
+        the first unit vector and 'a' is a complex number.
     '''
     u = np.array(u, dtype=np.complex128)
     norm_u = np.linalg.norm(u)
     assert norm_u > 0
     v = u/norm_u
     dim2 = len(u)
+    assert dim2%2 == 0
     dim = dim2//2
     P = np.zeros([dim2, dim2], dtype=np.complex128)
     for k in range(dim):
         vpart = [v[k], v[k + dim]]
-        if np.linalg.norm(vpart) != 0:
+        if np.linalg.norm(vpart) != 0: # TODO: may use tol instead.
             Ppart_inv = lemma9(vpart) # det(Ppart_inv) = 1
             Ppart = np.array([[Ppart_inv[1, 1], -Ppart_inv[0, 1]], [-Ppart_inv[1, 0], Ppart_inv[0, 0]]])
         else:
@@ -71,6 +86,33 @@ def thm10(u, tol=0):
 
 
 def cor29(A):
+    r'''
+    Let A be a normal and (skew)-Hamiltonian. Recall that this means A satisfies the following two conditions:
+    
+    1) A.transpose()@J + sign*J@A = 0, where sign = 1 if "skew", else -1.
+    2) A.transpose().conj()@A = 1
+    
+    Then this routine will find a symplectic and unitary matrix U so that
+    
+    U.transpose().conj()@A@U
+    
+    is diagonal. It is hereby assumed that J correspond to the symplectic structure in terms of nxn-block matrices:
+    
+        / 0   1 \
+    J = |       |
+        \ -1  0 /
+    
+    Parameters
+    ----------
+    A: array-like
+        A complex-valued (2n)x(2n)-matrix having the above properties (Warning: No check is made against these properties within
+        this routine).
+        
+    Returns
+    -------
+    U: array-like
+        A complex-valued symplectic and unitary (2n)x(2n)-matrix U so that U^(-1)@A@U = D is diagonal.
+    '''
     A = np.array(A, dtype=np.complex128)
     assert A.shape[0] == A.shape[1]
     dim2 = A.shape[0]
@@ -111,7 +153,6 @@ def cor29(A):
                                [zeros_vt, U_sub_11, zeros_vt, U_sub_12],
                                [zero,     zeros_v, one,      zeros_v],
                                [zeros_vt, U_sub_21, zeros_vt, U_sub_22]])
-        
         U = U@U_sub_full
     
     return U
