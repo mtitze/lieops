@@ -63,7 +63,7 @@ def expandingSum(pairs):
     '''Compute a transformation matrix T, to transform a given
     (2n)x(2n) matrix M, represented in (q1, p1, q2, p2, ..., qn, pn)-coordinates, into
     a (q1, q2, ..., qn, p1, p2, ..., pn)-representation via
-    M' = T^(-1)*M*T. T will be orthogonal (and unitary), i.e. T^(-1) = T.transpose().
+    M' = T^(-1)@M@T. T will be orthogonal (and unitary), i.e. T^(-1) = T.transpose().
     
     See also Refs. [1, 2] or (alternatively) in Ref. [3], p. 292. In particular, M
     is given in terms of 2x2 block matrices, then M' is called the 'expanding Sum' of M.
@@ -74,7 +74,7 @@ def expandingSum(pairs):
     pairs: int or list
         If an integer is given, then it is assumed that this integer denotes
         the dimension of the current problem. A respective square matrix T
-        (array-like) will be constructed as described above.
+        (array-like) will be constructed, as described above.
         
         If a list is given, then it is assumed that this list consists of
         tuples by which one can tweak the order of the original coordinates:
