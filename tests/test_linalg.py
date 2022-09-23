@@ -58,20 +58,37 @@ def create_spn_matrix(dim, max_path=2*np.pi, tol=0):
 # Tests #
 #########
 
-@pytest.mark.parametrize("dim", [2, 2, 4, 4, 6, 6])
-def test_cor29(dim, tol=1e-14, **kwargs):
+@pytest.mark.parametrize("dim, skew", [(2, 1), (2, 1), (4, 1), (4, 1), (6, 1), (6, 1)] + [(2, -1), (2, -1), (4, -1), (4, -1), (6, -1), (6, -1)])
+def test_cor29(dim, skew, tol=1e-14, **kwargs):
     '''
     Test Corollary 29 for the special normal and (skew)-Hamiltonian (J-(skew)-symmetric) matrices
     M +- J@M.transpose()@J ,
     where M is an element in Sp(n) (i.e. a special normal and J-normal matrix.)
+    
+    Parameters
+    ----------
+    dim: int
+        The dimension of the problem
+        
+    tol: float, optional
+        A tolerance to check values against zero
+        
+    skew: int, optional
+        Defines whether to check for skew (1) or non-skew (-1) matrices.
     '''
-    W, _ = create_spn_matrix(dim, tol=tol, **kwargs)
-    U = cor29(W)
+    S, _ = create_spn_matrix(dim, tol=tol, **kwargs)
     
     J = np.array(create_J(dim)).transpose()
-    zero1 = U.transpose().conj()@U - np.eye(dim*2)
-    zero2 = U.transpose()@J@U - J
-    for zero in [zero1, zero2]:
+    W = S + J@S.transpose()@J*skew # = M - phi_J(M)*sign in Ref. [1]
+    
+    zero1 = W.conj().transpose()@W - W@W.conj().transpose() # phiJS is normal
+    zero2 = W.transpose()@J + J@W*skew # phiJS is (skew)-symmetric
+    
+    U = cor29(W)
+    
+    zero3 = U.transpose().conj()@U - np.eye(dim*2)
+    zero4 = U.transpose()@J@U - J
+    for zero in [zero1, zero2, zero3, zero4]:
         assert all([abs(zero[i, j]) < tol for i in range(dim*2) for j in range(dim*2)])
     
     diag = U.transpose().conj()@W@U
