@@ -58,7 +58,8 @@ def create_spn_matrix(dim, max_path=2*np.pi, tol=0):
 # Tests #
 #########
 
-@pytest.mark.parametrize("dim, skew", [(2, 1), (2, 1), (4, 1), (4, 1), (6, 1), (6, 1)] + [(2, -1), (2, -1), (4, -1), (4, -1), (6, -1), (6, -1)])
+@pytest.mark.parametrize("dim, skew", [(2, 1), (2, 1), (4, 1), (4, 1), (6, 1), (6, 1)] + 
+                         [(2, -1), (2, -1), (4, -1), (4, -1), (6, -1), (6, -1)])
 def test_cor29(dim, skew, tol=1e-14, **kwargs):
     '''
     Test Corollary 29 for the special normal and (skew)-Hamiltonian (J-(skew)-symmetric) matrices
@@ -70,21 +71,23 @@ def test_cor29(dim, skew, tol=1e-14, **kwargs):
     dim: int
         The dimension of the problem
         
-    tol: float, optional
-        A tolerance to check values against zero
-        
-    skew: int, optional
+    skew: int
         Defines whether to check for skew (1) or non-skew (-1) matrices.
+
+    tol: float, optional
+        A tolerance to check values against zero    
     '''
     S, _ = create_spn_matrix(dim, tol=tol, **kwargs)
     
+    # Using the unitary and symplectic matrix S, construct a (particular) 
+    # normal and (skew)-Hamiltonian matrix W:
     J = np.array(create_J(dim)).transpose()
     W = S + J@S.transpose()@J*skew # = M - phi_J(M)*sign in Ref. [1]
-    
     zero1 = W.conj().transpose()@W - W@W.conj().transpose() # phiJS is normal
-    zero2 = W.transpose()@J + J@W*skew # phiJS is (skew)-symmetric
+    zero2 = W.transpose()@J + J@W*skew # phiJS is (skew)-Hamiltonian
     
-    U = cor29(W)
+    # Apply Cor. 29 on W:
+    U = cor29(W, tol=tol)
     
     zero3 = U.transpose().conj()@U - np.eye(dim*2)
     zero4 = U.transpose()@J@U - J
@@ -96,7 +99,9 @@ def test_cor29(dim, skew, tol=1e-14, **kwargs):
         assert all([abs(diag[i, j]) < tol and abs(diag[j, i]) < tol for i in range(j)])
     D = diag.diagonal()
     pairs = _identifyPairs(D, condition=lambda a, b: abs(a - b.conj()) < tol)
-    assert len(pairs) == dim
+    assert pairs == [(k, k + dim) for k in range(dim)] # by construction in Cor. 29, the pairs of eigenvalues should be sorted with respect to block-structure.
+    # if this last check fails, then something odd could happen at the representation of U^(-1)@A@U in the proof of Lemma 28 in Ref. [1]: In our scripts we
+    # always assumed that the matrices A_j for j = 1, 2, 3, 4 have the same shape (namely they are (n - 1)x(n - 1)-matrices).
     
     
     

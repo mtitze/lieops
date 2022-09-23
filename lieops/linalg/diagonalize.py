@@ -6,7 +6,8 @@ Implementation of various diagonalization routines as given in Ref. [1].
 The notation of the routines follows the description in [1].
 
 Reference(s):
-[1] R. de la Cruz and H. Fassbender: "On the diagonalizability of a matrix by a symplectic equivalence, similarity or congruence transformation", Linear Algebra and its Applications 496 (2016) pp. 288 -- 306.
+[1] R. de la Cruz and H. Fassbender: "On the diagonalizability of a matrix by a symplectic equivalence, 
+similarity or congruence transformation", Linear Algebra and its Applications 496 (2016) pp. 288 -- 306.
 '''
 
 def lemma9(u):
@@ -24,8 +25,7 @@ def lemma9(u):
 
 def thm10(u, tol=0):
     '''
-    For every complex vector u construct a unitary and symplectic matrix U so that U(e_1) = a*u holds, where
-    'a' is a complex number.
+    For every complex vector u construct a unitary and symplectic matrix U so that U(e_1) = u/|u| holds.
     
     Parameters
     ----------
@@ -35,8 +35,7 @@ def thm10(u, tol=0):
     Returns
     -------
     U: array-like
-        A complex (2n)x(2n)-dimensional unitary and symplectic matrix so that U(e_1) = a*u holds, where 'e_1' is
-        the first unit vector and 'a' is a complex number.
+        A complex (2n)x(2n)-dimensional unitary and symplectic matrix.
     '''
     u = np.array(u, dtype=np.complex128)
     norm_u = np.linalg.norm(u)
@@ -61,31 +60,34 @@ def thm10(u, tol=0):
     w_full = P@v # N.B. w_full is real: If v[k, k + dim] has norm != 0, then, by construction of lemma9 routine, the scaling
     # factors induced by P on the e_k-vectors are real. If v[k, k + dim] has norm 0, then both its components are zero and
     # therefore also the result. In any case w_full is real.
+    
+    # Furthermore we have |w_full| = |P@v| = |v| = 1
 
     if tol > 0:
         # optional consistency checks
+        assert abs(np.linalg.norm(w_full) - 1) < tol
         assert all([abs(w_full[k + dim]) < tol for k in range(dim)]) # if this fails, then something is definititvely wrong in the code and needs to be investigated. The components from dim to 2*dim must be zero, because by construction the map P consists of individual 2x2-maps, each mapping into their e_1-component (thus the second component is always zero).
         assert all([abs(w_full[k].imag) < tol for k in range(dim2)]) # if this fails, this is basically not a problem, it just checks the above considerations on w_full. But it may indicate a hidden error in our line of thought and should be investigated as well. See also the comments inside 'lemma9'-routine.
     
-    # Compute a Householder matrix HH so that HH@w = e_1 holds. The second equation holds because |w| = 1.
+    # Compute a Householder matrix HH so that HH@w = e_1 holds.
     w = w_full[:dim]
     diff = w.copy().reshape(dim, 1) # without .copy(), the changes on 'diff' below would lead to changes in w; reshaping to be able to compute the dyadic product below
     diff[0, 0] -= 1
     norm_diff = np.linalg.norm(diff)
     if norm_diff > 0:
         diff = diff/norm_diff # so that diff = (w - e_1)/|w - e_1|
-        HH = np.eye(dim) - 2*diff@diff.transpose().conj()
+        HH = np.eye(dim) - 2*diff@diff.transpose().conj() # N.B. diff is real by the above considerations
     else:
         # w == e_1
         HH = np.eye(dim)
     # Using the Householder matrix, construct V, as given in Thm. 10
     zeros = np.zeros(HH.shape)
-    V = np.block([[HH, zeros], [zeros, HH.conj()]])
+    V = np.block([[HH, zeros], [zeros, HH.conj()]]) # N.B. V is real by the above considerations
     # now it holds V@P@v = V@w_full = HH@w = e_1 and V@P is unitary and symplectic.
     return (V@P).transpose().conj()
 
 
-def cor29(A):
+def cor29(A, **kwargs):
     r'''
     Let A be a normal and (skew)-Hamiltonian. Recall that this means A satisfies the following two conditions:
     
@@ -123,7 +125,7 @@ def cor29(A):
     eigenvalues, eigenvectors = eigs(A, k=1)
     eigenvector = eigenvectors[:,0]
     v = eigenvector/np.linalg.norm(eigenvector)
-    U = thm10(v)
+    U = thm10(v, **kwargs) # So that U(e_1) = v holds.
     U_inv = U.transpose().conj()
     B = U_inv@A@U
     
@@ -133,7 +135,7 @@ def cor29(A):
         B12 = B[1:dim, dim + 1:]
         B21 = B[dim + 1:, 1:dim]
         B22 = B[dim + 1:, dim + 1:]
-        U_sub = cor29(np.block([[B11, B12], [B21, B22]]))
+        U_sub = cor29(np.block([[B11, B12], [B21, B22]]), **kwargs)
         
         dim_sub = dim - 1
         # combine U with U_sub;
