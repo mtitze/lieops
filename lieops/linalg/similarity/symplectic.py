@@ -2,7 +2,6 @@ import numpy as np
 from scipy.sparse.linalg import eigs
 
 '''
-Implementation of various diagonalization routines as given in Ref. [1]. 
 The notation of the routines follows the description in [1].
 
 Reference(s):

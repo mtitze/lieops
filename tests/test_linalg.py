@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from lieops.linalg.matrix import create_J
-from lieops.linalg.diagonalize import lemma9, thm10, cor29
+from lieops.linalg.similarity.symplectic import lemma9, thm10, cor29
 from lieops.linalg.nf import _identifyPairs
 
 from scipy.linalg import expm
@@ -94,15 +94,21 @@ def test_cor29(dim, skew, tol=1e-14, **kwargs):
     for zero in [zero1, zero2, zero3, zero4]:
         assert all([abs(zero[i, j]) < tol for i in range(dim*2) for j in range(dim*2)])
     
-    diag = U.transpose().conj()@W@U
+    D = U.transpose().conj()@W@U
     for j in range(dim*2):
-        assert all([abs(diag[i, j]) < tol and abs(diag[j, i]) < tol for i in range(j)])
-    D = diag.diagonal()
-    pairs = _identifyPairs(D, condition=lambda a, b: abs(a - b.conj()) < tol)
-    assert pairs == [(k, k + dim) for k in range(dim)] # by construction in Cor. 29, the pairs of eigenvalues should be sorted with respect to block-structure.
-    # if this last check fails, then something odd could happen at the representation of U^(-1)@A@U in the proof of Lemma 28 in Ref. [1]: In our scripts we
-    # always assumed that the matrices A_j for j = 1, 2, 3, 4 have the same shape (namely they are (n - 1)x(n - 1)-matrices).
-    
+        # check if the off-diagonal entries are all zero
+        assert all([abs(D[i, j]) < tol and abs(D[j, i]) < tol for i in range(j)])
+    diag = D.diagonal()
+    n_diag = [d for d in diag if abs(d) >= tol] # the non-zero eigenvalues of D
+    pairs = _identifyPairs(n_diag, condition=lambda a, b: abs(a - b.conj()) < tol)
+    assert len(n_diag)%2 == 0
+    n_diag_dim = len(n_diag)//2
+    for i, j in pairs:
+        # by construction in Cor. 29, the pairs of eigenvalues should be sorted with respect to (dim, 2*dim)-block-structure.
+        # If this last check fails, then something odd could have happened at the representation of U^(-1)@A@U in the proof of Lemma 28 in Ref. [1]: 
+        # In our scripts we always assumed that the matrices A_j for j = 1, 2, 3, 4 have the same shape (namely they are (n - 1)x(n - 1)-matrices).
+        assert j == i + n_diag_dim
+
     
     
     
