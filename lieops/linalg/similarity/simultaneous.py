@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import schur
 
 def off(*A):
     '''
@@ -91,6 +92,9 @@ def sdn(*A, tol: float=1e-14, max_sweeps: int=100):
         The difference of the sum of Frobenius norms of the off-diagonal parts of the diagonal
         matrices with respect to the original matrices (see the source code / Ref. [2]).
         
+    n_sweeps: int
+        The number of sweeps used in the algorithm.
+        
     References
     ----------
     [1]: A. Souloumiac: "Jacobi Angles for Simultaneous Diagonalization", 
@@ -112,7 +116,7 @@ def sdn(*A, tol: float=1e-14, max_sweeps: int=100):
     
     # Now apply the actual algorithm.
     lower_bound = tol*sum([np.linalg.norm(Ak) for Ak in A]) # The bound in Algorithm 1 in Ref. [2]; it is invariant under unitary transformations, so that we can safely compute this quantity outside of the while loop
-    step = 0
+    n_sweeps = 1
     while off(*A) > lower_bound:
         for i in range(n):
             for j in range(i + 1, n):
@@ -122,8 +126,8 @@ def sdn(*A, tol: float=1e-14, max_sweeps: int=100):
                 Q = R@Q
                 A = [R@Ak@R.transpose().conj() for Ak in A]
                 
-        step += 1
-        if step > max_sweeps:
+        n_sweeps += 1
+        if n_sweeps > max_sweeps:
             warnings.warn(f'Simultaneous diagonalization does not converge within {max_sweeps} sweeps, using a tolerance of {tol}.')
             break
-    return Q, A, off(*A) - lower_bound
+    return Q, A, abs(off(*A) - lower_bound), n_sweeps
