@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from lieops.linalg.matrix import create_J
-from lieops.linalg.similarity.symplectic import lemma9, thm10, cor29
+from lieops.linalg.similarity.symplectic import lemma9, thm10, cor29, thm31
 from lieops.linalg.nf import _identifyPairs
 
 from scipy.linalg import expm
@@ -109,6 +109,13 @@ def test_cor29(dim, skew, tol=1e-14, **kwargs):
         # In our scripts we always assumed that the matrices A_j for j = 1, 2, 3, 4 have the same shape (namely they are (n - 1)x(n - 1)-matrices).
         assert j == i + n_diag_dim
 
-    
+
+@pytest.mark.parametrize("dim, tol", [(1, 1e-14), (1, 1e-14), (2, 1e-14), (2, 1e-14), (3, 1e-13), (3, 1e-13), (4, 1e-12), (4, 1e-12)])
+def test_thm31(dim, tol):
+    '''
+    Test Theorem 31 (thm31 routine) for the specific case of Sp(n)-matrices.
+    '''
+    S, _ = create_spn_matrix(dim)
+    T = thm31(S, tol=tol) # checks are done within thm31 if a tolerance is provided.
     
     
