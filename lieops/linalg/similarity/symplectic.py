@@ -1,12 +1,16 @@
 import numpy as np
 from scipy.sparse.linalg import eigs
 
+from lieops.linalg.matrix import create_J
+from lieops.linalg.nf import _identifyPairs
+from lieops.linalg.similarity.simultaneous import simuldiag
+
 '''
 The notation of the routines follows the description in [1].
 
 Reference(s):
 [1] R. de la Cruz and H. Fassbender: "On the diagonalizability of a matrix by a symplectic equivalence, 
-similarity or congruence transformation", Linear Algebra and its Applications 496 (2016) pp. 288 -- 306.
+    similarity or congruence transformation", Linear Algebra and its Applications 496 (2016) pp. 288 -- 306.
 '''
 
 def lemma9(u):
@@ -158,3 +162,124 @@ def cor29(A, **kwargs):
     
     return U
 
+
+def thm31(M, tol=1e-14, **kwargs):
+    r'''
+    Diagonalize a complex normal and J-normal matrix M by means of a unitary symplectic matrix U so
+    that U@M@U^(-1) is diagonal.
+    
+    Note that the above properties of M translate to:
+    1) M@M^H = M^H@M (M normal),
+    2) M@J@M.transpose()@J = J@M.transpose()@J@M (M J-normal).
+    
+    In particular, if M is symplectic, M will be J-normal.
+    
+    Hereby J denotes the (2n)x(2n)-matrix describing the standard symplectic structure
+    in block-matrix form:
+    
+        /  0  1 \
+    J = |       |
+        \ -1  0 /
+    
+    U symplectic and unitary means:
+    1) U@U^H = 1 (= U^H@U) (U unitary)
+    2) U.transpose()@J@U = J (U symplectic)
+    
+    The algorithm follows the one outlined in Ref. [1].
+    
+    Parameters
+    ----------
+    M: ndarray
+        The matrix M, having the above properties, which should be diagonalized.
+        Attention: No extensive checks are made against the properties M has to satisfy.
+        
+    tol: float, optional
+        An optional tolerance to perform some consistency checks on the output, if > 0.
+        Moreover, this tolerance is used to identify certain pairs of eigenvalues.
+        
+    sdn_tol: float, optional
+        The 'tol' parameter for the lieops.linalg.similarity.simultaneous.simuldiag routine.
+    
+    Returns
+    -------
+    T: ndarray
+        A complex unitary and symplectic matrix as described above.
+    
+    References
+    ----------
+    [1] R. de la Cruz and H. Fassbender: "On the diagonalizability of a matrix by a symplectic equivalence, 
+        similarity or congruence transformation", Linear Algebra and its Applications 496 (2016) pp. 288 -- 306. 
+    '''
+    assert M.shape[0] == M.shape[1]
+    dim2, _ = M.shape
+    assert dim2%2 == 0
+    dim = dim2//2
+    
+    # Obtain the unitary and symplectic matrix P which diagonalizes M - phi_J(M) as in Thm. 31
+    J = np.array(create_J(dim)).transpose()
+    MphiJM = M + J@M.transpose()@J
+    Pi = cor29(MphiJM) # then D = P@MphiM@P^(-1) is diagonal; P is unitary and symplectic.
+    P = Pi.transpose().conj()
+    D = P@MphiJM@Pi
+    
+    # Determine any possible the pairs on the diagonal which are non-zero:
+    diag = D.diagonal()
+    n_diag = [d for d in diag if abs(d) >= tol] # the non-zero eigenvalues of D
+    pairs = _identifyPairs(n_diag, condition=lambda a, b: abs(a - b.conj()) < tol)
+    
+    # determine the zero and non-zero indices in the matrix P@M@P^(-1), therefore determining the matrices M1, M2 and M3
+    PMPi = P@M@Pi
+    M1_indices, M2_indices = zip(*pairs)
+    M1 = np.array([[PMPi[i, j] for j in M1_indices] for i in M1_indices])
+    M2 = np.array([[PMPi[i, j] for j in M2_indices] for i in M2_indices])
+    M3_indices = np.where(np.abs(diag) < tol)[0]
+        
+    if tol > 0: # consistency checks
+        dim1 = len(M1_indices) # len(M1_indices) = len(M2_indices) by construction with zip
+        zero1 = M1@M2.transpose() - M2.transpose()@M1
+        zero2 = M1.transpose().conj()@M1 - M1@M1.transpose().conj()
+        zero3 = M2.transpose().conj()@M2 - M2@M2.transpose().conj()
+        for zero in [zero1, zero2, zero3]:
+            assert all([abs(zero[i, j]) < tol for i in range(dim1) for j in range(dim1)])
+            
+    # Simultaneously diagonalize M1 and M2.transpose() by a unitary transformation X
+    X, D1D2, err, n_sweeps = simuldiag(M1, M2.transpose(), tol=kwargs.get('sdn_tol', 1e-14))
+    
+    # Construct unitary and symplectic matrix Q diagonalizting M1 oplus M2:
+    zerob = np.zeros(X.shape, dtype=np.complex128)
+    Q = np.block([[X, zerob], [zerob, X.conj()]])
+    
+    # Construct unitary and symplectic matrix T:
+    T = np.zeros([dim2, dim2], dtype=np.complex128)
+    Q_indices = M1_indices + M2_indices
+    for k in range(len(Q_indices)):
+        for l in range(len(Q_indices)):
+            kk = Q_indices[k]
+            ll = Q_indices[l]
+            T[kk, ll] = Q[k, l]
+            
+    if len(M3_indices) > 0:
+        M3 = np.array([[PMPi[i, j] for j in M3_indices] for i in M3_indices])
+        P3i = cor29(M3)
+        P3 = P3i.transpose().conj()
+        for k in range(len(M3_indices)):
+            for l in range(len(M3_indices)):
+                kk = M3_indices[k]
+                ll = M3_indices[l]
+                T[kk, ll] = P3[k, l]
+    T = T@P
+                
+    if tol > 0: # consistency checks
+        J1 = np.array(create_J(dim1)).transpose()
+        zero4 = Q.transpose().conj()@Q - np.eye(dim1*2) # Q must be unitary
+        zero5 = Q.transpose()@J1@Q - J1 # Q must be symplectic
+        zero6 = T.transpose().conj()@T - np.eye(dim2) # T must be unitary
+        zero7 = T.transpose()@J@T - J # T must be symplectic
+        T_inv = -J@T.transpose()@J
+        TMTi = T@M@T_inv
+        zero8 = TMTi - np.diag(TMTi.diagonal()) # T@M@T_inv must be diagonal
+        for zero in [zero4, zero5, zero6, zero7, zero8]:
+            a, b = zero.shape
+            assert all([abs(zero[i, j]) < tol for i in range(a) for j in range(b)])
+            
+    return T

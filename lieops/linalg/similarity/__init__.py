@@ -1,2 +1,2 @@
-from .simultaneous import sdn
-from .symplectic import cor29
+from .simultaneous import simuldiag
+from .symplectic import thm31

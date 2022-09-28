@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from scipy.linalg import schur
 
 def off(*A):
@@ -57,7 +58,7 @@ def givens_rotation(i, j, c, s, n):
     result[j, j] = c.conjugate()
     return result
 
-def sdn(*A, tol: float=1e-14, max_sweeps: int=100):
+def simuldiag(*A, tol: float=1e-14, max_sweeps: int=100):
     '''
     Simultaneously diagonalize a given set of normal matrices. 
     

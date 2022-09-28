@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from lieops.linalg.similarity import sdn
+from lieops.linalg.similarity import simuldiag
 
 # Preliminary functions to create the tests.
 
@@ -61,9 +61,12 @@ def create_normal_commuting_matrices(dim: int, power: int=3, tol=0):
 #########
 
 @pytest.mark.parametrize("dim", [2, 2, 3, 3, 4, 4, 5, 5, 6, 6])
-def test_sdn(dim, tol1=5e-10, tol2=1e-15, **kwargs):
+def test_simuldiag(dim, tol1=5e-10, tol2=1e-15, **kwargs):
+    '''
+    Test simuldiag (simultaneous diagonalization of normal matrices) routine in various dimensions.
+    '''
     XX, YY = create_normal_commuting_matrices(dim=dim, tol=tol1, **kwargs)
-    Q, A, err, n_sweeps = sdn(XX, YY, tol=tol2, **kwargs)
+    Q, A, err, n_sweeps = simuldiag(XX, YY, tol=tol2, **kwargs)
     
     assert err < tol1
     zero0 = Q@Q.transpose().conj() - np.eye(dim)
