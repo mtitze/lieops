@@ -227,9 +227,8 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     # -J@MphiJM.transpose()@J = phi_J(MphiJM) = -MphiJM, or
     # MphiJM.transpose()@J + J@MphiJM = 0, which means that
     # MphiJM is a Hamiltonian matrix.
-    # It follows that if x is an eigenvalues of MphiJM, then also -x, x.conj() and -x.conj() are
-    # eigenvalues. In the following context we are interested in identifying those pairs of eigenvalues
-    # of MphiJM which are (x, -x).
+    # It follows that if x is an eigenvalues of MphiJM, then also -x is an eigenvalue. 
+    # In the following context we are interested in identifying those pairs of eigenvalues.
     J = np.array(create_J(dim)).transpose()
     MphiJM = M + J@M.transpose()@J
     Pi = cor29(MphiJM) # then D = P@MphiM@P^(-1) is diagonal; P is unitary and symplectic.

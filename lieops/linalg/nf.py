@@ -9,6 +9,8 @@ import warnings
 from sympy import Matrix as sympy_matrix
 from sympy import diag as sympy_diag
 
+from scipy.linalg import polar, logm
+
 from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
 from .checks import is_positive_definite, relative_eq
 from .matrix import column_matrix_2_code, create_J, get_package_name, matrix_from_dict, expandingSum
@@ -1109,4 +1111,23 @@ def symplectic_takagi(G, **kwargs):
         assert max(np.abs(np.array(-J@Y.transpose()@J - Y, dtype=np.complex128).flatten())) < kwargs.get('d2b_tol', 1e-10), 'It appears that the routine to compute the matrix square root does not give a *polynomial* square root.'
     S = Y@Xi
     return S, S@G@S.transpose()
+
+def symlogs(X, **kwargs):
+    r'''
+    Let X be a complex symplectic matrix, i.e. a matrix satisfying
+    X.transpose()@J@X = J.
     
+    Then this routine will determine two matrices A and B so that
+    X = exp(A)@exp(B),
+    where A is an element in sp(n), the Lie-algebra of Sp(n) \subset Sp(2n; C) \cap U(2n),
+    and B is an element of sp(2n; C), the Lie-algebra of Sp(2n; C).
+    '''
+    U, P = polar(X) # X = U@P with symplectic U and P.
+    logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is 
+    # U is in Sp(n). Therefore we can diagonalize U symplectically:
+    V = thm31(U, **kwargs) # V@U@V.transpose().conj() = D will be diagonal
+    Vi = V.transpose().conj()
+    D = V@U@Vi
+    logD = logm(D) # logD.transpose()@J + J@logD = 0
+    Y = Vi@logD@V
+    return Y, logP
