@@ -10,7 +10,7 @@ from scipy.linalg import expm
 def create_spn_matrix(dim, max_path=2*np.pi, tol=0):
     r'''
     Create an element of Sp(n) = Sp(2n; C) \cap U(2n), the compact and simply connected group of
-    symplectic and unitary matrices. 
+    symplectic and unitary matrices.
     
     Parameters
     ----------
@@ -111,24 +111,24 @@ def test_cor29(dim, skew, tol=1e-14, **kwargs):
         assert j == i + n_diag_dim
 
 
-@pytest.mark.parametrize("dim, tol", [(1, 1e-14), (1, 1e-14), (2, 1e-14), (2, 1e-14), (3, 1e-13), (3, 1e-13), (4, 1e-12), (4, 1e-12)])
-def test_thm31(dim, tol):
+@pytest.mark.parametrize("dim, tol", [(1, 1e-13), (1, 1e-13), (2, 1e-13), (2, 1e-13), (3, 1e-12), (3, 1e-12), (4, 5e-12), (4, 5e-12)])
+def test_thm31(dim, tol, tol1=1e-13):
     '''
     Test Theorem 31 (thm31 routine) for the specific case of Sp(n)-matrices.
     '''
     S, _ = create_spn_matrix(dim)
-    _ = thm31(S, tol2=tol) # checks are done within thm31 if a tolerance is provided.
+    _ = thm31(S, tol1=tol1, tol2=tol) # checks are done within thm31 if a tolerance is provided.
     
     
 inp = []
-for dim1, dim2, tol in [(1, 1, 5e-12), (1, 2, 5e-12), (2, 2, 5e-12), (2, 3, 5e-12)]:
+for dim1, dim2, tol in [(1, 1, 1e-12), (1, 2, 5e-12), (2, 2, 5e-12), (2, 3, 5e-12)]:
     T1, _ = create_spn_matrix(dim1)
     T2, _ = create_spn_matrix(dim2)
     inp.append((T1, T2, tol))
     inp.append((np.eye(dim1*2), T2, tol))
        
 @pytest.mark.parametrize("T1, T2, tol", inp)
-def test_thm31_2(T1, T2, tol):
+def test_thm31_2(T1, T2, tol, tol1=1e-12, sdn_tol=1e-12):
     '''
     Test Theorem 31 if combining two matrices into a grander Sp(n)-matrix.
     '''
@@ -165,6 +165,6 @@ def test_thm31_2(T1, T2, tol):
             mixed[ia + dim, ja] = T2[i + c, j]
             mixed[ia + dim, ja + dim] = T2[i + c, j + c]
             
-    _ = thm31(mixed, tol2=tol)
+    _ = thm31(mixed, tol1=tol1, tol2=tol, sdn_tol=sdn_tol)
 
     

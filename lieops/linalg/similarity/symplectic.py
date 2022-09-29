@@ -222,7 +222,14 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     assert dim2%2 == 0
     dim = dim2//2
     
-    # Obtain the unitary and symplectic matrix P which diagonalizes M - phi_J(M) as in Thm. 31
+    # Obtain the unitary and symplectic matrix P which diagonalizes M - phi_J(M) as in Thm. 31.
+    # Hereby MphiJM := M - phi_J(M) = M + J@M.transpose()@J is skew-J-symmetric, i.e. 
+    # -J@MphiJM.transpose()@J = phi_J(MphiJM) = -MphiJM, or
+    # MphiJM.transpose()@J + J@MphiJM = 0, which means that
+    # MphiJM is a Hamiltonian matrix.
+    # It follows that if x is an eigenvalues of MphiJM, then also -x, x.conj() and -x.conj() are
+    # eigenvalues. In the following context we are interested in identifying those pairs of eigenvalues
+    # of MphiJM which are (x, -x).
     J = np.array(create_J(dim)).transpose()
     MphiJM = M + J@M.transpose()@J
     Pi = cor29(MphiJM) # then D = P@MphiM@P^(-1) is diagonal; P is unitary and symplectic.
@@ -231,7 +238,7 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     
     # Determine the non-zero pairs on the diagonal:
     diag = D.diagonal()
-    pairs = _identifyPairs(diag, condition=lambda a, b: abs(a - b.conj()) < tol1 and abs(a) > tol1)
+    pairs = _identifyPairs(diag, condition=lambda a, b: abs(a + b) < tol1 and abs(a) > tol1)
     PMPi = P@M@Pi
     
     # Construct unitary and symplectic matrix T:
