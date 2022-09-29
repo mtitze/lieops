@@ -19,7 +19,7 @@ from njet import derive
 
 def _check_linear_independence(a, b, tol=1e-14):
     '''
-    A quick routine to check if two vectors a and b are linearly independent.
+    A routine to check if two vectors a and b are linearly independent.
     It is assumed that a and b are both non-zero.
     
     Parameters
@@ -319,10 +319,7 @@ def _identifyPairs(D, condition, **kwargs):
                 break # index i consumed
                 
     assert len(ind1) == len(ind2), error_msg
-    pairs = list(zip(ind1, ind2))
-    assert dim2 - len(pairs)*2 == 0, error_msg
-    
-    return pairs
+    return list(zip(ind1, ind2))
 
 
 def _get_orientation(Dref, D, tol=1e-10):

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from lieops.linalg.matrix import create_J
-from lieops.linalg.similarity.symplectic import lemma9, thm10, cor29, thm31
+from lieops.linalg.similarity.symplectic import cor29, thm31
 from lieops.linalg.nf import _identifyPairs
 
 from scipy.linalg import expm
@@ -53,6 +53,7 @@ def create_spn_matrix(dim, max_path=2*np.pi, tol=0):
             assert all([abs(zero[i, j]) < tol for i in range(dim2) for j in range(dim2)])  
     
     return S, X
+
 
 #########
 # Tests #
@@ -116,6 +117,54 @@ def test_thm31(dim, tol):
     Test Theorem 31 (thm31 routine) for the specific case of Sp(n)-matrices.
     '''
     S, _ = create_spn_matrix(dim)
-    T = thm31(S, tol=tol) # checks are done within thm31 if a tolerance is provided.
+    _ = thm31(S, tol2=tol) # checks are done within thm31 if a tolerance is provided.
     
+    
+inp = []
+for dim1, dim2, tol in [(1, 1, 5e-12), (1, 2, 5e-12), (2, 2, 5e-12), (2, 3, 5e-12)]:
+    T1, _ = create_spn_matrix(dim1)
+    T2, _ = create_spn_matrix(dim2)
+    inp.append((T1, T2, tol))
+    inp.append((np.eye(dim1*2), T2, tol))
+       
+@pytest.mark.parametrize("T1, T2, tol", inp)
+def test_thm31_2(T1, T2, tol):
+    '''
+    Test Theorem 31 if combining two matrices into a grander Sp(n)-matrix.
+    '''
+
+    
+    # create a (special) grand symplectic and unitary matrix
+    a2, b2 = T1.shape
+    c2, d2 = T2.shape
+
+    assert a2 == b2 and c2 == d2
+    assert a2%2 == 0
+    assert c2%2 == 0
+    assert a2 + c2 == b2 + d2
+    dim2 = a2 + c2
+    dim = dim2//2 # dim = a + c
+    a, c = a2//2, c2//2
+
+    mixed = np.zeros([dim2, dim2], dtype=np.complex128)
+
+    for i in range(a):
+        for j in range(a):
+            mixed[i, j] = T1[i, j]
+            mixed[i, j + dim] = T1[i, j + a]
+            mixed[i + dim, j] = T1[i + a, j]
+            mixed[i + dim, j + dim] = T1[i + a, j + a]
+
+    for i in range(c):
+        for j in range(c):
+            ia = i + a
+            ja = j + a
+
+            mixed[ia, ja] = T2[i, j]
+            mixed[ia, ja + dim] = T2[i, j + c]
+            mixed[ia + dim, ja] = T2[i + c, j]
+            mixed[ia + dim, ja + dim] = T2[i + c, j + c]
+            
+    _ = thm31(mixed, tol2=tol)
+
     

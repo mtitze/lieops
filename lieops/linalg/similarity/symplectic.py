@@ -168,9 +168,9 @@ def cor29(A, **kwargs):
     return U
 
 
-def thm31(M, tol=1e-14, **kwargs):
+def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     r'''
-    Find a unitary symplectic matrix U which can diagonalize a given complex normal and J-normal matrix M,
+    Find a unitary and symplectic matrix U which can diagonalize a given complex normal and J-normal matrix M,
     so that U@M@U^(-1) is diagonal.
     
     Note that the above properties of M translate to:
@@ -198,10 +198,12 @@ def thm31(M, tol=1e-14, **kwargs):
         The matrix M, having the above properties, which should be diagonalized.
         Attention: No extensive checks are made against the properties M has to satisfy.
         
-    tol: float, optional
+    tol1: float, optional
+        An optional tolerance to identify certain pairs of eigenvalues (see source).
+
+    tol2: float, optional
         An optional tolerance to perform some consistency checks on the output, if > 0.
-        Moreover, this tolerance is used to identify certain pairs of eigenvalues.
-        
+
     sdn_tol: float, optional
         The 'tol' parameter for the lieops.linalg.similarity.simultaneous.simuldiag routine.
     
@@ -227,12 +229,9 @@ def thm31(M, tol=1e-14, **kwargs):
     P = Pi.transpose().conj()
     D = P@MphiJM@Pi
     
-    # Determine the pairs on the diagonal which are non-zero:
+    # Determine the non-zero pairs on the diagonal:
     diag = D.diagonal()
-    n_diag = [d for d in diag if abs(d) >= tol] # the non-zero eigenvalues of D
-    pairs = _identifyPairs(n_diag, condition=lambda a, b: abs(a - b.conj()) < tol)
-    
-    # Determine the zero and non-zero indices in the matrix P@M@P^(-1), therefore determining the matrices M1, M2 and M3
+    pairs = _identifyPairs(diag, condition=lambda a, b: abs(a - b.conj()) < tol1 and abs(a) > tol1)
     PMPi = P@M@Pi
     
     # Construct unitary and symplectic matrix T:
@@ -257,7 +256,7 @@ def thm31(M, tol=1e-14, **kwargs):
                 ll = Q_indices[l]
                 T[kk, ll] = Q[k, l]
                 
-        if tol > 0: # consistency checks
+        if tol2 > 0: # consistency checks
             dim1 = len(M1_indices) # len(M1_indices) = len(M2_indices) by construction with zip
             J1 = np.array(create_J(dim1)).transpose()
             zero1 = M1@M2.transpose() - M2.transpose()@M1
@@ -266,9 +265,9 @@ def thm31(M, tol=1e-14, **kwargs):
             zero4 = Q.transpose().conj()@Q - np.eye(dim1*2) # Q must be unitary
             zero5 = Q.transpose()@J1@Q - J1 # Q must be symplectic
             for zero in [zero1, zero2, zero3, zero4, zero5]:
-                assert all([abs(zero[i, j]) < tol for i in range(dim1) for j in range(dim1)])
+                assert all([abs(zero[i, j]) < tol2 for i in range(dim1) for j in range(dim1)])
     
-    M3_indices = np.where(np.abs(diag) < tol)[0]    
+    M3_indices = np.where(np.abs(diag) < tol1)[0]    
     if len(M3_indices) > 0:
         M3 = np.array([[PMPi[i, j] for j in M3_indices] for i in M3_indices])
         P3i = cor29(M3)
@@ -279,8 +278,8 @@ def thm31(M, tol=1e-14, **kwargs):
                 ll = M3_indices[l]
                 T[kk, ll] = P3[k, l]
     T = T@P
-                
-    if tol > 0: # consistency checks
+                    
+    if tol2 > 0: # consistency checks
         zero6 = T.transpose().conj()@T - np.eye(dim2) # T must be unitary
         zero7 = T.transpose()@J@T - J # T must be symplectic
         T_inv = -J@T.transpose()@J
@@ -288,6 +287,6 @@ def thm31(M, tol=1e-14, **kwargs):
         zero8 = TMTi - np.diag(TMTi.diagonal()) # T@M@T_inv must be diagonal
         for zero in [zero6, zero7, zero8]:
             a, b = zero.shape
-            assert all([abs(zero[i, j]) < tol for i in range(a) for j in range(b)])
+            assert all([abs(zero[i, j]) < tol2 for i in range(a) for j in range(b)])
             
     return T

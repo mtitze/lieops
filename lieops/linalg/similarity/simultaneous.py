@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 from scipy.linalg import schur
+from numpy.linalg import eigh
 
 def off(*A):
     '''
