@@ -3,7 +3,43 @@
 import numpy as np
 import mpmath as mp
 
-from .matrix import get_package_name
+from njet.functions import get_package_name
+
+def _check_linear_independence(a, b, tol=1e-14):
+    '''
+    Check if two vectors are linearly independent.
+    It is assumed that they are both non-zero.
+    
+    Parameters
+    ----------
+    a: subscriptable
+        The first vector to be checked.
+        
+    b: subscriptable
+        The second vector to be checked.
+        
+    tol: float, optional
+        A tolerance below which we consider values to be equal to zero.
+        
+    Returns
+    -------
+    boolean
+        If True, then both vectors appear to be linearly independent.
+    '''
+    assert len(a) == len(b)
+    dim = len(a)
+    q = 0
+    for k in range(dim):
+        if (abs(a[k]) < tol and abs(b[k]) > tol) or (abs(a[k]) > tol and abs(b[k]) < tol):
+            return True 
+        elif abs(a[k]) < tol and abs(b[k]) < tol:
+            continue
+        else: # both a[k] and b[k] != 0
+            qk = a[k]/b[k]
+            if abs(q) > tol and abs(q - qk) > tol:
+                return True
+            q = qk
+    return False
 
 def is_positive_definite(A):
     '''Check if a given matrix A is positive definite.

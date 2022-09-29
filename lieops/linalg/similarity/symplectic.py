@@ -229,7 +229,7 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     # MphiJM is a Hamiltonian matrix.
     # It follows that if x is an eigenvalues of MphiJM, then also -x is an eigenvalue. 
     # In the following context we are interested in identifying those pairs of eigenvalues.
-    J = np.array(create_J(dim)).transpose()
+    J = create_J(dim)
     MphiJM = M + J@M.transpose()@J
     Pi = cor29(MphiJM) # then D = P@MphiM@P^(-1) is diagonal; P is unitary and symplectic.
     P = Pi.transpose().conj()
@@ -264,7 +264,7 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
                 
         if tol2 > 0: # consistency checks
             dim1 = len(M1_indices) # len(M1_indices) = len(M2_indices) by construction with zip
-            J1 = np.array(create_J(dim1)).transpose()
+            J1 = create_J(dim1)
             zero1 = M1@M2.transpose() - M2.transpose()@M1
             zero2 = M1.transpose().conj()@M1 - M1@M1.transpose().conj()
             zero3 = M2.transpose().conj()@M2 - M2@M2.transpose().conj()

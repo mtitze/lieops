@@ -12,7 +12,7 @@ from lieops.ops import poly, create_coords, construct, lexp
 from lieops.ops.lie import first_order_nf_expansion
 from lieops.ops.birkhoff import homological_eq, bnf
 
-from lieops.linalg.matrix import expandingSum, column_matrix_2_code, create_J
+from lieops.linalg.matrix import expandingSum, create_J
 from lieops.linalg.nf import gj_symplectic_takagi
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
@@ -238,11 +238,11 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
     if code == 'numpy':
         A = np.array(A)
         EE = np.eye(4)
-        J = np.array(create_J(2)).transpose()
+        J = create_J(2)
     if code == 'mpmath':
         A = mp.matrix(A)
         EE = mp.eye(4)
-        J = mp.matrix(create_J(2)).transpose()
+        J = mp.matrix(create_J(2))        
                 
     EE[2, 2] = 0
     EE[3, 3] = 0
@@ -439,7 +439,7 @@ def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
     jacobi = [[ep.get_taylor_coefficients(n_args=2)[(1, 0)], ep.get_taylor_coefficients(n_args=2)[(0, 1)]],
               [epc.get_taylor_coefficients(n_args=2)[(1, 0)], epc.get_taylor_coefficients(n_args=2)[(0, 1)]]]
     jacobi = np.array(jacobi)
-    Jc = -1j*column_matrix_2_code(create_J(1), code='numpy')
+    Jc = -1j*create_J(1)
     check = jacobi.transpose()@Jc@jacobi - Jc
     assert all([all([abs(check[i, j]) < tol for i in range(2)]) for j in range(2)])
     

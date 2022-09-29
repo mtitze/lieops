@@ -12,63 +12,29 @@ from sympy import diag as sympy_diag
 from scipy.linalg import polar, logm
 
 from .tools import basis_extension, eigenspaces, get_principal_sqrt, twonorm
-from .checks import is_positive_definite, relative_eq
-from .matrix import column_matrix_2_code, create_J, get_package_name, matrix_from_dict, expandingSum
+from .checks import is_positive_definite, relative_eq, _check_linear_independence
+from .matrix import create_J, matrix_from_dict, expandingSum
+
+#from lieops.linalg.similarity.symplecticity import thm31
 
 from njet.ad import getNargs
+from njet.functions import get_package_name
 from njet import derive
-
-
-def _check_linear_independence(a, b, tol=1e-14):
-    '''
-    A routine to check if two vectors a and b are linearly independent.
-    It is assumed that a and b are both non-zero.
-    
-    Parameters
-    ----------
-    a: subscriptable
-        The first vector to be checked.
-        
-    b: subscriptable
-        The second vector to be checked.
-        
-    tol: float, optional
-        A tolerance below which we consider values to be equal to zero.
-        
-    Returns
-    -------
-    boolean
-        If True, then both vectors appear to be linearly independent.
-    '''
-    assert len(a) == len(b)
-    dim = len(a)
-    q = 0
-    for k in range(dim):
-        if (abs(a[k]) < tol and abs(b[k]) > tol) or (abs(a[k]) > tol and abs(b[k]) < tol):
-            return True 
-        elif abs(a[k]) < tol and abs(b[k]) < tol:
-            continue
-        else: # both a[k] and b[k] != 0
-            qk = a[k]/b[k]
-            if abs(q) > tol and abs(q - qk) > tol:
-                return True
-            q = qk
-    return False
 
 
 def youla_normal_form(M, tol=1e-13, **kwargs):
     '''
-    Transform a matrix into Youla normal form according to Ref. [2]:
-    "Some observations on the Youla form and conjugate-normal matrices" from
-    H. Faßbender and Kh. D. Ikramov (2006).
+    Transform a matrix into Youla normal form according to Ref. [1]:
+
+    Y = U.transpose()@M@U.
     
-    Statement of the theorem (see Ref. [2] for the definitions of the names):
+    Statement of the theorem (see Ref. [1] for the notation):
     Any complex square matrix M can be brought by a unitary congruence transformation to a block triangular 
     form with the diagonal blocks of orders 1 and 2. The 1×1 blocks correspond to real 
     nonnegative coneigenvalues of M, while each 2×2 block corresponds to a pair of complex 
     conjugate coneigenvalues.
     
-    N.B. If it appears that the matrix U does not transform into the desired form, try a change in the tolerance parameter. 
+    N.B. If it appears that the matrix U does not transform into the desired form, try a change in the tolerance parameter.
     
     Parameters
     ----------
@@ -82,6 +48,11 @@ def youla_normal_form(M, tol=1e-13, **kwargs):
     -------
     U:
         Unitary matrix so that U.transpose()@M@U is in Youla normal form.
+        
+    References
+    ----------
+    [1] H. Faßbender and Kh. D. Ikramov: "Some observations on the Youla form and conjugate-normal matrices" (2006).
+
     '''
     dim = len(M)
     if dim == 0:
@@ -519,7 +490,7 @@ def unitary_williamson(M, tol=1e-14, **kwargs):
     # is now complex and we will assume here that it can be diagonalized. 
     # If b is an eigenvalue of A, then 0 = det(A - b) = det(A.transpose() - b) = det(-A - b) = (-1)^(2n) det(A + b),
     # so -b must also be an eigenvalue of A. Therefore the diagonalization of A will admit pairs (+/- b) of eigenvalues on its main diagonal.
-    J = column_matrix_2_code(create_J(dim), code='numpy') # the default block symplectic structure 
+    J = create_J(dim) # the default block symplectic structure 
     A = M12i@J@M12i
     
     EV, ES = np.linalg.eig(A)
@@ -620,7 +591,11 @@ def anti_diagonalize_real_skew(M, **kwargs):
             bi = [-1j*(evectors[pos_index][k] - evectors[pos_index][k].conjugate())/sqrt2 for k in range(n)]
             v_block1.append(ai)
             v_block2.append(bi)
-    return column_matrix_2_code(v_block1 + v_block2, code=code)
+            
+    out = np.array(v_block1 + v_block2).transpose()
+    if code == 'mpmath':
+        out = mp.matrix(out)
+    return out
 
 
 def williamson(V, **kwargs):
@@ -683,7 +658,9 @@ def williamson(V, **kwargs):
     V12 = evectors@diag@evectors.transpose() # V12 means V^(1/2), the square root of V.
     V12i = evectors@diagi@evectors.transpose()
         
-    J = column_matrix_2_code(create_J(dim), code=code)
+    J = create_J(dim)
+    if code == 'mpmath':
+        J = mp.matrix(J)
     skewmat = V12i@J@V12i
     A = anti_diagonalize_real_skew(skewmat, **kwargs)    
     K = A.transpose()@skewmat@A # the sought anti-diagonal matrix
@@ -740,10 +717,9 @@ def gj_symplectic_takagi(G, d2b_tol=1e-10, check=True, **kwargs):
     dim = dim2//2
     assert max([max([abs(G[j, k] - G[k, j]) for j in range(dim2)]) for k in range(dim2)]) < kwargs.get('tol', d2b_tol), 'Input matrix does not appear to be symmetric.'
     
-    if code == 'numpy':
-        J = np.array(create_J(dim)).transpose()
+    J = create_J(dim)
     if code == 'mpmath':
-        J = mp.matrix(create_J(dim)).transpose()
+        J = mp.matrix(J)
     
     GJ = G@J
     
@@ -804,7 +780,11 @@ def _create_umat_xieta(dim, code, **kwargs):
         k2 = k + dim_half
         U1.append([0 if i != k and i != k2 else 1/sqrt2 for i in range(dim)])
         U2.append([0 if i != k and i != k2 else 1j/sqrt2 if i == k else -1j/sqrt2 if i == k2 else 0 for i in range(dim)])
-    return column_matrix_2_code(U1 + U2, code=code)
+        
+    out = np.array(U1 + U2).transpose()
+    if code == 'mpmath':
+        out = mp.matrix(out)
+    return out
 
     
 def normal_form(H2, T=[], mode='default', check=True, **kwargs):
@@ -872,12 +852,14 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         T_ctr = T.transpose()
         H2 = T@H2@T_ctr
 
-    J = column_matrix_2_code(create_J(dim//2), code=code)
+    J = create_J(dim//2)
+    if code == 'mpmath':
+        J = mp.matrix(J)
     
     if check:
         # consistency check: H2@J must be diagonalizable in order that the normal form can be computed.
         # Since computing the Jordan normal form is numerically unstable, we use sympy for this.
-        J_symp = sympy_matrix(create_J(dim//2)).transpose()
+        J_symp = sympy_matrix(J)
         G_symp = sympy_matrix(H2)
         P_symp, JNF = (G_symp@J_symp).jordan_form()
         if not JNF.is_diagonal():
@@ -1017,7 +999,9 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
     dHshift = derive(Hshift, order=2, n_args=dim)
     z0 = dim*[0]
     Hesse_dict = dHshift.hess(*z0)
-    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, code=code, n_rows=dim, n_cols=dim)
+    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, n_rows=dim, n_cols=dim)
+    if code == 'mpmath':
+        Hesse_matrix = mp.matrix(Hesse_matrix)
 
     # Optional: Raise a warning in case the shifted Hamiltonian has first-order terms.
     if check:
@@ -1075,9 +1059,8 @@ def symplectic_takagi(G, **kwargs):
     assert dim2%2 == 0, 'Dimension must be even.'
     dim = dim2//2
 
-    J = np.array(create_J(dim)).transpose()
-    
     # use sympy to get the jordan normal form
+    J = create_J(dim)
     GJs = sympy_matrix(G@J)
     P, cells = GJs.jordan_cells() # P.inv()@GJ@P = JNF
     JNF = sympy_diag(*cells)

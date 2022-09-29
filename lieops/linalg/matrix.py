@@ -4,38 +4,15 @@
 import numpy as np
 import mpmath as mp
 
-def get_package_name(x):
-    '''
-    Routine intended to get the package name of a specific object (taken from njet.functions).
-    
-    Parameters
-    ----------
-    x: obj
-        The object to be examined.
-        
-    Returns
-    -------
-    str
-        A string denoting the code to be used on the object. 
-    '''
-    return str(x.__class__.__mro__[0].__module__).split('.')[0]
-    
 def printmat(M, tol=1e-14):
     # print a matrix (for e.g. debugging reasons)
     M = mp.matrix(M)
     mp.nprint(mp.chop(M, tol))
-    
-def column_matrix_2_code(M, code, **kwargs):
-    # translate a list of column vectors to a numpy or mpmath matrix
-    if code == 'numpy':
-        return np.array(M).transpose()
-    if code == 'mpmath':
-        return mp.matrix(M).transpose()
 
 def create_J(dim: int):
     r'''
-    Create a 2*dim-square matrix J, represented in form of a list of column vectors,
-    corresponding to the standard symplectic block-matrix
+    Create a 2*dim-square matrix J, corresponding to the standard 
+    symplectic block-matrix
     
              /  0   1  \
         J =  |         |
@@ -56,8 +33,7 @@ def create_J(dim: int):
     for k in range(dim):
         J1.append([0 if i != k + dim else -1 for i in range(dim2)])
         J2.append([0 if i != k else 1 for i in range(dim2)])
-    return J1 + J2 
-
+    return np.array(J1 + J2).transpose()
 
 def expandingSum(pairs):
     '''Compute a transformation matrix T, to transform a given
@@ -108,9 +84,7 @@ def expandingSum(pairs):
         T[i, j] = 1
     return T
 
-
-def matrix_from_dict(M, code, symmetry: int=0, **kwargs):
-    
+def matrix_from_dict(M, symmetry: int=0, **kwargs):
     '''
     Create matrix from (sparse) dict.
     
@@ -131,8 +105,10 @@ def matrix_from_dict(M, code, symmetry: int=0, **kwargs):
         If 1, matrix is assumed to be symmetric. Requires n_rows == n_cols.
         If -1, matrix is assumed to be anti-symmetric. Requires n_rows == n_cols.
         
-    code: str
-        Requested code passed to 'column_matrix_2_code' routine.
+    Returns
+    -------
+    A: ndarray
+        A numpy ndarray representing the requested matrix.
     '''
     assert symmetry in [-1, 0, 1]
 
@@ -160,80 +136,7 @@ def matrix_from_dict(M, code, symmetry: int=0, **kwargs):
                 # (hij != 0 and hji == 0) or (hij == 0 and hji == 0). 
                 mat[j][i] = hij
                 mat[i][j] = symmetry*hij
-    return column_matrix_2_code(mat, code=code)
-
-
-class cmat: # TODO: May work on a class to conveniently switch between numpy and mpmath code.
-    '''
-    Class to model a (sparse) matrix for various codes. 
-    '''
-    def __init__(self, M, **kwargs):
-        # M is assumed to be a dictionary, mapping tuples of indices to values.
-        # This means that M can be sparsely defined, but then a 'shape' argument should be provided.
-        self.entries = M
-        self.rows, self.columns = [], []
-        for i, j in self.entries.keys():
-            self.rows.append(i)
-            self.columns.append(j)
-        self.shape = kwargs.get('shape', (max(self.rows) + 1, max(self.columns) + 1))
-        
-    def tolist(self):
-        return [[self.entries.get((i, j), 0) for j in range(self.shape[1])] for i in range(self.shape[0])]
-        
-    def transpose(self):
-        result = {(i, j): self.entries[(j, i)] for j, i in self.entries.keys()}
-        return self.__class__(result, shape=(self.shape[1], self.shape[0]))
-    
-    def conjugate(self):
-        result = {tpl: self.entries[tpl].conjugate() for tpl in self.entries.keys()}
-        return self.__class__(result, shape=self.shape)
-    
-    def adjoint(self):
-        return self.transpose().conjugate()
-    
-    def diagonal(self):
-        return [self.entries.get((k, k), 0) for k in range(max(self.shape))]
-        
-    def __matmul__(self, other):
-        assert self.shape[1] == other.shape[0]
-        result = {}
-        common_indices = set(self.columns).intersection(set(other.rows))
-        for i in self.rows:
-            for k in other.columns:
-                result[(i, k)] = sum([self.entries.get((i, j), 0)*other.entries.get((j, k), 0) for j in common_indices])
-        return self.__class__(result, shape=(self.shape[0], other.shape[1]))
-    
-    def __add__(self, other):
-        result = {}
-        if not isinstance(self, type(other)):
-            # add value to every entry
-            for k in self.entries.keys():
-                sum_value = self.entries[k] + other
-                if sum_value != 0:
-                    result[k] = sum_value
-        else:
-            assert self.shape == other.shape
-            for k in set(self.entries.keys()).union(set(other.entries.keys())):
-                sum_value = self.entries.get(k, 0) + other.entries.get(k, 0)
-                if sum_value != 0:
-                    result[k] = sum_value
-        return self.__class__(result, shape=self.shape)
-    
-    def __radd__(self, other):
-        return self + other
-    
-    def __neg__(self):
-        return self.__class__({k: -v for k, v in self.entries.items()}, shape=self.shape)
-    
-    def __sub__(self, other):
-        return self + -other
-    
-    def __str__(self):
-        return repr(self.tolist()) # TMP
-
-    def _repr_html_(self):
-        return f'<samp>{self.__str__()}</samp>'
-    
+    return np.array(mat).transpose()
     
 def vecmat(mat):
     '''

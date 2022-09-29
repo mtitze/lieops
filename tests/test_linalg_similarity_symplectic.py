@@ -44,7 +44,7 @@ def create_spn_matrix(dim, max_path=2*np.pi, tol=0):
 
     if tol > 0:
         dim2 = 2*dim
-        J = np.array(create_J(dim)).transpose()
+        J = create_J(dim)
         zero1 = X.transpose()@J + J@X # X in sp(2n; C)
         zero2 = X.transpose().conj() + X # X in u(2n)
         zero3 = S.transpose()@J@S - J # S in Sp(2n; C)
@@ -82,7 +82,7 @@ def test_cor29(dim, skew, tol=1e-14, **kwargs):
     
     # Using the unitary and symplectic matrix S, construct a (particular) 
     # normal and (skew)-Hamiltonian matrix W:
-    J = np.array(create_J(dim)).transpose()
+    J = create_J(dim)
     W = S + J@S.transpose()@J*skew # = M - phi_J(M)*sign in Ref. [1]
     zero1 = W.conj().transpose()@W - W@W.conj().transpose() # phiJS is normal
     zero2 = W.transpose()@J + J@W*skew # phiJS is (skew)-Hamiltonian

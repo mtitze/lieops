@@ -5,7 +5,7 @@ import numpy as np
 import mpmath as mp
 from scipy.linalg import schur
 
-from .matrix import get_package_name
+from njet.functions import get_package_name
 
 def twonorm(vector, mode='complex', **kwargs):
     # Compute the 2-norm of a vector.
