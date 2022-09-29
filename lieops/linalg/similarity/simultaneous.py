@@ -1,7 +1,6 @@
 import numpy as np
 import warnings
 from scipy.linalg import schur
-from numpy.linalg import eigh
 
 def off(*A):
     '''
@@ -26,7 +25,7 @@ def G(i, j, *A, tol=0):
         hA = np.array([Ak[i, i] - Ak[j, j], Ak[i, j] + Ak[j, i], (Ak[j, i] - Ak[i, j])*1j])
         G += np.outer(hA.conj(), hA).real
     # G is symmetric and real, therefore
-    eigenvalues, eigenvectors = eigh(G)
+    eigenvalues, eigenvectors = np.linalg.eigh(G)
     # By the spectral theorem, the eigenvalues of G must be real, since G is real & symmetric.
     # Obtain the eigenvector associated to the largest eigenvalue of G
     x, y, z = eigenvectors.transpose()[np.argsort(eigenvalues)][-1] # x, y, z are real as well (see also the discussion regarding the eigh routine here: https://stackoverflow.com/questions/31572871/finding-the-real-eigenvectors-of-a-real-symmetric-matrix-in-numpy-or-scipy)

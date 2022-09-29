@@ -3,7 +3,7 @@ from scipy.sparse.linalg import eigs
 from scipy.linalg import eig
 
 from lieops.linalg.matrix import create_J
-from lieops.linalg.nf import _identifyPairs
+from lieops.linalg.misc import identifyPairs
 from lieops.linalg.similarity.simultaneous import simuldiag
 
 '''
@@ -237,7 +237,7 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     
     # Determine the non-zero pairs on the diagonal:
     diag = D.diagonal()
-    pairs = _identifyPairs(diag, condition=lambda a, b: abs(a + b) < tol1 and abs(a) > tol1)
+    pairs = identifyPairs(diag, condition=lambda a, b: abs(a + b) < tol1 and abs(a) > tol1)
     PMPi = P@M@Pi
     
     # Construct unitary and symplectic matrix T:

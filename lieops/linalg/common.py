@@ -1,5 +1,5 @@
-# This script collects (or loads) routines which are more fundamental and are
-# often required for more sophisticated routines.
+# This script collects (or loads) routines which are related to basic vector (space) operations
+# and may be required by more sophisticated routines.
 
 import numpy as np
 import mpmath as mp
@@ -413,3 +413,19 @@ def get_principal_sqrt(M, **kwargs):
 
     # check: S@S = T
     return Q@S@Q.transpose().conjugate()
+
+
+def cortho_symmetric_decomposition(M):
+    '''
+    If M is a complex non-singular square matrix, this routine will attempt to determine a decomposition 
+        M = G@Q
+    so that G is complex symmetric and Q is complex orthogonal.
+    See Thm. 6.4.16 in Horn & Johnson: Topics in Matrix Analysis (1991).
+    '''
+    G = get_principal_sqrt(M@M.transpose())
+    Q = np.linalg.inv(G)@M
+    # checks:
+    # G - G.transpose() == 0
+    # Q.transpose()@Q = 1
+    # G@Q = M
+    return Q, G

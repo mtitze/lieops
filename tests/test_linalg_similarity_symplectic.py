@@ -3,7 +3,7 @@ import pytest
 
 from lieops.linalg.matrix import create_J
 from lieops.linalg.similarity.symplectic import cor29, thm31
-from lieops.linalg.nf import _identifyPairs
+from lieops.linalg.misc import identifyPairs
 
 from scipy.linalg import expm
 
@@ -101,7 +101,7 @@ def test_cor29(dim, skew, tol=1e-14, **kwargs):
         assert all([abs(D[i, j]) < tol and abs(D[j, i]) < tol for i in range(j)])
     diag = D.diagonal()
     n_diag = [d for d in diag if abs(d) >= tol] # the non-zero eigenvalues of D
-    pairs = _identifyPairs(n_diag, condition=lambda a, b: abs(a - b.conj()) < tol)
+    pairs = identifyPairs(n_diag, condition=lambda a, b: abs(a - b.conj()) < tol)
     assert len(n_diag)%2 == 0
     n_diag_dim = len(n_diag)//2
     for i, j in pairs:

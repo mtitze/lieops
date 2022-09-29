@@ -13,7 +13,7 @@ from lieops.ops.lie import first_order_nf_expansion
 from lieops.ops.birkhoff import homological_eq, bnf
 
 from lieops.linalg.matrix import expandingSum, create_J
-from lieops.linalg.nf import gj_symplectic_takagi
+from lieops.linalg.congruence.takagi import symplectic_takagi_old
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
@@ -250,7 +250,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
     G = A.transpose()@J@EE@J@A
     G = G + G.transpose()
     
-    S0, D0, _ = gj_symplectic_takagi(G, tol=tol1, dps=dps)
+    S0, D0, _ = symplectic_takagi_old(G, tol=tol1, dps=dps)
     
     symplecticity = S0.transpose()@J@S0 - J
     factorization = S0@D0@S0.transpose() - G
@@ -489,9 +489,9 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     return argflow(*z) == L1(*z)
 
 
-def test_gjst_consistency(n=101, dim=6, tol=5e-15):
+def test_stold_consistency(n=101, dim=6, tol=5e-15):
     '''
-    Test the consistency of gj_symplectic_takagi routine:
+    Test the consistency of "symplectic_takagi_old" routine:
     If given a diagonal matrix, it must return the input diagonal again.
     '''
     assert dim%2 == 0, 'Dimension must be even.'
@@ -500,7 +500,7 @@ def test_gjst_consistency(n=101, dim=6, tol=5e-15):
         coeffs = np.random.rand(dim)*2 - 1 # create 'dim' random values between -1 and 1
         D1 = [coeffs[k] + coeffs[k + dim//2]*1j for k in range(dim//2)]
         D = np.diag(D1 + D1)
-        S, _, _ = gj_symplectic_takagi(D, orientation=D1)
+        S, _, _ = symplectic_takagi_old(D, orientation=D1)
         Dout = S@D@S.transpose()
         diff = Dout - D
         assert max(np.absolute(diff.flatten())) < tol

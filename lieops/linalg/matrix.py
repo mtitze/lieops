@@ -1,5 +1,5 @@
-# This file collects routines which are focused on representing or generating a matrix and to perform
-# fundamental matrix operations in various codes.
+# This file collects routines which are focused on fundamental generation of specific
+# matrices and to perform basic matrix operations.
 
 import numpy as np
 import mpmath as mp
@@ -168,3 +168,30 @@ def adjoint(mat):
             i, j = divmod(v, n)
             result[v, u] = mat[i, alpha]*delta(beta, j) - delta(alpha, i)*mat[beta, j]      
     return result
+
+def create_pq2xieta(dim, code, **kwargs):
+    '''
+    Create a unitary matrix, mapping (p, q)-coordinates to (xi, eta)-coordinates via
+    xi = (q + 1j*p)/sqrt(2)
+    eta = (q - 1j*p)/sqrt(2)
+    '''
+    assert dim%2 == 0
+    
+    if code == 'numpy':
+        sqrt2 = np.sqrt(2)
+    if code == 'mpmath':
+        if 'dps' in kwargs.keys():
+            mp.mp.dps = kwargs['dps'] 
+        sqrt2 = mp.sqrt(2)
+        
+    U1, U2 = [], []
+    dim_half = dim//2
+    for k in range(dim_half):
+        k2 = k + dim_half
+        U1.append([0 if i != k and i != k2 else 1/sqrt2 for i in range(dim)])
+        U2.append([0 if i != k and i != k2 else 1j/sqrt2 if i == k else -1j/sqrt2 if i == k2 else 0 for i in range(dim)])
+        
+    out = np.array(U1 + U2).transpose()
+    if code == 'mpmath':
+        out = mp.matrix(out)
+    return out
