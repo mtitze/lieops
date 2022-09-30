@@ -41,6 +41,7 @@ def test_bch_2x2(n=6, tol=1e-12):
         A = (1 - 2*np.random.rand(2, 2)) + (1 - 2*np.random.rand(2, 2))*1j
         B = (1 - 2*np.random.rand(2, 2)) + (1 - 2*np.random.rand(2, 2))*1j
         
+        # test the multiplication table given in Ref. [1]
         tab = bch_2x2_multiplication_table(A, B)
         C = A@B - B@A
         reftab = [[A@A, A@B, A@C], [B@A, B@B, B@C], [C@A, C@B, C@C]]
@@ -49,7 +50,8 @@ def test_bch_2x2(n=6, tol=1e-12):
                 diff = tab[i][j] - reftab[i][j]
                 assert all([abs(diff[k, l]) < tol for k in range(2) for l in range(2)])
                 
-        C = bch_2x2(A, B, tol=tol)
-        zero = expm(A)@expm(B) - expm(C)
+        # test whether exp(A)@exp(B) is properly combined
+        Z = bch_2x2(A, B, tol=tol)
+        zero = expm(A)@expm(B) - expm(Z)
         assert all([abs(zero[i, j]) < tol for i in range(2) for j in range(2)]), f'Run {k} failed.\nA = {A}\nB= {B}'
         

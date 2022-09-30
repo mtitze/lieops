@@ -465,6 +465,7 @@ def combine(*args, power: int, mode='default', **kwargs):
             args1.append(args[k])
             lengths1.append(lengths[k])
     assert len(args1) > 0, 'No non-zero operators in the chain.'
+    n_operators = len(args1)
     
     # Build the hard-edge Hamiltonian model.
     all_powers = set([k for op in args1 for k in op.keys()])

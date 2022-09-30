@@ -4,32 +4,7 @@ import warnings
 
 from .lie import poly, lexp
 from lieops.linalg.bch import bch_2x2
-
-def lp2mat(p):
-    '''
-    Transform a polynomial of order 2 to its respective matrix form (the resulting
-    matrix will be traceless).
-    '''
-    assert p.dim == 1
-    a1 = p.get((1, 1), 0)
-    a2 = p.get((2, 0), 0)
-    a3 = p.get((0, 2), 0)
-    out = np.zeros([2, 2], dtype=np.complex128)
-    out[0, 0] = -a1*1j
-    out[0, 1] = -2*a3*1j
-    out[1, 0] = 2*a2*1j
-    out[1, 1] = a1*1j
-    return out
-
-def mat2lp(mat):
-    '''
-    Transform a 2x2 matrix of zero trace to a poynomial of 2nd order.
-    '''
-    assert mat[0, 0] == -mat[1, 1]
-    a1 = 1j*mat[0, 0]
-    a2 = -1j/2*mat[1, 0]
-    a3 = 1j/2*mat[0, 1]
-    return poly(values={(1, 1): a1, (2, 0): a2, (0, 2): a3})
+from lieops.ops.tools import poly2ad, ad2poly
 
 def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
     '''
@@ -102,19 +77,19 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         else:
             condition = set(hamiltonian.keys()).issubset(set(keys))
         
-        if condition:
+        if condition and hamiltonian != 0:
             # in this case the entry k belongs to group 1, which will be exchanged with the
             # entries in group 2.
             if len(current_g1_op) == 0:
-                current_g1_op = lp2mat(hamiltonian)
+                current_g1_op = poly2ad(hamiltonian)
             else:
-                current_g1_op = bch_2x2(current_g1_op, lp2mat(hamiltonian))
+                current_g1_op = bch_2x2(current_g1_op, poly2ad(hamiltonian))
         else:
             if len(current_g1_op) == 0:
                 new_hamiltonians.append(hamiltonian)
             else:
-                op = lexp(mat2lp(current_g1_op), **kwargs)
+                op = lexp(ad2poly(current_g1_op), **kwargs)
                 new_hamiltonians.append(op(hamiltonian, **kwargs))
     if len(current_g1_op) == 0 or len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
-    return new_hamiltonians, mat2lp(current_g1_op)
+    return new_hamiltonians, ad2poly(current_g1_op)
