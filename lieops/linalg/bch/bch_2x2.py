@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import schur
+import warnings
 
 '''
 References
@@ -10,11 +11,19 @@ References
 '''
 
 def Sinhc(x):
-    # Note that this function has the property Sinhc(-x) = Sinhc(x).
-    if x != 0:
-        return np.sinh(x)/x
+    # Note that this function has the property Sinhc(-x) = Sinhc(x) for every complex number x.
+    if type(x) == np.ndarray:
+        out = np.ones(len(x), dtype=np.complex128)
+        non_zero_indices = (x != 0)
+        x1 = x[non_zero_indices]
+        v1 = np.sinh(x1)/x1
+        out[non_zero_indices] = v1
     else:
-        return 1
+        if x != 0:
+            return np.sinh(x)/x
+        else:
+            return 1
+    return out
     
 def get_case(C):
     '''
@@ -33,9 +42,12 @@ def get_case(C):
         case = 3
     return case
     
-def get_params(A, B):
+def get_params(A, B, tol=0):
     '''
     Compute the parameters in Ref. [1] requied to compute the Baker-Campbell-Hausdorff formula.
+    
+    Attention: For some isolated cases the BHC formula does not converge (These cases are
+    related to the zeros of the Sinhc function in Ref. [1]).
     '''
     assert A.shape == (2, 2) and B.shape == (2, 2)
     #C = A@B - B@A
@@ -53,17 +65,27 @@ def get_params(A, B):
     sigma2 = a**2/4 - alpha
     tau2 = b**2/4 - beta
     # We do not have to bother with the sign of sigma and tau here, 
-    # because cosh and Sinhc (see below) are both even functions:
-    sigma = np.sqrt(sigma2)
-    tau = np.sqrt(tau2)
+    # because cosh and Sinhc (see below) are both even functions; for every complex number
+    # it holds cosh(-z) = cosh(z) and sinh(-z) = -sinh(z).
+    sigma = np.sqrt(sigma2, dtype=np.complex128)
+    tau = np.sqrt(tau2, dtype=np.complex128)
     Sinhc_sigma = Sinhc(sigma)
     Sinhc_tau = Sinhc(tau)
     cosh_sigma = np.cosh(sigma)
     cosh_tau = np.cosh(tau)
     
     cosh_chi = cosh_sigma*cosh_tau + epsilon/2*Sinhc_sigma*Sinhc_tau # Eq. (36) in Ref. [1]
-    chi = np.arccosh(cosh_chi)
+    chi = np.arccosh(cosh_chi) # here one may add integer multiples of 2*pi. 
+    # Attention: If chi is e.g. purely imaginary, Sinhc(chi) will cross zero periodically. 
+    # This means that for those cases the BCH formula can not converge.
+    # Due to the relationship between sinh and sin,
+    # the zeros of Sinhc reside on the imaginary axis and look similar to the zeros of the sinc function,
+    # see e.g. https://en.wikipedia.org/wiki/File:Sinc_cplot.svg.
     Sinhc_chi = Sinhc(chi)
+    if tol > 0:
+        # check against cases where the BHC equation may not converge
+        if abs(Sinhc_chi) < tol:
+            warnings.warn(f'|Sinhc(chi)| smaller than {tol} (tol) -- convergence not ensured.')
 
     p = Sinhc_sigma*cosh_tau/Sinhc_chi
     q = cosh_sigma*Sinhc_tau/Sinhc_chi
@@ -95,7 +117,7 @@ def bch_2x2(A, B, tol=0):
     Compute the Baker-Campbell-Hausdorff matrix C so that exp(C) = exp(A)@exp(B) holds,
     according to Ref. [1].
     '''
-    params = get_params(A, B) # obtain the parameters introduced in Ref. [1].
+    params = get_params(A, B, tol=tol) # obtain the parameters introduced in Ref. [1].
     C = params['C']
     I = params['I']
     Z = params['k']*I + params['p']*A + params['q']*B + params['r']*C
@@ -104,7 +126,8 @@ def bch_2x2(A, B, tol=0):
         chi2 = params['chi']**2
         ZZ = Z@Z
         zero = (ZZ[0, 0] + ZZ[1, 1])/2 - (Z[0, 0] + Z[1, 1])**2/4 - chi2 # chi2 == Tr(Z**2)/2 - (Tr(Z)**2)/4
-        assert abs(zero) < tol, f'{zero} >= {tol} (tol)'
+        if abs(zero) >= tol:
+            warnings.warn(f'Consistency check "chi2 == Tr(Z**2)/2 - (Tr(Z)**2)/4" failed:\n{zero} >= {tol} (tol).')
     return Z
 
 def check_multiplication_table(A, B):
