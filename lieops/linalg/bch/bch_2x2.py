@@ -126,36 +126,7 @@ def bch_2x2(A, B, tol=0):
         chi2 = params['chi']**2
         ZZ = Z@Z
         zero = (ZZ[0, 0] + ZZ[1, 1])/2 - (Z[0, 0] + Z[1, 1])**2/4 - chi2 # chi2 == Tr(Z**2)/2 - (Tr(Z)**2)/4
-        if abs(zero) >= tol:
-            warnings.warn(f'Consistency check "chi2 == Tr(Z**2)/2 - (Tr(Z)**2)/4" failed:\n{zero} >= {tol} (tol).')
+        assert abs(zero) < tol, f'Consistency check "chi2 == Tr(Z**2)/2 - (Tr(Z)**2)/4" failed:\n{zero} >= {tol} (tol).'
     return Z
 
-def check_multiplication_table(A, B):
-    '''
-    Check the multiplication table in Thm. 1 in Ref. [1].
-    '''
-    params = get_params(A, B)
-    alpha = params['alpha']
-    beta = params['beta']
-    a = params['a']
-    b = params['b']
-    epsilon = params['epsilon']
-    omega = params['omega']
-    tau = params['abs_tau']
-    sigma = params['abs_sigma']
-    C = params['C']
-    I = params['I']
-        
-    zero11 = -alpha*I + a*A - A@A
-    zero12 = ((omega - a*b)*I + b*A + a*B + C)/2 - A@B
-    zero13 = ((a*epsilon - 2*b*sigma**2)*I - 2*epsilon*A + 4*sigma**2*B + a*C)/2 - A@C
-    zero21 = ((omega - a*b)*I + b*A + a*B - C)/2 - B@A
-    zero22 = -beta*I + b*B - B@B
-    zero23 = ((2*a*tau**2 - b*epsilon)*I - 4*tau**2*A + 2*epsilon*B + b*C)/2 - B@C
-    zero31 = ((2*b*sigma**2 - a*epsilon)*I + 2*epsilon*A - 4*sigma**2*B + a*C)/2 - C@A
-    zero32 = ((b*epsilon - 2*a*tau**2)*I + 4*tau**2*A - 2*epsilon*B + b*C)/2 - C@B
-    zero33 = (epsilon**2 - 4*sigma**2*tau**2)*I - C@C
-    
-    for zero in [zero11, zero12, zero13, zero21, zero22, zero23, zero31, zero32, zero33]:
-        print (zero)
     
