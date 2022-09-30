@@ -4,6 +4,7 @@
 import mpmath as mp
 import warnings
 from sympy import Matrix as sympy_matrix
+from scipy.linalg import polar, logm
 
 from .checks import is_positive_definite
 from .matrix import create_J, matrix_from_dict, create_pq2xieta

@@ -3,46 +3,7 @@ import numpy as np
 import warnings
 
 from .lie import poly, lexp
-
-def Sinhc(x):
-    if x != 0:
-        return np.sinh(x)/x
-    else:
-        return 1
-
-def bch_2x2(A, B):
-    '''
-    An implementation of the Baker-Campbell-Hausdorff equation for complex 2x2 matrices, see
-    Foulis: "The algebra of complex 2 × 2 matrices and a 
-             general closed Baker–Campbell–Hausdorff formula",
-             J. Phys. A: Math. Theor. 50 305204 (2017)
-    '''
-    assert A.shape == (2, 2) and B.shape == (2, 2)
-    C = A@B - B@A
-    a = A[0, 0] + A[1, 1] # Tr(A)
-    b = B[0, 0] + B[1, 1] # Tr(B)
-    alpha = A[0, 0]*A[1, 1] - A[1, 0]*A[0, 1] # det(A)
-    beta = B[0, 0]*B[1, 1] - B[1, 0]*B[0, 1] # det(B)
-    
-    AB = A@B
-    omega = AB[0, 0] + AB[1, 1] # tr(AB)
-    epsilon = omega - a*b/2
-    
-    sigma2 = a**2/4 - alpha
-    tau2 = b**2/4 - beta
-    sigma = np.sqrt(sigma2) # sign (...)
-    tau = np.sqrt(tau2) # sign (...)
-    
-    cosh_chi = np.cosh(sigma)*np.cosh(tau) + epsilon/2*Sinhc(sigma)*Sinhc(tau)
-    chi = np.arccosh(cosh_chi)
-
-    p = Sinhc(sigma)*np.cosh(tau)/Sinhc(chi)
-    q = np.cosh(sigma)*Sinhc(tau)/Sinhc(chi)
-    r = Sinhc(sigma)*Sinhc(tau)/(2*Sinhc(chi))
-    k = (a + b - a*p - b*q)/2
-    
-    I = np.eye(2)
-    return k*I + p*A + q*B + r*C
+from lieops.linalg.bch import bch_2x2
 
 def lp2mat(p):
     '''
