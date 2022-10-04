@@ -9,12 +9,16 @@ from lieops.linalg.matrix import adjoint, vecmat, matvec
 
 def poly2ad(pin):
     '''
-    Compute a (2n)x(2n)-matrix representation of a homogenous second-order polynomial, given
-    in terms of complex xi/eta coordinates, so that if z_j denote the basis vectors, then:
+    Compute a (2n)x(2n)-matrix representation of a homogenous second-order polynomial A,
+    so that if z_j denotes the projections onto the canonical coordinate components, then
     
-    {p, z_j} = p_{ij} z_i
+    {A, z_j} = A_{ij} z_i                    (1)
     
-    holds. The brackets { , } denote the poisson bracket. The values p_{ij} will be determined.
+    holds. The brackets { , } denote the poisson bracket. The values A_{ij} will be determined.
+    
+    Remark: The order of the indices in Eq. (1) has been chosen to guarantee that matrix multiplication
+            and adjoint can be exchanged. I.e. the above defines a *covariant* functor:
+            {A, {B, z_j}} = (A o B)_{ij} z_i
     
     Parameters
     ----------
@@ -30,14 +34,14 @@ def poly2ad(pin):
     dim = pin.dim
     dim2 = dim*2
     poisson_factor = pin._poisson_factor
-    pmat = np.zeros([dim2, dim2], dtype=np.complex128)
+    A = np.zeros([dim2, dim2], dtype=np.complex128)
     for i in range(dim):
         for j in range(dim):
             mixed_key = [0]*dim2 # key belonging to xi_i*eta_j
             mixed_key[i] += 1
             mixed_key[j + dim] += 1
-            pmat[i, j] = pin.get(tuple(mixed_key), 0)*-poisson_factor
-            pmat[j + dim, i + dim] = pin.get(tuple(mixed_key), 0)*poisson_factor
+            A[i, j] = pin.get(tuple(mixed_key), 0)*-poisson_factor
+            A[j + dim, i + dim] = pin.get(tuple(mixed_key), 0)*poisson_factor
             
             if i != j: # if i and j are different, than the key in the polynomial already
                 # corresponds to the sum of the ij and the ji-coefficient. But if they are equal,
@@ -49,22 +53,26 @@ def poly2ad(pin):
             hom_key_xi = [0]*dim2 # key belonging to xi_i*xi_j
             hom_key_xi[i] += 1
             hom_key_xi[j] += 1
-            pmat[i, j + dim] = pin.get(tuple(hom_key_xi), 0)*poisson_factor*ff
+            A[i, j + dim] = pin.get(tuple(hom_key_xi), 0)*poisson_factor*ff
 
             hom_key_eta = [0]*dim2 # key belonging to eta_i*eta_j
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
-            pmat[i + dim, j] = pin.get(tuple(hom_key_eta), 0)*-poisson_factor*ff
-    return pmat
+            A[i + dim, j] = pin.get(tuple(hom_key_eta), 0)*-poisson_factor*ff
+    return A
 
-def ad2poly(amat, tol=0, poisson_factor=-1j):
+def ad2poly(A, tol=0, poisson_factor=-1j):
     '''
     Transform a complex (2n)x(2n)-matrix representation of a polynomial back to 
     its polynomial xi/eta-representation. This is the inverse of the 'poly2ad' routine.
     
+    Attention: A matrix admits a polynomial representation if and only if it is an element
+               of sp(2n; C), the Lie-algebra of symplectic complex (2n)x(2n)-matrices. By default
+               this routine will *not* check against this property (but see the information below).
+    
     Parameters
     ----------
-    amat: array-like
+    A: array-like
         Matrix representing the polynomial.
         
     tol: float, optional
@@ -80,8 +88,8 @@ def ad2poly(amat, tol=0, poisson_factor=-1j):
     poly
         Polynomial corresponding to the matrix.
     '''
-    assert amat.shape[0] == amat.shape[1]
-    dim2 = amat.shape[0]
+    assert A.shape[0] == A.shape[1]
+    dim2 = A.shape[0]
     assert dim2%2 == 0
     dim = dim2//2
     
@@ -90,20 +98,17 @@ def ad2poly(amat, tol=0, poisson_factor=-1j):
         for j in range(dim):
             
             if tol > 0:
-                # If the following check fails, amat is not an adjoint representation.
-                # This condition can be derived by considering a general second-order polynomial Q
-                # which has to satisfy:
-                # {Q, xi_k} = amat[i, k]*xi_i + amat[i + dim, k]*eta_i
-                # and
-                # {Q, eta_k} = amat[i, dim + k]*xi_i + amat[i + dim, k + dim]*eta_i
-                # (where repeated indices are summed up).
-                err = abs(amat[i, j] + amat[j + dim, i + dim])
-                assert err < tol, f'The given matrix does not appear to be an adjoint representation of a polynomial: {err} >= {tol} (tol).'
+                # Check if the given matrix is an element of sp(2n; C). If this check fails,
+                # no valid polynomial representation can be obtained.
+                error_msg = f'The given matrix does not appear to be an adjoint representation of a polynomial, using a check with tolerance {tol}.'
+                assert abs(A[i, j] + A[j + dim, i + dim]) < tol, error_msg
+                assert abs(A[i, j + dim] - A[j, i + dim]) < tol, error_msg
+                assert abs(A[i + dim, j] - A[j + dim, i]) < tol, error_msg
             
             mixed_key = [0]*dim2 # key belonging to a coefficient of mixed xi/eta variables.
             mixed_key[i] += 1
             mixed_key[j + dim] += 1            
-            values[tuple(mixed_key)] = amat[i, j]*-1/poisson_factor
+            values[tuple(mixed_key)] = A[i, j]*-1/poisson_factor
             
             # The factor 'ff' comes from the fact that the poly objects terms of the form xi_i*xi_j (for i != j) and xi_j*xi_i are equal.
             if i != j:
@@ -114,19 +119,15 @@ def ad2poly(amat, tol=0, poisson_factor=-1j):
             hom_key_xi = [0]*dim2 # key belonging to a coefficient xi-xi variables.
             hom_key_xi[i] += 1
             hom_key_xi[j] += 1
-            if tol > 0:
-                assert abs(amat[i, j + dim] - amat[j, i + dim]) < tol # consistency check
-            values[tuple(hom_key_xi)] = amat[i, j + dim]/ff/poisson_factor
+            values[tuple(hom_key_xi)] = A[i, j + dim]/ff/poisson_factor
             
             hom_key_eta = [0]*dim2 # key belonging to a coefficient eta-eta variables.
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
-            if tol > 0:
-                assert abs(amat[i + dim, j] - amat[j + dim, i]) < tol # consistency check
-            values[tuple(hom_key_eta)] = amat[i + dim, j]/ff*-1/poisson_factor
+            values[tuple(hom_key_eta)] = A[i + dim, j]/ff*-1/poisson_factor
     return lieops.ops.lie.poly(values=values, poisson_factor=poisson_factor)
 
-def poly1repr(p):
+def poly2vec(p):
     '''
     Map a first-order polynomial to its respective vector in matrix representation 
     (see also 'poly2ad' routine)
@@ -139,9 +140,9 @@ def poly1repr(p):
         out[j] = v
     return out
 
-def repr1poly(v):
+def vec2poly(v):
     '''
-    The inverse of 'poly1repr' routine.
+    The inverse of 'poly2vec' routine.
     '''
     dim2 = len(v)
     assert dim2%2 == 0, 'Dimension must be even.'
@@ -168,7 +169,7 @@ def poly3ad(pin):
     array-like
         A complex matrix corresponding to the representation.
     '''
-    assert pin.maxdeg() <= 2 and pin.mindeg() >= 1 # To the second condition: Constants have zero-effect as 'ad' and therefore can not yield an invertible map. Since we want poly3ad to be invertible, we have to restrict to polynomials without constant terms.
+    assert pin.maxdeg() <= 2 and pin.mindeg() >= 1 # Regarding the second condition: Constants have no effect as 'ad' and therefore 'ad' can not be inverted. Since we want poly3ad to be invertible, we have to restrict to polynomials without such constant terms.
     dim = pin.dim
     dim2 = dim*2
     poisson_factor = pin._poisson_factor
@@ -191,24 +192,24 @@ def poly3ad(pin):
             pmat[dim2, k] = pin1.get(tuple(eta_key), 0)*-poisson_factor
     return pmat
 
-def ad3poly(amat, **kwargs):
+def ad3poly(A, **kwargs):
     '''
     The inverse of the 'poly3ad' routine.
     '''
-    assert amat.shape[0] == amat.shape[1]
-    dim2 = amat.shape[0] - 1
+    assert A.shape[0] == A.shape[1]
+    dim2 = A.shape[0] - 1
     assert dim2%2 == 0
     dim = dim2//2
     # 1. Get the 2nd-order polynomial associated to the dim2xdim2 submatrix:
-    p2 = ad2poly(amat[:dim2, :dim2], **kwargs)
+    p2 = ad2poly(A[:dim2, :dim2], **kwargs)
     poisson_factor = p2._poisson_factor
     if len(p2) == 0:
         p2 = 0
     # 2. Get the first-order polynomials associated to the remaining line:
     xieta = lieops.ops.lie.create_coords(dim)
     for k in range(dim):
-        eta_k_coeff = amat[dim2, k]/-poisson_factor
-        xi_k_coeff = amat[dim2, k + dim]/poisson_factor
+        eta_k_coeff = A[dim2, k]/-poisson_factor
+        xi_k_coeff = A[dim2, k + dim]/poisson_factor
         p2 += xieta[k]*xi_k_coeff
         p2 += xieta[k + dim]*eta_k_coeff
     return p2

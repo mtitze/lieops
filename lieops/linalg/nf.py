@@ -273,6 +273,22 @@ def symlogs(X, **kwargs):
     X = exp(A)@exp(B),
     where A is an element in sp(n), the Lie-algebra of Sp(n) \subset Sp(2n; C) \cap U(2n),
     and B is an element of sp(2n; C), the Lie-algebra of Sp(2n; C).
+    
+    Parameters
+    ----------
+    X: ndarray
+        An array representing the matrix X.
+        
+    **kwargs
+        Optional keyworded arguments passed to 'lieops.linalg.similarity.symplectic.thm31' routine.
+        
+    Returns
+    -------
+    A: ndarray
+        An array representing the matrix A.
+        
+    B: ndarray
+        An array representing the matrix B.
     '''
     U, P = polar(X) # X = U@P with symplectic U and P.
     logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is 

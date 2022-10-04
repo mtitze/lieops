@@ -40,7 +40,16 @@ class _poly:
     
     def __init__(self, **kwargs):
         # self.dim denotes the number of xi (or eta)-factors.
-        self._poisson_factor = kwargs.get('poisson_factor', -1j) # determines the poisson bracket (see self.__matmul__) and therefore one can control if the polynomial is given in terms of xi/eta or q/p variables.
+        self._poisson_factor = kwargs.get('poisson_factor', -1j) 
+        # Factor to be multiplied with the canonical symplectic structure
+        #
+        #        / 0  1 \
+        #   J = |       |
+        #       \-1  0 /
+        #
+        # to determine the poisson bracket of two poly objects (see self.__matmul__). 
+        # Therefore one can conveniently control if (e.g) the polynomial is given in terms 
+        # of xi/eta or q/p variables.
         
         if 'values' in kwargs.keys():
             self._values = {k: v for k, v in kwargs['values'].items() if not check_zero(v)}
