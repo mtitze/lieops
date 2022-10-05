@@ -111,12 +111,12 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
             
         A: A complex matrix transforming the underlying Hamiltonian H (whose Hesse-matrix corresponds to H2),
            given in terms of complex (xi, eta)-coordinates, into normal form N via N = H o A.
-           It holds A = U@Sinv@Uinv.
+           It holds A = U@Sinv@Uinv. Currently only supported for numpy input.
            
         S1, S2: Elements of sp(2n; C) (the Lie-algebra of complex symplectic matrices) satisfying
            A = exp(S1)@exp(S2). These matrices can be used to obtain respective polynomial representations
            of the Lie-operator, mapping the given Hamiltonian H into its "first-order" normal form N (see
-           also the commment above).
+           also the commment above). Currently only supported for numpy input.
     ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
@@ -212,11 +212,12 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     # Furthermore, compute the map A transforming the Hamiltonian (given in (xi, eta)-coordinates), 
     # whose Hessian corresponds to H2 above, into its first-order normal form.
     # For details see my notes (TODO: reference)
-    out['A'] = U@Sinv@Uinv
-    B1, B2 = symlogs(Sinv, tol2=kwargs.get('symlogs_tol2', 0))
-    out['C1'] = U@B1@Uinv
-    out['C2'] = U@B2@Uinv # so that A = exp(C1)@exp(C2)
-    # Note that due to the nature of the matrix U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
+    if code != 'mpmath':
+        out['A'] = U@Sinv@Uinv
+        B1, B2 = symlogs(Sinv, tol2=kwargs.get('symlogs_tol2', 0))
+        out['C1'] = U@B1@Uinv
+        out['C2'] = U@B2@Uinv # so that A = exp(C1)@exp(C2)
+        # Note that due to the nature of the matrix U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
     return out
 
 def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: int=0, tol: float=1e-14,
