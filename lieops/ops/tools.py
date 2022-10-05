@@ -17,7 +17,7 @@ def poly2ad(pin):
     holds. The brackets { , } denote the poisson bracket. The values A_{ij} will be determined.
     
     Remark: The order of the indices in Eq. (1) has been chosen to guarantee that matrix multiplication
-            and adjoint can be exchanged. I.e. the above defines a *covariant* functor:
+            and adjoint both maintain the same order:
             {A, {B, z_j}} = (A o B)_{ij} z_i
     
     Parameters

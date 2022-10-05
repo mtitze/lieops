@@ -17,6 +17,41 @@ from njet.ad import getNargs
 from njet.functions import get_package_name
 from njet import derive    
 
+def symlogs(X, **kwargs):
+    r'''
+    Let X be a complex symplectic matrix, i.e. a matrix satisfying
+    X.transpose()@J@X = J.
+    
+    Then this routine will determine two matrices A and B so that
+    X = exp(A)@exp(B),
+    where A is an element in sp(n), the Lie-algebra of Sp(n) \subset Sp(2n; C) \cap U(2n),
+    and B is an element of sp(2n; C), the Lie-algebra of Sp(2n; C).
+    
+    Parameters
+    ----------
+    X: ndarray
+        An array representing the matrix X.
+        
+    **kwargs
+        Optional keyworded arguments passed to 'lieops.linalg.similarity.symplectic.thm31' routine.
+        
+    Returns
+    -------
+    A: ndarray
+        An array representing the matrix A.
+        
+    B: ndarray
+        An array representing the matrix B.
+    '''
+    U, P = polar(X) # X = U@P with symplectic U and P.
+    logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is 
+    # U is in Sp(n). Therefore we can diagonalize U symplectically:
+    V = thm31(U, **kwargs) # V@U@V.transpose().conj() = D will be diagonal
+    Vi = V.transpose().conj()
+    D = V@U@Vi
+    logD = logm(D) # logD.transpose()@J + J@logD = 0
+    Y = Vi@logD@V
+    return Y, logP
 
 def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     r'''
@@ -73,6 +108,15 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
             symplectic matrix S. Note that S might be complex if the Hesse matrix of H2 is not positive definite.
         cnf: The 'complex' normal form, which is given as the representation of H2 in terms of the complex
             normalizing (xi, eta)-coordinates (the 'new' complex symplectic structure).
+            
+        A: A complex matrix transforming the underlying Hamiltonian H (whose Hesse-matrix corresponds to H2),
+           given in terms of complex (xi, eta)-coordinates, into normal form N via N = H o A.
+           It holds A = U@Sinv@Uinv.
+           
+        S1, S2: Elements of sp(2n; C) (the Lie-algebra of complex symplectic matrices) satisfying
+           A = exp(S1)@exp(S2). These matrices can be used to obtain respective polynomial representations
+           of the Lie-operator, mapping the given Hamiltonian H into its "first-order" normal form N (see
+           also the commment above).
     ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
@@ -164,8 +208,16 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     out['Kinv'] = Kinv
     out['cnf'] = Kinv.transpose()@H2@Kinv # the representation of H2 in (xi, eta)-coordinates
     out['D'] = D
+    
+    # Furthermore, compute the map A transforming the Hamiltonian (given in (xi, eta)-coordinates), 
+    # whose Hessian corresponds to H2 above, into its first-order normal form.
+    # For details see my notes (TODO: reference)
+    out['A'] = U@Sinv@Uinv
+    B1, B2 = symlogs(Sinv, tol2=kwargs.get('symlogs_tol2', 0))
+    out['C1'] = U@B1@Uinv
+    out['C2'] = U@B2@Uinv # so that A = exp(C1)@exp(C2)
+    # Note that due to the nature of the matrix U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
     return out
-
 
 def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: int=0, tol: float=1e-14,
                              code='numpy', **kwargs):
@@ -263,39 +315,3 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: in
                 raise RuntimeError(f'CNF entry {k} does not agree with Hamiltonian expansion: diff {diff} > {tol} (tol).')
         
     return results, nfdict
-
-def symlogs(X, **kwargs):
-    r'''
-    Let X be a complex symplectic matrix, i.e. a matrix satisfying
-    X.transpose()@J@X = J.
-    
-    Then this routine will determine two matrices A and B so that
-    X = exp(A)@exp(B),
-    where A is an element in sp(n), the Lie-algebra of Sp(n) \subset Sp(2n; C) \cap U(2n),
-    and B is an element of sp(2n; C), the Lie-algebra of Sp(2n; C).
-    
-    Parameters
-    ----------
-    X: ndarray
-        An array representing the matrix X.
-        
-    **kwargs
-        Optional keyworded arguments passed to 'lieops.linalg.similarity.symplectic.thm31' routine.
-        
-    Returns
-    -------
-    A: ndarray
-        An array representing the matrix A.
-        
-    B: ndarray
-        An array representing the matrix B.
-    '''
-    U, P = polar(X) # X = U@P with symplectic U and P.
-    logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is 
-    # U is in Sp(n). Therefore we can diagonalize U symplectically:
-    V = thm31(U, **kwargs) # V@U@V.transpose().conj() = D will be diagonal
-    Vi = V.transpose().conj()
-    D = V@U@Vi
-    logD = logm(D) # logD.transpose()@J + J@logD = 0
-    Y = Vi@logD@V
-    return Y, logP

@@ -1,6 +1,7 @@
 import lieops.ops.lie
 from lieops.solver.common import getRealHamiltonFunction
 from lieops.linalg.nf import first_order_nf_expansion
+from lieops.ops.tools import ad2poly
 
 def homological_eq(mu, Z, **kwargs):
     '''
@@ -189,5 +190,11 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     out['order'] = order
     out['lo_power'] = lo_power
     out['max_power'] = max_power
+    
+    if 'C1' in nfdict.keys() and 'C2' in nfdict.keys():
+        # In this case we can also compute the polynomials which provide the transformation to first-order normal form:
+        C1, C2 = nfdict['C1'], nfdict['C2']
+        Cp1, Cp2 = ad2poly(C1), ad2poly(C2)
+        out['chi0'] = [Cp1, Cp2]
         
     return out
