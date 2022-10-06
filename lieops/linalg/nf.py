@@ -44,8 +44,7 @@ def symlogs(X, **kwargs):
         An array representing the matrix B.
     '''
     U, P = polar(X) # X = U@P with symplectic U and P.
-    logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is 
-    # U is in Sp(n). Therefore we can diagonalize U symplectically:
+    logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is in Sp(n). Therefore we can diagonalize U symplectically:
     V = thm31(U, **kwargs) # V@U@V.transpose().conj() = D will be diagonal
     Vi = V.transpose().conj()
     D = V@U@Vi
@@ -93,30 +92,28 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     dict
         Dictionary containing various linear maps. The items of this dictionary are described in the following.
         
-        S: The symplectic map diagonalizing H2 via S.transpose()@D@S = H2, where D is a diagonal matrix.
-        Sinv: The inverse of S, i.e. the symplectic map to (real) normal form.
-        H2: The input in matrix form.
-        T: The (optional) matrix T described above.
-        J: The (original) symplectic structure J' = T.transpose()@J@T within which the input Hamiltonian was formulated.
-            Hereby J is the block-matrix from above.
-        J2: The new symplectic structure for the (xi, eta)-coordinates.
-        U: The unitary map from the S(q, p) = (u, v)-block coordinates to the (xi, eta)-coordinates.
-        Uinv: The inverse of U.
-        K: The linear map transforming (q, p) to (xi, eta)-coordinates. K is given by U@S@T.
-        Kinv: The inverse of K. Hence, it will transform H2 to complex normal form via Kinv.transpose()@H2@Kinv.
-        rnf: The 'real' normal form, by which we understand the diagonalization of H2 relative to the 
-            symplectic matrix S. Note that S might be complex if the Hesse matrix of H2 is not positive definite.
-        cnf: The 'complex' normal form, which is given as the representation of H2 in terms of the complex
-            normalizing (xi, eta)-coordinates (the 'new' complex symplectic structure).
-            
-        A: A complex matrix transforming the underlying Hamiltonian H (whose Hesse-matrix corresponds to H2),
-           given in terms of complex (xi, eta)-coordinates, into normal form N via N = H o A.
-           It holds A = U@Sinv@Uinv. Currently only supported for numpy input.
-           
-        S1, S2: Elements of sp(2n; C) (the Lie-algebra of complex symplectic matrices) satisfying
-           A = exp(S1)@exp(S2). These matrices can be used to obtain respective polynomial representations
-           of the Lie-operator, mapping the given Hamiltonian H into its "first-order" normal form N (see
-           also the commment above). Currently only supported for numpy input.
+        S      : The symplectic map diagonalizing H2 via S.transpose()@D@S = H2, where D is a diagonal matrix.
+        Sinv   : The inverse of S, i.e. the symplectic map to (real) normal form.        
+        H2     : The input in matrix form.
+        T      : The (optional) matrix T described above.
+        J      : The (original) symplectic structure J' = T.transpose()@J@T within which the input Hamiltonian was formulated.
+                 Hereby J is the block-matrix from above.
+        J2     : The new symplectic structure for the (xi, eta)-coordinates.
+        U      : The unitary map from the S(q, p) = (u, v)-block coordinates to the (xi, eta)-coordinates.
+        Uinv   : The inverse of U.
+        K      : The linear map transforming (q, p) to (xi, eta)-coordinates. K is given by U@S@T.
+        Kinv   : The inverse of K. Hence, it will transform H2 to complex normal form via Kinv.transpose()@H2@Kinv.
+        rnf    : The 'real' normal form, by which we understand the diagonalization of H2 relative to the 
+                 symplectic matrix S. Note that S might be complex if the Hesse matrix of H2 is not positive definite.
+        cnf    : The 'complex' normal form, which is given as the representation of H2 in terms of the complex
+                 normalizing (xi, eta)-coordinates (the 'new' complex symplectic structure).
+        A      : A complex matrix transforming the underlying Hamiltonian H (whose Hesse-matrix corresponds to H2),
+                 given in terms of complex (xi, eta)-coordinates, into normal form N via N = H o A.
+                 It holds A = U@Sinv@Uinv. *Currently only returned for numpy input*
+        S1, S2 : Elements of sp(2n; C) (the Lie-algebra of complex symplectic matrices) satisfying
+                 A = exp(S1)@exp(S2). These matrices can be used to obtain respective polynomial representations
+                 of the Lie-operator, mapping the given Hamiltonian H into its "first-order" normal form N (see
+                 also the commment above). *Currently only returned for numpy input*
     ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'

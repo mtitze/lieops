@@ -79,16 +79,29 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     -------
     dict
         A dictionary with the following keys:
-        nfdict: The output of hte first_order_nf_expansion routine.
-        H:      Dictionary denoting the used Hamiltonian.
-        H0:     Dictionary denoting the second-order coefficients of H.
-        mu:     List of the tunes used (coefficients of H0).
-        chi:    List of poly objects, denoting the Lie-polynomials which map to normal form.
-        Hk:     List of poly objects, corresponding to the transformed Hamiltonians.
-        Zk:     List of poly objects, notation see Lem. 1.4.5. in Ref. [1]. 
-        Qk:     List of poly objects, notation see Lem. 1.4.5. in Ref. [1].
+        nfdict : The output of hte first_order_nf_expansion routine.
+        H      : Dictionary denoting the used Hamiltonian.
+        H0     : Dictionary denoting the second-order coefficients of H.
+        mu     : List of the tunes used (coefficients of H0).
+        chi    : List of poly objects, denoting the Lie-polynomials of degree >= 3 which map to normal form.
+        chi0   : List of the two Lie-polynomials of degree 2 which map the given Hamiltonian 
+                 to its first-order normal form. This means that the list "chi0 + chi" performs the 
+                 entire map to the desired normal form (see also the example below). Not supported if mpmath has been used.                 
+        Hk     : List of poly objects, corresponding to the transformed Hamiltonians.
+        Zk     : List of poly objects, notation see Lem. 1.4.5. in Ref. [1]. 
+        Qk     : List of poly objects, notation see Lem. 1.4.5. in Ref. [1].
         
-    Reference(s):
+    Example
+    -------      
+    dict = H1.bnf(order=4)
+    w = H1.copy()
+    for c in dict[chi0] + dict[chi]:
+        w = c.lexp(power=10)(w)
+        print (w.above(1e-12)) # example
+
+        
+    References
+    ----------
     [1]: M. Titze: "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS", PhD Thesis (2019).
     [2]: B. Grebert. "Birkhoff normal form and Hamiltonian PDEs". (2006)
     '''
@@ -155,12 +168,12 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     Zk = lieops.ops.lie.poly(dim=dim, max_power=max_power) # Z_2
     Pk = H.homogeneous_part(3) # P_3
     Hk = H.copy() # H_2 = H
-        
+            
     chi_all, Hk_all = [], [H]
     Zk_all, Qk_all = [], []
     lchi_all = []
     for k in range(3, power + 1):
-        chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power) 
+        chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power)
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
@@ -171,7 +184,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         Zk += Q
         
         lchi_all.append(lchi)
-        chi_all.append(chi)
+        chi_all.append(-chi)
         Hk_all.append(Hk)
         Zk_all.append(Zk)
         Qk_all.append(Q)
@@ -194,7 +207,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     if 'C1' in nfdict.keys() and 'C2' in nfdict.keys():
         # In this case we can also compute the polynomials which provide the transformation to first-order normal form:
         C1, C2 = nfdict['C1'], nfdict['C2']
-        Cp1, Cp2 = ad2poly(C1), ad2poly(C2)
+        Cp1, Cp2 = ad2poly(C1.transpose()), ad2poly(C2.transpose())
         out['chi0'] = [Cp1, Cp2]
         
     return out
