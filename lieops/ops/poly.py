@@ -600,6 +600,7 @@ class _poly:
             The coefficients of the polynomial with respect to the real q and p coordinates.
             The keys correspond to the powers with respect to (q_1, ..., q_dim, p1, ..., p_dim).
         ''' 
+        assert self.dim > 0
         sqrt2 = float(np.sqrt(2))
         q2, p2 = [], []
         for k in range(self.dim):

@@ -85,21 +85,20 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         mu     : List of the tunes used (coefficients of H0).
         chi    : List of poly objects, denoting the Lie-polynomials of degree >= 3 which map to normal form.
         chi0   : List of the two Lie-polynomials of degree 2 which map the given Hamiltonian 
-                 to its first-order normal form. This means that the list "chi0 + chi" performs the 
-                 entire map to the desired normal form (see also the example below). Not supported if mpmath has been used.                 
+                 to its first-order normal form equivalent. This means that the list "chi0 + chi" performs the 
+                 entire map up to the desired order (see also the example below). Not supported if mpmath has been used.                 
         Hk     : List of poly objects, corresponding to the transformed Hamiltonians.
         Zk     : List of poly objects, notation see Lem. 1.4.5. in Ref. [1]. 
         Qk     : List of poly objects, notation see Lem. 1.4.5. in Ref. [1].
         
     Example
     -------      
-    dict = H1.bnf(order=4)
+    nfdict = H1.bnf(order=4)
     w = H1.copy()
-    for c in dict[chi0] + dict[chi]:
+    for c in nfdict['chi0'] + nfdict['chi']:
         w = c.lexp(power=10)(w)
         print (w.above(1e-12)) # example
 
-        
     References
     ----------
     [1]: M. Titze: "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS", PhD Thesis (2019).
