@@ -52,7 +52,7 @@ def symlogs(X, **kwargs):
     Y = Vi@logD@V
     return Y, logP
 
-def normal_form(H2, T=[], mode='default', check=True, **kwargs):
+def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
     r'''
     Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
@@ -131,11 +131,12 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
     if check:
         # consistency check: H2@J must be diagonalizable in order that the normal form can be computed.
         # Since computing the Jordan normal form is numerically unstable, we use sympy for this.
+        # Note that this will only work for dim = 1 or dim = 2.
         J_symp = sympy_matrix(J)
         G_symp = sympy_matrix(H2)
         P_symp, JNF = (G_symp@J_symp).jordan_form()
         if not JNF.is_diagonal():
-            raise RuntimeError('Jordan normal form of H2@J not diagonal (check: True).')
+            raise RuntimeError('Jordan normal form of H2@J not diagonal.')
             
     if mode == 'new':
         # will become the default in future; TODO: some tests are failing
@@ -217,7 +218,7 @@ def normal_form(H2, T=[], mode='default', check=True, **kwargs):
         # Note that due to the nature of the matrix U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
     return out
 
-def first_order_nf_expansion(H, power: int=2, z=[], check: bool=True, n_args: int=0, tol: float=1e-14,
+def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: int=0, tol: float=1e-14,
                              code='numpy', **kwargs):
     '''
     Return the Taylor-expansion of a Hamiltonian H in terms of first-order complex normal form coordinates

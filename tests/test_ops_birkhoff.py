@@ -152,17 +152,21 @@ def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
 # Tests #
 #########
 
-@pytest.mark.parametrize("dim, power", [(1, 5)])
-def test_bnf(dim, power, tol=1e-14, tol2=1e-4, symlogs_tol2=1e-12):
+@pytest.mark.parametrize("dim, power, check", [(1, 5, True)])
+def test_bnf(dim, power, check, tol=1e-14, tol2=1e-4, symlogs_tol2=1e-12):
     '''
     Test of the Birkhoff normal form routine, applied to a random polynomial.
+    
+    check: Parameter to be passed to bnf routine; for example, it will check if G@J can be diagonalized, where
+           G is the Hesse-matrix of the normal form at the point of interest. Since sympy is used,
+           this works only for dim = 1 or dim = 2.
     '''
     # Attention: This test currently gets slow for dim > 1; Jordan normal form needs to be implemented
     # for dim >= 3 or check needs to be removed (TODO)
     r1 = create_random_poly(dim, power)
     H1 = r1.extract(key_cond=lambda k: sum(k) > 1) # drop constants and gradients
 
-    bnfdict1 = H1.bnf(order=power - 1, symlogs_tol2=symlogs_tol2)
+    bnfdict1 = H1.bnf(order=power - 1, symlogs_tol2=symlogs_tol2, check=check)
     A = bnfdict1['nfdict']['A']
     C1, C2 = bnfdict1['nfdict']['C1'], bnfdict1['nfdict']['C2']
     assert (np.abs(A - expm(C1)@expm(C2)) < tol).all()
@@ -197,7 +201,7 @@ def test_bnf_diagonalization(tol=5e-15, **kwargs):
                 (4, 1): (4.935918019596501e-05-6.548455672129347e-05j),
                 (2, 3): (9.871836039193003e-05+4.365637114752898e-05j),
                 (5, 0): (9.871836039193e-06-2.1828185573764483e-05j)})
-    bnfdict = heff.bnf(order=3, **kwargs)
+    bnfdict = heff.bnf(order=3, check=True, **kwargs)
     assert all([abs(v) for v in (heff - bnfdict['H']).values()])
     
     

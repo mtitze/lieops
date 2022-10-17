@@ -71,14 +71,14 @@ def fonfe(tol=1e-14, code='numpy', **kwargs):
     
     # compute expansion up to 3rd order:
     H = lambda x, y, px, py: 0.24*(x**2 + px**2) + 0.86*(y**2 + py**2) + x**3 - y**3 - sin(x + 9*x**4*y + 0.2*px*y + 0.411*x*y - 0.378*px*x - 0.039*x*py + 1.2*y*py + 0.13*py*px) + x
-    he, he_dict = first_order_nf_expansion(H, order=3, warn=True, code=code, **kwargs)
+    he, he_dict = first_order_nf_expansion(H, order=3, warn=True, code=code, check=True, **kwargs)
     
     # compute expansion of the same Hamiltonian, but with respect to an alternative symplectic structure, up to third order:
     T = expandingSum(2)
     if code == 'mpmath':
         T = mp.matrix(T)
     HT = lambda x, px, y, py: H(x, y, px, py)
-    heT, heT_dict = first_order_nf_expansion(HT, order=3, warn=True, T=T, code=code, **kwargs)
+    heT, heT_dict = first_order_nf_expansion(HT, order=3, warn=True, T=T, code=code, check=True, **kwargs)
     
     assert check_2nd_orders(he, dim=2, tol=tol)
     assert check_2nd_orders(heT, dim=2, tol=tol)
@@ -94,7 +94,7 @@ def exp_ad2(mu=0.6491, power=40, tol=1e-14, max_power=10, code='mpmath', dps=32,
     # and therefore requires mpmath to have sufficient precision (and sufficiently high power in exp).
     
     H2 = lambda x, px: mu*0.5*(x**2 + px**2) + x**3 + x*px**4
-    expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, dps=dps, **kwargs)
+    expansion, nfdict = first_order_nf_expansion(H2, order=5, warn=True, code=code, dps=dps, check=True, **kwargs)
     HLie = poly(values=expansion, max_power=max_power)
     K = nfdict['K']
     xieta = create_coords(1, max_power=max_power)
