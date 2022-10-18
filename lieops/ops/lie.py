@@ -197,6 +197,8 @@ class lieoperator:
             A list containing the flow of every component function of the Lie-operator.
         ''' 
         if method == 'bruteforce':
+            if 'power' in kwargs.keys():
+                self.set_generator(kwargs['power'])
             self.flow = BFcalcFlow(lo=self, **kwargs)
         else:
             raise NotImplementedError(f"method '{method}' not recognized.")
@@ -385,9 +387,6 @@ class lexp(lieoperator):
         return self.__class__(self.argument*power, **outp_kwargs)
             
     def calcFlow(self, method='bruteforce', **kwargs):
-        '''
-        See lieops.ops.lie.calcFlow for a description.
-        '''
         if method == '2flow':
             # if self.argument has order <= 2, one can compute the flow exactly
             updated = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if a parameters has been changed at a later point.

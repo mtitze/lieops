@@ -176,7 +176,12 @@ def test_bnf(dim, power, check, tol=1e-14, tol2=1e-4, symlogs_tol2=1e-12):
     Hcheck = lambda *z: H1(*[sum([z[j]*A[i, j] for j in range(dim2)]) for i in range(dim2)])
     dHcheck = derive(Hcheck, n_args=dim2, order=2)
     dHcheck_at_0 = dHcheck(*[0]*dim2)
-    assert all([abs(v) < tol for k, v in dHcheck_at_0.items() if k != (1, 1)])
+    non_zero_keys = [tuple([1 if j == k or j == k + dim else 0 for j in range(dim2)]) for k in range(dim)]
+    # non_zero_keys consist of those tuples for which the first-order normal form must be non-zero. For example,
+    # if dim = 2 then we have (1, 0, 1, 0) and (0, 1, 0, 1), corresponding to the polynomials xi_1*eta_1 and xi_2*eta_2.
+    assert all([abs(v) < tol for k, v in dHcheck_at_0.items() if k not in non_zero_keys])
+    for k in non_zero_keys:
+        assert abs(dHcheck_at_0[k] - bnfdict1['H0'][k]) < tol
     
     
 def test_bnf_diagonalization(tol=5e-15, **kwargs):

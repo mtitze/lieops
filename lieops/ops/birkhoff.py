@@ -1,5 +1,3 @@
-from tqdm import tqdm
-
 import lieops.ops.lie
 from lieops.solver.common import getRealHamiltonFunction
 from lieops.linalg.nf import first_order_nf_expansion
@@ -172,11 +170,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     chi_all, Hk_all = [], [H]
     Zk_all, Qk_all = [], []
     lchi_all = []
-    # use a progress bar 'tqdm' instead of range(3, power + 1) to show the progress
-    pbar = tqdm(range(3, power + 1), 
-                leave=kwargs.get('leave_tqdm', True), 
-                disable=kwargs.get('disable_tqdm', False))
-    for k in pbar:
+    for k in range(3, power + 1):
         chi, Q = homological_eq(mu=mu, Z=Pk, max_power=max_power)
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
