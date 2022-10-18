@@ -6,6 +6,7 @@ from njet.jet import factorials
 
 from lieops.ops.magnus import forests, fast_hard_edge_chain
 from lieops.ops.lie import combine, create_coords, lexp, poly
+from lieops.ops.bch import bruteforce
 
 def number_of_graphs(order):
     '''
@@ -39,56 +40,6 @@ def compare_polymul_results(result, reference, index, tol=1e-15):
         adiff = max([abs(e) for e in diff])
         assert adiff < tol, f'Difference: {adiff} > {tol} (tol).'
 
-def nc(*args):
-    '''
-    Returns the nested commutator expression (sometimes called Chibrikov basis)
-    x1@(x2@(x3@(x4@ .... )))
-    '''
-    out = args[-1]
-    for x in args[len(args) - 2::-1]:
-        out = x@out
-    return out
-
-def bch(x, y):
-    '''
-    Compute the explicit commutators of the Baker-Campbell-Hausdorff series for
-    orders up and including 7.
-    '''
-    result = {}
-    result[1] = x + y
-    result[2] = 0.5*(x@y)
-    result[3] = 1/12*(nc(x, x, y) + nc(y, y, x))
-    result[4] = -1/24*nc(y, x, x, y)
-    #result[5] = 1/180*nc(y, y, x, x, y) - 1/360*(x@y)@nc(y, x, y) - 1/180*nc(y, x, x, x, y) - 1/120*(x@y)@nc(x, x, y) + 1/720*nc(y, y, y, x, y) - 1/720*nc(x, x, x, x, y)
-    result[5] = -1/720*(nc(y, y, y, y, x) + nc(x, x, x, x, y)) + \
-                1/360*(nc(x, y, y, y, x) + nc(y, x, x, x, y)) + \
-                1/120*(nc(y, x, y, x, y) + nc(x, y, x, y, x))
-    # From Wiki (fails at symmetry test!)
-    #result[6] = 1/240*nc(x, y, x, y, x, y) + \
-    #            1/720*(nc(x, y, x, x, x, y) - nc(x, x, y, y, x, y)) + \
-    #            1/1440*(nc(x, y, y, y, x, y) - nc(x, x, y, x, x, y))
-    # Instead, we will use the results from the BCH routine of H. Hofstaetter (https://github.com/HaraldHofstaetter/BCH)
-    result[6] = -1/1440*nc(y, x, x, x, y, x) + 1/720*nc(y, y, x, x, y, x) - 1/240*nc(y, x, y, x, y, x) + 1/1440*nc(y, y, y, x, y, x) - 1/720*nc(y, x, y, y, y, x)
-    result[7] = -1/30240 * nc(x, x, x, x, x, y, x) + \
-                 1/10080 * nc(y, x, x, x, x, y, x) - \
-                 1/10080 * nc(x, y, x, x, x, y, x) - \
-                 1/3360  * nc(y, y, x, x, x, y, x) - \
-                 1/5040 *  nc(x, x, y, x, x, y, x) + \
-                 1/1260 *  nc(y, x, y, x, x, y, x) + \
-                 1/7560 *  nc(x, y, y, x, x, y, x) - \
-                 1/7560 *  nc(y, y, y, x, x, y, x) + \
-                 1/10080 * nc(x, x, y, y, x, y, x) - \
-                 1/1008 *  nc(x, y, x, y, x, y, x) + \
-                 1/3360 *  nc(y, y, x, y, x, y, x) + \
-                 1/1680 *  nc(y, x, y, y, x, y, x) - \
-                 1/3360 *  nc(x, y, y, y, x, y, x) - \
-                 1/10080 * nc(y, y, y, y, x, y, x) - \
-                 1/5040 *  nc(x, y, x, y, y, y, x) + \
-                 1/2520 *  nc(y, y, x, y, y, y, x) - \
-                 1/10080 * nc(x, y, y, y, y, y, x) + \
-                 1/30240 * nc(y, y, y, y, y, y, x)
-    return result
-
 def bch_symmetry_c(x, y, order, tol=1e-10):
     '''
     Let Z(X, Y) be the result of the Baker-Campbell-Hausdorff series:
@@ -120,7 +71,7 @@ def bch_vs_reference(x, y, result, tol=1e-11):
     Check combine(x, y) vs. the prediction from the clasical Baker-Campbell-Hausdorff equation
     for orders up and including 7.
     '''
-    reference = bch(x, y)
+    reference = bruteforce(x, y)
     for r in result.keys():
         if r == 0:
             continue
@@ -383,10 +334,10 @@ def test_associativity_vs_bch(max_power=10, tol=5e-10):
     abc_2, _, _ = combine(a, sum(bc.values()), power=power, time=False)
     diff = sum(abc_1.values()) - sum(abc_2.values())
     
-    ref_ab = sum(bch(a, b).values())
-    ref_abc_1 = sum(bch(ref_ab, c).values())
-    ref_bc = sum(bch(b, c).values())
-    ref_abc_2 = sum(bch(a, ref_bc).values())
+    ref_ab = sum(bruteforce(a, b).values())
+    ref_abc_1 = sum(bruteforce(ref_ab, c).values())
+    ref_bc = sum(bruteforce(b, c).values())
+    ref_abc_2 = sum(bruteforce(a, ref_bc).values())
     
     assert abc_1.keys() == abc_2.keys()
     ref_diff = ref_abc_1 - ref_abc_2

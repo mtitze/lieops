@@ -1,0 +1,1 @@
+from .bruteforce import bch as bruteforce
