@@ -231,5 +231,5 @@ def action_on_poly(*mu, C, func=lambda z: z):
         A function f so that f(X) is applied instead.
     '''
     assert len(mu) == C.dim
-    return poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
+    return lieops.ops.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
                 dim=C.dim, max_power=C.max_power)
