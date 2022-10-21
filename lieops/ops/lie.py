@@ -3,7 +3,7 @@ import numpy as np
 from njet import derive
 from lieops.linalg.nf import first_order_nf_expansion
 
-from .genfunc import genexp
+from .generators import genexp
 from .magnus import fast_hard_edge_chain, hard_edge, hard_edge_chain, norsett_iserles
 from .poly import _poly
 

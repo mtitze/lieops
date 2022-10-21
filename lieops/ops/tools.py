@@ -1,11 +1,7 @@
 # collection of specialized tools operating on polynomials
 
 import numpy as np
-from scipy.linalg import expm
-
 import lieops.ops.lie
-from lieops.linalg.matrix import adjoint, vecmat, matvec
-
 
 def poly2ad(pin):
     '''
@@ -214,94 +210,26 @@ def ad3poly(A, **kwargs):
         p2 += xieta[k + dim]*eta_k_coeff
     return p2
 
-def get_2flow(ham, tol=1e-12):
+def action_on_poly(*mu, C, func=lambda z: z):
     '''
-    Compute the exact flow of a 2nd-order Hamiltonian, for polynomials up to second-order.
-    I.e. compute the solution of
-        dz/dt = {H, z}, z(0) = p,
-    where { , } denotes the poisson bracket, H the requested Hamiltonian.
-    Hereby p must be a polynomial of order <= 2.
+    The poisson bracket of the polynomial X := sum_k mu_k epsilon_k 
+    (notation as in Ref. [1]), where
+    epsilon_k denotes the k-th action and mu_k the k-th tune, and some arbitrary polynomial C
+    can be computed directly due to the fact that the xi/eta-coordinates are an "eigenbasis" of X.
+    
+    This routine will perform the computation and return the respective result polynomial.
     
     Parameters
     ----------
-    ham: poly
-        A polynomial of order <= 2.
+    mu: float (or complex)
+        The tunes of the action-operator
+    
+    C: poly
+        The polynomial on which the action operator should be applied.
         
-    tol: float, optional
-        A tolerance to check whether the adjoint matrix of the matrix-representation of the given Hamiltonian
-        admits an invertible matrix of eigenvalues according to np.linalg.eig. In this case, one can use
-        fast matrix multiplication in the resulting flow. Otherwise we have to rely on scipy.linalg.expm.
+    func: callable (optional)
+        A function f so that f(X) is applied instead.
     '''
-    poisson_factor = ham._poisson_factor
-    
-    Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
-    adHmat = adjoint(Hmat) # adHmat: (m**2)x(m**2)-matrix; m := 2n + 1
-    
-    # Alternative:
-    evals, M = np.linalg.eig(adHmat)
-    check = abs(np.linalg.det(M)) < tol
-    if check:
-        # in this case we have to rely on a different method to calculate the matrix exponential.
-        # for the time being we shall use scipy's expm routine.
-        expH = expm(adHmat)
-    else:
-        Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = adHmat holds.
-        # compute the exponential exp(t*adHmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
-        expH = M@np.diag(np.exp(evals))@Mi
-    
-    # Let Y be a (m**2)-vector (or (m**2)x(m**2)-matrix) and @ the composition
-    # with respect to the (m**2)-dimensional space. Then
-    # d/dt (exp(t*adHmat)@Y) = adHmat@exp(t*adHmat)@Y, so that
-    # Z := exp(t*adHmat)@Y solves the differential equation
-    # dZ/dt = adHmat@Z with Z(0) = Y.
-    #
-    # In the case that Y was a vector (and so Z), then we can write Z = vecmat(z) for
-    # a suitable (m)x(m)-matrix z.
-    # By exchanging differentiation d/dt and vecmat we then obtain:
-    # vecmat(dz/dt) = adjoint(Hmat)@vecmat(z) = vecmat(Hmat@z - z@Hmat),
-    # Consequently:
-    # dz/dt = Hmat@z - z@Hmat = [Hmat, z],
-    # where the [ , ] denotes the commutator of matrices.
-    # Hereby vectmat(y) = Y = Z(0) = vectmat(z(0)), i.e. y = z(0) for the respective
-    # start conditions, with (m)x(m)-matrix y.
-    #
-    # Using this notation, we define the flow function as follows:
-    def flow(p, t=1, **kwargs):
-        '''
-        Compute the solution z so that
-        dz/dt = {H, z}, z(0) = p,
-        where { , } denotes the poisson bracket, H the requested Hamiltonian.
-        Hereby p must be a polynomial of order <= 2.
-        
-        The solution thus corresponds to
-        z(t) = exp(t:H:)p
-
-        Parameters
-        ----------
-        p: poly
-            The start polynomial of order <= 2.
-            
-        t: float, optional
-            An optional parameter to control the flow (see above).
-        '''
-        if not isinstance(p, lieops.ops.lie.poly):
-            return p
-        
-        assert poisson_factor == p._poisson_factor, 'Hamiltonian and given polynomial are instantiated with respect to different poisson structures.'
-        
-        if t != 1:
-            if check:
-                expH_t = expm(t*adHmat)
-            else:
-                expH_t = M@np.diag(np.exp(t*evals))@Mi                
-        else:
-            expH_t = expH
-        p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
-        p1 = p.extract(key_cond=lambda x: sum(x) >= 1)
-        result = p0
-        if len(p1) > 0:
-            Y = vecmat(poly3ad(p1))
-            Z = expH_t@Y
-            result += ad3poly(matvec(Z), poisson_factor=poisson_factor)
-        return result
-    return flow
+    assert len(mu) == C.dim
+    return poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
+                dim=C.dim, max_power=C.max_power)
