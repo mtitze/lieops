@@ -7,7 +7,7 @@ from .generators import genexp
 from .magnus import fast_hard_edge_chain, hard_edge, hard_edge_chain, norsett_iserles
 from .poly import _poly
 
-from lieops.solver import heyoka
+from lieops.solver import heyoka, get_2flow
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 import lieops.ops.tools
@@ -392,7 +392,7 @@ class lexp(lieoperator):
             # if self.argument has order <= 2, one can compute the flow exactly
             updated = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if a parameters has been changed at a later point.
             if not hasattr(self, '_2flow'):
-                self._2flow = lieops.ops.tools.get_2flow(self.argument, tol=kwargs.get('tol', 1e-12))
+                self._2flow = get_2flow(self.argument, tol=kwargs.get('tol', 1e-12))
                 self._2flow_xieta = create_coords(self.argument.dim)
                 # apply self._2flow on the individual xi/eta-coordinates. They will be used
                 # later on, for each of the given components, using the pull-back property of the flow
