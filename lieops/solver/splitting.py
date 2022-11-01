@@ -162,3 +162,4 @@ def recursive_monomial_split(*hamiltonians, scheme):
         return recursive_monomial_split(*new_hamiltonians, scheme=scheme)
     else:
         return new_hamiltonians
+    

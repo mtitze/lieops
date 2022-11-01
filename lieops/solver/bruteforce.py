@@ -51,7 +51,7 @@ def calcOrbits(lo, **kwargs):
     list
         A list containing the actions [(g[n]*:x:**n)(y) for n=0, ..., N] (see lieops.solver.bruteforce.action routine) as elements, 
         where y is running over the requested Lie-operator components.
-    '''
+    ''' 
     return [action(lo, y) for y in kwargs.get('components', lo.components)] # orbits: A list of lists
 
 def calcFlow(t=1, **kwargs):
@@ -70,7 +70,7 @@ def calcFlow(t=1, **kwargs):
     -------
     list
         A list containing the flow of every component function of the Lie-operator.
-    '''    
+    '''
     if not 'orbits' in kwargs.keys():
         assert 'lo' in kwargs.keys(), "Flow calculation without 'orbits' parameter requires lieoperator parameter 'lo' to be set."
         orbits = calcOrbits(**kwargs)

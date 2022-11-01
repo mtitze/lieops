@@ -7,7 +7,8 @@ from .generators import genexp
 from .magnus import fast_hard_edge_chain, hard_edge, hard_edge_chain, norsett_iserles
 from .poly import _poly
 
-from lieops.solver import heyoka, get_2flow
+from lieops.solver import heyoka, get_2flow, channell
+from lieops.solver.splitting import recursive_monomial_split
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 import lieops.ops.tools
@@ -176,7 +177,7 @@ class lieoperator:
             raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1
      
-    def calcFlow(self, method='bruteforce', update=True, **kwargs):
+    def calcFlow(self, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
         
@@ -195,15 +196,19 @@ class lieoperator:
         -------
         list
             A list containing the flow of every component function of the Lie-operator.
-        ''' 
-        if method == 'bruteforce':
-            self.flow = BFcalcFlow(lo=self, **kwargs)
-        else:
-            raise NotImplementedError(f"method '{method}' not recognized.")
-        if update:
-            _ = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if t has been changed at a later point.
+        '''
+        updated = self._update_flow_parameters(**kwargs)
+        if not updated and hasattr(self, 'flow'):
+            return
+        self.calcFlowByMethod(**kwargs)
         
-    def _update_flow_parameters(self, **kwargs):
+    def calcFlowByMethod(self, **kwargs):
+        if self._flow_parameters['method'] == 'bruteforce':
+            self.flow = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
+        else:
+            raise NotImplementedError(f"method '{self._flow_parameters['method']}' not recognized.")
+        
+    def _update_flow_parameters(self, updated=False, **kwargs):
         '''
         Update self._flow_parameters if necessary; return boolean if they have been updated 
         (and therefore self.flow may have to be re-calculated).
@@ -211,7 +216,6 @@ class lieoperator:
         This internal routine is indended to help in speeding up flow calculations, so that the flow
         is only calculated if parameters have been changed.
         '''
-        updated = False
         if 't' in kwargs.keys():
             if self._flow_parameters['t'] != kwargs['t']:
                 self._flow_parameters['t'] = kwargs['t']
@@ -220,6 +224,12 @@ class lieoperator:
         if 'method' in kwargs.keys():
             if self._flow_parameters['method'] != kwargs['method']:
                 self._flow_parameters['method'] = kwargs['method']
+                updated = True
+                
+        if 'components' in kwargs.keys():
+            # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
+            if any([next(iter(self.components[k:]), None) != kwargs['components'][k] for k in range(len(kwargs['components']))]):
+                self.components = kwargs['components']
                 updated = True
         return updated
 
@@ -237,9 +247,7 @@ class lieoperator:
         list
             The values (g(t:x:)y)(z) for y in self.components.
         '''
-        params_updated = self._update_flow_parameters(**kwargs)
-        if params_updated or not hasattr(self, 'flow'):
-            self.calcFlow(update=~params_updated, **kwargs)
+        self.calcFlow(**kwargs)
         return [self.flow[k](*z) for k in range(len(self.flow))]
 
     def __call__(self, *z, **kwargs):
@@ -268,7 +276,7 @@ class lieoperator:
         '''
         if isinstance(z[0], poly):
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
-            self.calcFlow(components=z, **kwargs)#
+            self.calcFlow(components=z, **kwargs)
             result = self.flow
             if len(result) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
                 result = result[0]
@@ -334,6 +342,15 @@ class lexp(lieoperator):
         self.generator = genexp(power)
         self.power = len(self.generator) - 1
         
+    def _update_flow_parameters(self, **kwargs):
+        updated = False
+        if 'power' in kwargs.keys():
+            # if the user is giving the routine a 'power' argument, it will be assumed that the bruteforce method should be used with respect to the given power. Therefore:
+            self.set_generator(kwargs['power'])
+            self._flow_parameters['method'] = 'bruteforce'
+            updated = True
+        return lieoperator._update_flow_parameters(self, updated=updated, **kwargs)
+        
     def bch(self, *z, bch_sign=-1, **kwargs):
         '''
         Compute the composition of the current Lie operator exp(:x:) with other ones exp(:y_1:),
@@ -384,24 +401,27 @@ class lexp(lieoperator):
             outp_kwargs = {'power': self.power}
         return self.__class__(self.argument*power, **outp_kwargs)
             
-    def calcFlow(self, method='bruteforce', **kwargs):
-        if 'power' in kwargs.keys():
-            self.set_generator(kwargs['power'])
+    def calcFlowByMethod(self, **kwargs):
+        if self._flow_parameters['method'] == '2flow':
+            # if self.argument has order <= 2, one can compute the flow exactlyen changed at a later point.
+            self._2flow = get_2flow(self.argument*self._flow_parameters['t'], 
+                                        tol=kwargs.get('tol', 1e-12))
+            self._2flow_xieta = create_coords(self.argument.dim)
+            # apply self._2flow on the individual xi/eta-coordinates. They will be used
+            # later on, for each of the given components, using the pull-back property of the flow
+            self._2flow_xietaf = [self._2flow(xieta, **kwargs) for xieta in self._2flow_xieta]
+            self.flow = [c(*self._2flow_xietaf) for c in kwargs.get('components', self.components)]
             
-        if method == '2flow':
-            # if self.argument has order <= 2, one can compute the flow exactly
-            updated = self._update_flow_parameters(**kwargs) # update _flow_parameters; attention, this step is important, otherwise the code may not update the flow if a parameters has been changed at a later point.
-            if not hasattr(self, '_2flow'):
-                self._2flow = get_2flow(self.argument, tol=kwargs.get('tol', 1e-12))
-                self._2flow_xieta = create_coords(self.argument.dim)
-                # apply self._2flow on the individual xi/eta-coordinates. They will be used
-                # later on, for each of the given components, using the pull-back property of the flow
-            if not hasattr(self, '_2flow_xietaf') or updated:
-                self._2flow_xietaf = [self._2flow(xe, **kwargs) for xe in self._2flow_xieta]
-            components = kwargs.get('components', self.components)
-            self.flow = [c(*self._2flow_xietaf) for c in components]
+        elif self._flow_parameters['method'] == 'yoshida':       
+            self._yoshida_scheme = kwargs.get('yoshida_scheme', [0.5, 1, 0.5])
+            self._yoshida_split = recursive_monomial_split(self.argument*self._flow_parameters['t'], scheme=self._yoshida_scheme)
+            self._yoshida_flow = channell(self._yoshida_split)
+            max_power = kwargs.get('max_power', min([self.argument.maxdeg(), self.argument.max_power]))
+            self._yoshida_dflow = derive(lambda *z: self._yoshida_flow(*z), n_args=self.n_args, order=max_power)
+            self._yoshida_xietaf = [poly(values=c) for c in self._yoshida_dflow(*[0]*self.n_args)]
+            self.flow = [c(*self._yoshida_xietaf) for c in kwargs.get('components', self.components)]
         else:
-            lieoperator.calcFlow(self, **kwargs)
+            lieoperator.calcFlowByMethod(self, **kwargs)
         
     
 def combine(*args, power: int, mode='default', **kwargs):
