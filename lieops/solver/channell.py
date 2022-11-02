@@ -118,9 +118,7 @@ def get_monomial_flow(hamiltonian):
     monomial = hamiltonian*hamiltonian._poisson_factor
     powers = list(monomial.keys())[0] # The tuple representing the powers of the Hamiltonian.
     value = monomial[powers] # The coefficient in front of the Hamiltonian.
-    
     dim = monomial.dim
-    dim2 = dim*2
     
     def monomial_flow(*z):
         A = productExceptSelf([z[k]**powers[k]*z[k + dim]**powers[k + dim] for k in range(dim)])
@@ -181,7 +179,8 @@ def flow(monomials, **kwargs):
     dim = monomials[0].dim
         
     # initialize & compute the individual flow functions
-    flows = [get_monomial_flow(-h) for h in monomials] # the minus sign is required due to the fact that exp(:h:) has a flow belonging to -h.
+    flows = [get_monomial_flow(-h) for h in monomials] # the -h is due to the fact that the flow
+    # of the hamiltonian h is given by exp(-:h:)
     
     # define the flow functions of the composition
     def fc(*z):

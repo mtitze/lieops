@@ -70,6 +70,29 @@ class poly(_poly):
         kwargs['max_power'] = kwargs.get('max_power', self.max_power)
         return lieops.ops.birkhoff.bnf(self, order=order, power=power, n_args=self.dim*2, **kwargs)
     
+    def calcFlow(self, *args, **kwargs):
+        '''
+        Compute the flow of the current Lie polynomial. Shortcut for self.lexp and then calcFlow on
+        the respective object.
+        
+        Parameters
+        ----------
+        *args
+            Optional arguments passed to self.lexp.
+            
+        **kwargs
+            Optional keyworded arguments passed to self.lexp and lieoperator.calcFlow.
+            
+        Returns
+        -------
+        lo, lexp
+            A lexp (lieoperator) object, containing the flow function of the current Lie polynomial
+            in one of its fields.
+        '''
+        lo = self.lexp(*args, **kwargs)
+        lo.calcFlow(**kwargs)
+        return lo
+    
 def create_coords(dim, real=False, **kwargs):
     '''
     Create a set of complex (xi, eta)-Lie polynomials for a given dimension.
@@ -180,6 +203,7 @@ class lieoperator:
     def calcFlow(self, **kwargs):
         '''
         Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
+        The result will be written to self.flow.
         
         Parameters
         ----------
@@ -187,28 +211,23 @@ class lieoperator:
             The method to be applied in calculating the flow.
             
         update: boolean, optional
-            An internal switch to update the current flow parameters which were used in the flow calculation.
+            An internal switch to force the calculation of the current flow (default=True).
             
         **kwargs
             Optional arguments passed to flow subroutines.
-            
-        Returns
-        -------
-        list
-            A list containing the flow of every component function of the Lie-operator.
         '''
-        updated = self._update_flow_parameters(**kwargs)
-        if not updated and hasattr(self, 'flow'):
+        update = self._update_flow_parameters(**kwargs)
+        if not update and hasattr(self, 'flow'):
             return
-        self.calcFlowByMethod(**kwargs)
+        self._calcFlowFromParameters(**kwargs)
         
-    def calcFlowByMethod(self, **kwargs):
+    def _calcFlowFromParameters(self, **kwargs):
         if self._flow_parameters['method'] == 'bruteforce':
             self.flow = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
         else:
             raise NotImplementedError(f"method '{self._flow_parameters['method']}' not recognized.")
         
-    def _update_flow_parameters(self, updated=False, **kwargs):
+    def _update_flow_parameters(self, update=True, **kwargs):
         '''
         Update self._flow_parameters if necessary; return boolean if they have been updated 
         (and therefore self.flow may have to be re-calculated).
@@ -219,19 +238,19 @@ class lieoperator:
         if 't' in kwargs.keys():
             if self._flow_parameters['t'] != kwargs['t']:
                 self._flow_parameters['t'] = kwargs['t']
-                updated = True
+                update = True
                 
         if 'method' in kwargs.keys():
             if self._flow_parameters['method'] != kwargs['method']:
                 self._flow_parameters['method'] = kwargs['method']
-                updated = True
+                update = True
                 
         if 'components' in kwargs.keys():
             # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
             if any([next(iter(self.components[k:]), None) != kwargs['components'][k] for k in range(len(kwargs['components']))]):
                 self.components = kwargs['components']
-                updated = True
-        return updated
+                update = True
+        return update
 
     def evaluate(self, *z, **kwargs):
         '''
@@ -342,14 +361,13 @@ class lexp(lieoperator):
         self.generator = genexp(power)
         self.power = len(self.generator) - 1
         
-    def _update_flow_parameters(self, **kwargs):
-        updated = False
+    def _update_flow_parameters(self, update=False, **kwargs):
         if 'power' in kwargs.keys():
             # if the user is giving the routine a 'power' argument, it will be assumed that the bruteforce method should be used with respect to the given power. Therefore:
             self.set_generator(kwargs['power'])
             self._flow_parameters['method'] = 'bruteforce'
-            updated = True
-        return lieoperator._update_flow_parameters(self, updated=updated, **kwargs)
+            update = True
+        return lieoperator._update_flow_parameters(self, update=update, **kwargs)
         
     def bch(self, *z, bch_sign=-1, **kwargs):
         '''
@@ -401,7 +419,7 @@ class lexp(lieoperator):
             outp_kwargs = {'power': self.power}
         return self.__class__(self.argument*power, **outp_kwargs)
             
-    def calcFlowByMethod(self, **kwargs):
+    def _calcFlowFromParameters(self, **kwargs):
         if self._flow_parameters['method'] == '2flow':
             # if self.argument has order <= 2, one can compute the flow exactlyen changed at a later point.
             self._2flow = get_2flow(self.argument*self._flow_parameters['t'], 
@@ -421,7 +439,7 @@ class lexp(lieoperator):
             self._yoshida_xietaf = [poly(values=c) for c in self._yoshida_dflow(*[0]*self.n_args)]
             self.flow = [c(*self._yoshida_xietaf) for c in kwargs.get('components', self.components)]
         else:
-            lieoperator.calcFlowByMethod(self, **kwargs)
+            lieoperator._calcFlowFromParameters(self, **kwargs)
         
     
 def combine(*args, power: int, mode='default', **kwargs):
