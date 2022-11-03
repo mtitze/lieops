@@ -202,7 +202,7 @@ class lieoperator:
      
     def calcFlow(self, **kwargs):
         '''
-        Compute the Lie operators [g(t:x:)]y for a given parameter t, for every y in self.components.
+        Compute the function(s) [g(t:x:)]y for a given parameter t, for every y in self.components.
         The result will be written to self.flow.
         
         Parameters
@@ -267,7 +267,12 @@ class lieoperator:
             The values (g(t:x:)y)(z) for y in self.components.
         '''
         self.calcFlow(**kwargs)
-        return [self.flow[k](*z) for k in range(len(self.flow))]
+        if hasattr(self.flow, '__getitem__'):
+            # We assume that self.flow is a set of functions for each coordinate
+            return [self.flow[k](*z) for k in range(len(self.flow))]
+        else:
+            # We assume that self.flow returns a list
+            return self.flow(*z)
 
     def __call__(self, *z, **kwargs):
         '''
@@ -297,7 +302,7 @@ class lieoperator:
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
             self.calcFlow(components=z, **kwargs)
             result = self.flow
-            if len(result) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
+            if len(z) == 1 and hasattr(result, '__getitem__'): # if the input was a single element, naturally return a single element as well (and not a list of length 1)
                 result = result[0]
             return result
         
@@ -326,7 +331,10 @@ class lieoperator:
             kwargs['generator'] = self.generator
         out = self.__class__(self.argument, **kwargs)
         if hasattr(self, 'flow'):
-            out.flow = [l.copy() for l in self.flow]
+            if hasattr(self.flow, '__getitem__'):
+                out.flow = [l.copy() for l in self.flow]
+            else:
+                out.flow = self.flow
         return out
 
     
@@ -422,9 +430,9 @@ class lexp(lieoperator):
     def _calcFlowFromParameters(self, **kwargs):
         if self._flow_parameters['method'] == '2flow':
             # if self.argument has order <= 2, one can compute the flow exactlyen changed at a later point.
+            self._2flow_xieta = create_coords(self.argument.dim)
             self._2flow = get_2flow(self.argument*self._flow_parameters['t'], 
                                         tol=kwargs.get('tol', 1e-12))
-            self._2flow_xieta = create_coords(self.argument.dim)
             # apply self._2flow on the individual xi/eta-coordinates. They will be used
             # later on, for each of the given components, using the pull-back property of the flow
             self._2flow_xietaf = [self._2flow(xieta, **kwargs) for xieta in self._2flow_xieta]
@@ -433,11 +441,7 @@ class lexp(lieoperator):
         elif self._flow_parameters['method'] == 'yoshida':       
             self._yoshida_scheme = kwargs.get('yoshida_scheme', [0.5, 1, 0.5])
             self._yoshida_split = recursive_monomial_split(self.argument*self._flow_parameters['t'], scheme=self._yoshida_scheme)
-            self._yoshida_flow = channell(self._yoshida_split)
-            max_power = kwargs.get('max_power', min([self.argument.maxdeg(), self.argument.max_power]))
-            self._yoshida_dflow = derive(lambda *z: self._yoshida_flow(*z), n_args=self.n_args, order=max_power)
-            self._yoshida_xietaf = [poly(values=c) for c in self._yoshida_dflow(*[0]*self.n_args)]
-            self.flow = [c(*self._yoshida_xietaf) for c in kwargs.get('components', self.components)]
+            self.flow = channell(self._yoshida_split)
         else:
             lieoperator._calcFlowFromParameters(self, **kwargs)
         

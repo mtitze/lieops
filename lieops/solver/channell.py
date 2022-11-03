@@ -1,24 +1,14 @@
 from njet.functions import exp
-from njet import jet
 
-def check_zero_first_entry(x):
-    '''
-    Helper function to determine whether the given object is zero: If the object is a jet,
-    then this function checks if the first entry is zero.
-    '''
-    if isinstance(x, jet):
-        return x[0] == 0
-    else:
-        return x == 0
-
-def productExceptSelf(a):
+def productExceptSelf(arr):
     '''
     Efficient code to compute the products of elements in an array, except for the value at the index itself.
     
-    Example:
+    Example
+    -------
+    Input: productExceptSelf([10, 3, 5, 6, 2])
+    Output: [180, 600, 360, 300, 900]
     
-    Input: arr[]  = {10, 3, 5, 6, 2}
-    Output: prod[]  = {180, 600, 360, 300, 900}
     3 * 5 * 6 * 2 product of other array 
     elements except 10 is 180
     10 * 5 * 6 * 2 product of other array 
@@ -30,7 +20,8 @@ def productExceptSelf(a):
     10 * 3 * 6 * 5 product of other array 
     elements except 2 is 900
     
-    See the Python3 output here: https://www.geeksforgeeks.org/a-product-array-puzzle/
+    See the Python3 output here: 
+    https://www.geeksforgeeks.org/a-product-array-puzzle/
     
     Parameters
     ----------
@@ -42,35 +33,29 @@ def productExceptSelf(a):
     list
         A list of products in the above sense.
     '''
-    n = len(a)
+    n = len(arr)
+    # Base case
+    if n == 1:
+        return [1]
+
+    # Allocate memory for the product array; initialize the product array as 1
+    prod = [1 for i in range(n)]
     
-    prod = 1
-    flag = 0
+    # In this loop, temp variable contains the product of
+    # elements on the left side, excluding arr[i]
+    temp = 1
     for i in range(n):
-        # Counting the number of elements which have value 0
-        if check_zero_first_entry(a[i]):
-            flag += 1
-        else:
-            prod *= a[i]
-            
-    arr = [0 for i in range(n)]
-    for i in range(n):
-        if flag > 1:
-            # If the number of elements in the array with value 0 is more than 1, then each
-            # value in the new array will be equal to 0
-            arr[i] = 0
-        elif flag == 0:
-            # If no element has value 0, then we will insert the product/a[i] in the new array
-            arr[i] = (prod/a[i])
-        elif flag == 1 and not check_zero_first_entry(a[i]):
-            # If one element of the array has value 0, then all the elements except that index
-            # value will be equal to 0
-            arr[i] = 0
-        else:
-            # flag == 1 and a[i] == 0
-            arr[i] = prod
-            
-    return arr
+        prod[i] = temp
+        temp *= arr[i]
+
+    # In this loop, temp variable contains the product of
+    # elements on the right side, excluding arr[i]
+    temp = 1
+    for i in range(n - 1, -1, -1):
+        prod[i] *= temp
+        temp *= arr[i]
+
+    return prod
 
 
 def get_monomial_flow(hamiltonian):
@@ -182,7 +167,7 @@ def flow(monomials, **kwargs):
     flows = [get_monomial_flow(-h) for h in monomials] # the -h is due to the fact that the flow
     # of the hamiltonian h is given by exp(-:h:)
     
-    # define the flow functions of the composition
+    # define the flow function of the composition
     def fc(*z):
         for fl in flows:
             z = fl(*z)
