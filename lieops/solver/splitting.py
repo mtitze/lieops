@@ -82,7 +82,7 @@ def get_scheme_ordering(scheme):
     # It is assumed that the given scheme defines an alternating decomposition of two operators. Therefore:
     scheme1 = [scheme[k] for k in range(0, len(scheme), 2)]
     scheme2 = [scheme[k] for k in range(1, len(scheme), 2)]
-    unique_factors1 = np.unique(scheme1).tolist() # get unique elements but maintain order (see https://stackoverflow.com/questions/12926898/numpy-unique-without-sort)
+    unique_factors1 = np.unique(scheme1).tolist() # get unique elements, but maintain order (see https://stackoverflow.com/questions/12926898/numpy-unique-without-sort)
     unique_factors2 = np.unique(scheme2).tolist()
     indices1 = [unique_factors1.index(f) for f in scheme1]
     indices2 = [unique_factors2.index(f) for f in scheme2]
@@ -144,17 +144,30 @@ def split_by_order(hamiltonian, scheme):
     return combine_equal_hamiltonians(new_hamiltonians) # combine_equal_hamiltonians is necessary here, because otherwise there may be adjacent Hamiltonians having the same keys, using the above algorithm.
 
 
-def recursive_monomial_split(*hamiltonians, scheme, **kwargs):
+def recursive_monomial_split(*hamiltonians, scheme, key_selection=lambda keys: [keys[0]]):
     '''
     Split a Hamiltonian into its monomials according to a given scheme,
     by recursively applying the scheme.
+    
+    Parameters
+    ----------
+    key_selection: callable, optional
+        Function to map a given list of keys to a sublist, determining how to split
+        the keys of a given Hamiltonian.
+        
+        For example:
+        1. key_selection = lambda keys: [keys[0]]
+           This will separate the first mononial from the others (default).
+        2. key_selection = lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]
+           This will separate the first N/2 (ceil) keys from the others. This may produce more
+           terms than case 1. for small schemes, but may have better performance for larger schemes.
     '''
     new_hamiltonians = []
     recursion_required = False
     for h in hamiltonians:
         keys = list(h.keys())
         if len(keys) > 1:
-            hsplits = h.split(keys=[keys[0]], scheme=scheme)
+            hsplits = h.split(keys=key_selection(keys), scheme=scheme)
             recursion_required = True
         else:
             hsplits = [h]

@@ -168,6 +168,7 @@ def flow(hamiltonian, reverse=False, **kwargs):
     assert len(hamiltonian.keys()) > 0
     if len(hamiltonian.keys()) > 1:
         split_method = kwargs.get('split_method', recursive_monomial_split)
+        _ = kwargs.pop('split_method', None)
         monomials = split_method(hamiltonian, **kwargs)
     else:
         monomials = [hamiltonian]
