@@ -29,8 +29,9 @@ class yoshida:
         if m == 0:
             return scheme
         else:
-            z0 = -2**(1/(m + 1))/(2 - 2**(1/(m + 1)))
-            z1 = 1/(2 - 2**(1/(m + 1)))
+            frac = 1/(2*m + 1)
+            z0 = -2**frac/(2 - 2**frac)
+            z1 = 1/(2 - 2**frac)
             return z0, z1
         
     def build(self, n: int):
@@ -143,7 +144,7 @@ def split_by_order(hamiltonian, scheme):
     return combine_equal_hamiltonians(new_hamiltonians) # combine_equal_hamiltonians is necessary here, because otherwise there may be adjacent Hamiltonians having the same keys, using the above algorithm.
 
 
-def recursive_monomial_split(*hamiltonians, scheme):
+def recursive_monomial_split(*hamiltonians, scheme, **kwargs):
     '''
     Split a Hamiltonian into its monomials according to a given scheme,
     by recursively applying the scheme.

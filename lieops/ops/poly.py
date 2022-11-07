@@ -618,7 +618,7 @@ class _poly:
                                           mult_drv=mult_drv, mult_prm=mult_prm)
         return self.__class__(values=rbv, poisson_factor=poisson_factor)
     
-    def split(self, keys, scheme, check=True, **kwargs):
+    def split(self, keys, scheme, check=False, **kwargs):
         '''
         Split the Hamiltonian with respect to a set of keys. 
         Return a list of polynomials according to the requested number of slices and the splitting.

@@ -219,6 +219,7 @@ class lieoperator:
         update = self._update_flow_parameters(**kwargs)
         if not update and hasattr(self, 'flow'):
             return
+        _ = kwargs.pop('method', None)
         self._calcFlowFromParameters(**kwargs)
         
     def _calcFlowFromParameters(self, **kwargs):
@@ -310,7 +311,7 @@ class lieoperator:
             if hasattr(self, 'bch'):
                 return self.bch(*z, **kwargs) # Baker-Campbell-Hausdorff (using Magnus/combine routine)
             else:
-                raise NotImplementedError(f"Composition of objects of type '{self.__class__.__name__}' not supported.")
+                raise NotImplementedError(f"Operation on type '{z[0].__class__.__name__}' not supported.")
                 
         else:
             return self.evaluate(*z, **kwargs)
@@ -419,7 +420,7 @@ class lexp(lieoperator):
         if isinstance(self, type(other)):
             return self.bch(other)
         else:
-            raise NotImplementedError(f"Operation with type {other.__class__.__name__} not supported.")
+            raise NotImplementedError(f"Operation on type {other.__class__.__name__} not supported.")
             
     def __pow__(self, power):
         outp_kwargs = {}
@@ -438,10 +439,11 @@ class lexp(lieoperator):
             self._2flow_xietaf = [self._2flow(xieta, **kwargs) for xieta in self._2flow_xieta]
             self.flow = [c(*self._2flow_xietaf) for c in kwargs.get('components', self.components)]
             
-        elif self._flow_parameters['method'] == 'yoshida':       
-            self._yoshida_scheme = kwargs.get('yoshida_scheme', [0.5, 1, 0.5])
-            self._yoshida_split = recursive_monomial_split(self.argument*self._flow_parameters['t'], scheme=self._yoshida_scheme)
-            self.flow = channell(self._yoshida_split)
+        elif self._flow_parameters['method'] == 'channell':
+            kwargs.setdefault('scheme', [0.5, 1, 0.5])
+            self._channell_scheme = kwargs['scheme']
+            self.flow = channell(-self.argument*self._flow_parameters['t'], reverse=True, **kwargs)
+            
         else:
             lieoperator._calcFlowFromParameters(self, **kwargs)
         
