@@ -174,8 +174,6 @@ def flow(hamiltonian, reverse=False, **kwargs):
         monomials = [hamiltonian]
     
     assert len(monomials) > 0
-    assert all([monomials[0].dim == m.dim for m in monomials[1:]])
-    dim = monomials[0].dim
         
     # initialize & compute the individual flow functions
     flows = [get_monomial_flow(h) for h in monomials]

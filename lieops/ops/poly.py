@@ -186,6 +186,12 @@ class _poly:
             than the requested threshold.
         '''
         return self.extract(value_cond=lambda x: abs(x) < tol)
+    
+    def monomials(self):
+        '''
+        Return a list of the monomials of the current polynomial.
+        '''
+        return [self.__class__(values={k: v}, dim=self.dim, max_power=self.max_power) for k, v in self.items()]
         
     def __call__(self, *z):
         '''

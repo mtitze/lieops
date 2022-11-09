@@ -1,5 +1,7 @@
 import numpy as np
 
+import lieops.ops.poly
+
 class yoshida:
     
     def __init__(self, scheme=[1, 1/2]):
@@ -126,7 +128,6 @@ def combine_equal_hamiltonians(hamiltonians):
         new_hamiltonians.append(new_part)
     return new_hamiltonians
 
-
 def split_by_order(hamiltonian, scheme):
     '''
     Split a Hamiltonian according to its orders.
@@ -143,12 +144,49 @@ def split_by_order(hamiltonian, scheme):
         hamiltonians = new_hamiltonians
     return combine_equal_hamiltonians(new_hamiltonians) # combine_equal_hamiltonians is necessary here, because otherwise there may be adjacent Hamiltonians having the same keys, using the above algorithm.
 
+######################################################
+# Recursively split a hamiltonian into its monomials #
+######################################################
 
-def recursive_monomial_split(*hamiltonians, scheme, key_selection=lambda keys: [keys[0]]):
+def recursive_monomial_split(hamiltonian, scheme, include_values=True, **kwargs):
     '''
-    Split a Hamiltonian into its monomials according to a given scheme,
-    by recursively applying the scheme.
+    Split a Hamiltonian into its monomials according to a given scheme.
+    The scheme hereby defines a splitting of a Hamiltonian into alternating operators.
+    This scheme will be applied recursively.
     
+    Parameters
+    ----------
+    hamiltonian: poly
+        A poly object (or dictionary) representing the Hamiltonian to be split.
+        
+    scheme: list
+        A list of floats to define an alternating splitting.
+        
+    include_values: boolean, optional
+        If True, then include the individual coefficients in front of the monomials in the final result.
+        If False, then the initial individual coefficients are set to 1. This allows to conveniently 
+        obtain the factors coming from the splitting routine.
+        
+    **kwargs
+        Optional keyworded arguments passed to the internal routine _recursive_monomial_split.
+        
+    Returns
+    -------
+    list
+        A list of dictionaries representing the requested splitting.
+    '''
+    # Preparation
+    if include_values:
+        splits = [{key: hamiltonian[key] for key in hamiltonian.keys()}]
+    else:
+        splits = [{key: 1 for key in hamiltonian.keys()}]
+        
+    split_result = _recursive_monomial_split(*splits, scheme=scheme, **kwargs)
+    return [lieops.ops.poly(values=sr, dim=hamiltonian.dim, max_power=hamiltonian.max_power) for sr in split_result]
+
+
+def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]):
+    '''
     Parameters
     ----------
     key_selection: callable, optional
@@ -157,23 +195,85 @@ def recursive_monomial_split(*hamiltonians, scheme, key_selection=lambda keys: [
         
         For example:
         1. key_selection = lambda keys: [keys[0]]
-           This will separate the first mononial from the others (default).
+           This will separate the first mononial from the others.
         2. key_selection = lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]
            This will separate the first N/2 (ceil) keys from the others. This may produce more
            terms than case 1. for small schemes, but may have better performance for larger schemes.
     '''
-    new_hamiltonians = []
-    recursion_required = False
-    for h in hamiltonians:
-        keys = list(h.keys())
+
+    new_splits = []
+    iteration_required = False
+    for split in splits:
+        keys = list(split.keys())
         if len(keys) > 1:
-            hsplits = h.split(keys=key_selection(keys), scheme=scheme)
-            recursion_required = True
+            keys1 = key_selection(keys)
+            keys2 = [k for k in keys if k not in keys1]
+            # assert len(keys1) > 0 and len(keys2) > 0
+            for k in range(len(scheme)):
+                if k%2 == 0:
+                    new_splits.append({k1: split[k1]*scheme[k] for k1 in keys1})
+                else:
+                    new_splits.append({k2: split[k2]*scheme[k] for k2 in keys2})
+            iteration_required = True
         else:
-            hsplits = [h]
-        new_hamiltonians += hsplits
-    if recursion_required:
-        return recursive_monomial_split(*new_hamiltonians, scheme=scheme)
+            new_splits.append(split)
+            
+    if iteration_required:
+        return _recursive_monomial_split(*new_splits, scheme=scheme)
     else:
-        return new_hamiltonians
+        return new_splits
     
+####################################
+# Find sets of commuting monomials #
+####################################
+
+def get_commuting_parts(monomials):
+    '''
+    Obtain a list of lists, each containing those indices of the given monomials which
+    commute with each other.
+    '''
+    mtab = _get_commuting_table(monomials)
+    M = len(monomials)
+    return _get_parts(M, mtab) 
+    
+def _get_commuting_table(monomials):
+    # Determine the 'multiplication table' of the given monomials
+    powers = [list(m.keys())[0] for m in monomials]
+    dim = len(powers[0])//2    
+    partition1, partition2 = [], []
+    for k in range(1, len(monomials)):
+        for l in range(k):
+            powers1, powers2 = powers[k], powers[l]
+            if any([powers1[r]*powers2[r + dim] - powers1[r + dim]*powers2[r] != 0 for r in range(dim)]):
+                partition1.append(k)
+                partition2.append(l)
+    return [set([i, j]) for i, j in zip(partition1, partition2)] # if set([i, j]) in this list, then element i and j will not commute.
+    
+def _get_parts(M, mtab):
+    # Determine a list of objects. Each object corresponds to a list of indices of those elements which commute with each other.
+    chains = {}
+    for k in range(M):
+        # if k already appears in a previous chain, move to the next k
+        cont = False
+        for a, b in chains.items():
+            if k in b:
+                cont = True
+                break
+        if cont:
+            continue
+            
+        # k did not yet appear in any previous chain. We create a new chain
+        current_chain = [k]
+        for l in range(M):
+            if l in current_chain:
+                continue
+                
+            if set([k, l]) not in mtab:
+                # check if element l also commutes with all the other elements in the current chain. If so, then append l to current chain.
+                if not any([set([j, l]) in mtab for j in current_chain]):
+                    current_chain.append(l)
+            # if element l does not commute with k, then we proceed with the next element
+            # End of inner loop: All elements have been checked whether they commute with element k or not.
+        chains[k] = current_chain
+        
+    return [chains[k] for k in chains.keys()]
