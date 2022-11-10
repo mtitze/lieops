@@ -223,13 +223,16 @@ def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[
     else:
         return new_splits
     
-####################################
-# Find sets of commuting monomials #
-####################################
+##################################################
+# Algorithms to find sets of commuting monomials #
+##################################################
+# Codes may be dedicated to special folder in the future
 
-def get_commuting_parts(monomials):
+### Algorithm 1
+
+def get_commuting_parts1(monomials):
     '''
-    Obtain a list of lists, each containing those indices of the given monomials which
+    Obtain a list of lists, each containing indices of the given monomials which
     commute with each other.
     '''
     mtab = _get_commuting_table(monomials)
@@ -237,6 +240,10 @@ def get_commuting_parts(monomials):
     return _get_parts(M, mtab) 
     
 def _get_commuting_table(monomials):
+    '''
+    Return a list of sets containing two indices each. If a set {i, j} appear in that list, this means
+    that elements j and k do not commute.
+    '''
     # Determine the 'multiplication table' of the given monomials
     powers = [list(m.keys())[0] for m in monomials]
     dim = len(powers[0])//2    
@@ -251,11 +258,11 @@ def _get_commuting_table(monomials):
     
 def _get_parts(M, mtab):
     # Determine a list of objects. Each object corresponds to a list of indices of those elements which commute with each other.
-    chains = {}
+    chains = []
     for k in range(M):
         # if k already appears in a previous chain, move to the next k
         cont = False
-        for a, b in chains.items():
+        for b in chains:
             if k in b:
                 cont = True
                 break
@@ -264,16 +271,80 @@ def _get_parts(M, mtab):
             
         # k did not yet appear in any previous chain. We create a new chain
         current_chain = [k]
+        chains_k = [] # chains_k will contain those chains containing the index k and having length >= 2
         for l in range(M):
-            if l in current_chain:
+            if l == k:
                 continue
                 
-            if set([k, l]) not in mtab:
-                # check if element l also commutes with all the other elements in the current chain. If so, then append l to current chain.
-                if not any([set([j, l]) in mtab for j in current_chain]):
-                    current_chain.append(l)
-            # if element l does not commute with k, then we proceed with the next element
-            # End of inner loop: All elements have been checked whether they commute with element k or not.
-        chains[k] = current_chain
+            # if l does not commute with k, continue with the next l
+            if set([k, l]) in mtab:
+                if len(current_chain) > 1: # before we continue, add the current chain to the chains
+                    chains_k.append(current_chain)
+                    current_chain = [k]
+                continue
+                
+            # add l to any previous chain if it commutes with those elements
+            for ck in chains_k:
+                if l not in ck and not any([set([j, l]) in mtab for j in ck]):
+                    ck.append(l)                  
+
+            # check if element l also commutes with all the other elements in the current chain. If so, then append l to current chain.
+            if not any([set([j, l]) in mtab for j in current_chain]):
+                current_chain.append(l)
+            
+            # if we reach the end of the loop, also add the current chain to the chains
+            if l == M - 1 and len(current_chain) > 1:
+                chains_k.append(current_chain)
+                
+        chains += chains_k
         
-    return [chains[k] for k in chains.keys()]
+    return chains
+
+### Algorithm 2
+
+def get_commuting_parts2(monomials):
+    mtab = _get_commuting_table(monomials)
+    M = len(monomials)
+    comm = {N: [c for c in range(M) if set({N, c}) not in mtab] for N in range(M)}
+    parts = []
+    for k in range(M):
+        parts.append(_propagate_leafs(comm, M, k))
+    return parts
+
+def _get_indices_oi(comm, j, exclude, include):
+    max_elements = 2
+    k_of_interest = []
+    intersections = []
+    for k in include:
+        if k == j or k in exclude:
+            continue
+        intersection = set(comm[j]).intersection(set(comm[k])).intersection(include)
+        n_elements = len(intersection)
+        if n_elements > max_elements:
+            max_elements = n_elements
+            k_of_interest = [k]
+            intersections = [intersection]
+        elif n_elements == max_elements:
+            k_of_interest.append(k)
+            intersections.append(intersection)
+    return k_of_interest, intersections
+
+def _propagate_leafs(comm, M, start):
+
+    exclude = [start] # a list containing those elements which we already know that they are mutually commuting
+    include = set(range(M)) # a list containing those elements which we want to chose the next mutually commuting element
+
+    jj = start
+    while len(include) != len(exclude): # TODO: Needs to be fully understood. If not, change to condition "len(j1) > 0"
+        j1, ww = _get_indices_oi(comm, jj, exclude=exclude, include=include)
+
+        # at each iteration there can be several indices of interest (or 'branches' 
+        # of the same size). By choosing an index here we look at one of these branches of interest. 
+        # We do not know if this choice leads to a chain (leaf) of maximal length in any circumstance.
+        branch_index = 0
+        jj = j1[branch_index]
+        include = include.intersection(ww[branch_index])
+
+        exclude.append(jj)
+        
+    return exclude
