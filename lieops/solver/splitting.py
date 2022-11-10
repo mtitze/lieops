@@ -230,14 +230,17 @@ def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[
 
 ### Algorithm 1
 
-def get_commuting_parts1(monomials):
+def get_commuting_parts1(monomials, detailed=False):
     '''
     Obtain a list of lists, each containing indices of the given monomials which
     commute with each other.
     '''
     mtab = _get_commuting_table(monomials)
     M = len(monomials)
-    return _get_parts(M, mtab) 
+    if not detailed:
+        return _get_parts1(M, mtab)
+    else:
+        return _get_parts2(M, mtab) 
     
 def _get_commuting_table(monomials):
     '''
@@ -255,8 +258,36 @@ def _get_commuting_table(monomials):
                 partition1.append(k)
                 partition2.append(l)
     return [set([i, j]) for i, j in zip(partition1, partition2)] # if set([i, j]) in this list, then element i and j will not commute.
+
+def _get_parts1(M, mtab):
+    # Determine a list of objects. Each object corresponds to a list of indices of those elements which commute with each other.
+    chains = []
+    for k in range(M):
+        # if k already appears in a previous chain, move to the next k
+        cont = False
+        for b in chains:
+            if k in b:
+                cont = True
+                break
+        if cont:
+            continue
+            
+        # k did not yet appear in any previous chain. We create a new chain
+        current_chain = [k]
+        for l in range(M):
+            if l in current_chain:
+                continue
+                
+            if set([k, l]) not in mtab:
+                # check if element l also commutes with all the other elements in the current chain. If so, then append l to current chain.
+                if not any([set([j, l]) in mtab for j in current_chain]):
+                    current_chain.append(l)
+            # if element l does not commute with k, then we proceed with the next element
+        chains.append(current_chain)
+        
+    return chains
     
-def _get_parts(M, mtab):
+def _get_parts2(M, mtab):
     # Determine a list of objects. Each object corresponds to a list of indices of those elements which commute with each other.
     chains = []
     for k in range(M):
@@ -303,6 +334,20 @@ def _get_parts(M, mtab):
 ### Algorithm 2
 
 def get_commuting_parts2(monomials):
+    '''
+    Obtain a list of lists, each containing indices of the given monomials which
+    commute with each other.
+    
+    Attention: Code may yield several entries representing the same combinations.
+    This can be rectified by using np.unique on the list of sets of the output.
+    
+    N.B. Code is in the same order of magnitude as get_commuting_parts1 with detailed=False.
+    
+    Returns
+    -------
+    A list of the same length as the given monomials. Each entry at position k 
+    is a proposed list of indices for the monomials which commute with monomial k.
+    '''
     mtab = _get_commuting_table(monomials)
     M = len(monomials)
     comm = {N: [c for c in range(M) if set({N, c}) not in mtab] for N in range(M)}
