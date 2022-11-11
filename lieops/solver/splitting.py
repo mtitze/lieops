@@ -283,16 +283,19 @@ def _get_parts(M, mtab):
     return chains
 
 ### Algorithm 2
+# This algorithm has in general a better performance than algorithm 1 in higher dimensions.
 
-def get_commuting_parts2(monomials):
+def get_commuting_parts2(monomials, minimal=True, **kwargs):
     '''
     Obtain a list of lists, each containing indices of the given monomials which
     commute with each other.
-    
-    Attention: Code may yield several entries representing the same combinations.
-    This can be rectified by using np.unique on the list of sets of the output.
-    
-    N.B. Code has a similar performance as get_commuting_parts1 with detailed=False.
+        
+    Parameters
+    ----------
+    minimal: boolean, optional
+        If True, then return a set of indices which cover every element.
+        If False, return a list of indices for every element (i.e. the return list has length = len(monomials)).
+        In this case the code may yield several entries representing the same combinations.
     
     Returns
     -------
@@ -301,20 +304,27 @@ def get_commuting_parts2(monomials):
     '''
     mtab = _get_commuting_table(monomials)
     M = len(monomials)
-    comm = {N: [c for c in range(M) if set({N, c}) not in mtab] for N in range(M)} # comm[k] is the set of elements which commute with element k. They do not necessarily commute with each other, but commutation with k is guaranteed.
+    comm = {N: set([c for c in range(M) if set({N, c}) not in mtab]) for N in range(M)} # comm[k] is the set of elements which commute with element k. They do not necessarily commute with each other, but commutation with k is guaranteed.
     parts = []
+    covering = []
     for k in range(M):
-        parts.append(_propagate_branches(comm, M, k))
+        
+        # if k is already contained in some 'maximal' leaf
+        if minimal and k in covering:
+            continue
+            
+        p = _propagate_branches(comm, k, **kwargs)
+        parts.append(p)
+        covering += p
     return parts
 
 def _get_indices_oi(comm, j, exclude, include):
     max_elements = 2
     k_of_interest = []
     intersections = []
-    for k in include:
-        if k == j or k in exclude:
-            continue
-        intersection = set(comm[j]).intersection(set(comm[k])).intersection(include)
+    j_domain = comm[j].intersection(include)  # those entries which commute with j and should be considered.
+    for k in include.difference(exclude): # n.b. j is in exclude by (+), so k != j.
+        intersection = j_domain.intersection(comm[k])
         n_elements = len(intersection)
         if n_elements > max_elements:
             max_elements = n_elements
@@ -325,23 +335,22 @@ def _get_indices_oi(comm, j, exclude, include):
             intersections.append(intersection)
     return k_of_interest, intersections
 
-def _propagate_branches(comm, M, start):
+def _propagate_branches(comm, start, branch_index=0):
     
     exclude = [start] # a list containing those elements which we already know that they are mutually commuting
-    include = set(range(M)) # a list containing those elements which we want to chose the next mutually commuting element
+    include = comm[start] # a set containing those elements which we want to chose the next mutually commuting element
 
     jj = start
     while len(include) > len(exclude): # To this condition: Let C be a set of mutually commuting elements with jj in C (our goal is to find such a C, which we also call 'leaf'). Then the code will determine the intersection comm[c] for c in C, which is just equal C. The possible values to compute this intersection are contained in the set 'include', while those which are already determined are given in 'exclude'. If both sets are equal, then the code terminates.  
         j1, ww = _get_indices_oi(comm, jj, exclude=exclude, include=include)
-
+        
         # At each iteration there can be several indices of interest ('branches' containing a maximal size of 
         # commuting elements). By choosing an index here we follow into one of these branches. 
         # Other choices of maximal branches will lead to different solutions. We do not know, however, if every maximal branch
         # will lead to a leaf of maximal length in any case.
-        branch_index = 0
         jj = j1[branch_index]
         include = include.intersection(ww[branch_index])
 
-        exclude.append(jj)
+        exclude.append(jj) # (+)
         
     return exclude
