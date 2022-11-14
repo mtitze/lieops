@@ -284,6 +284,9 @@ def _get_indices_oi(comm, j, exclude, include):
     '''
     For a given dictionary 'comm', mapping every index k to a list of indices which belong to elements which commute with k,
     find those indices which have the largest intersection of their commuting elements.
+    
+    This is used in our greedy algorithm, see
+    https://en.wikipedia.org/wiki/Greedy_algorithm
     '''
     max_elements = 2
     k_of_interest = []
@@ -312,8 +315,10 @@ def _propagate_branches(comm, start, branch_index=0):
         
         # At each iteration there can be several indices of interest ('branches' containing a maximal size of 
         # commuting elements). By choosing an index here we follow into one of these branches. 
-        # Other choices of maximal branches will lead to different solutions. We do not know, however, if every maximal branch
-        # will lead to a leaf of maximal length in any case.
+        # Other choices of maximal branches will lead to different solutions. It is not guaranteed, however, if such
+        # a maximal branch will lead to a leaf of maximal length (in fact one can construct a counterexample).
+        # This method thus follows a greedy algorithm strategy, see 
+        # https://en.wikipedia.org/wiki/Greedy_algorithm
         jj = j1[branch_index]
         include = include.intersection(ww[branch_index])
 
