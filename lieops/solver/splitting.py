@@ -223,19 +223,9 @@ def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[
     else:
         return new_splits
     
-##################################################
-# Algorithms to find sets of commuting monomials #
-##################################################
-# Codes may be dedicated to special folder in the future
-
-def get_commuting_parts1(monomials):
-    '''
-    Obtain a list of lists, each containing indices of the given monomials which
-    commute with each other.
-    '''
-    mtab = _get_commuting_table(monomials)
-    M = len(monomials)
-    return _get_parts(M, mtab)
+#################################################
+# Algorithm to find sets of commuting monomials #
+#################################################
     
 def _get_commuting_table(monomials):
     '''
@@ -252,40 +242,9 @@ def _get_commuting_table(monomials):
             if any([powers1[r]*powers2[r + dim] - powers1[r + dim]*powers2[r] != 0 for r in range(dim)]):
                 partition1.append(k)
                 partition2.append(l)
-    return [set([i, j]) for i, j in zip(partition1, partition2)] # if set([i, j]) in this list, then element i and j will not commute.
+    return partition1, partition2
 
-def _get_parts(M, mtab):
-    # Determine a list of objects. Each object corresponds to a list of indices of those elements which commute with each other.
-    chains = []
-    for k in range(M):
-        # if k already appears in a previous chain, move to the next k
-        cont = False
-        for b in chains:
-            if k in b:
-                cont = True
-                break
-        if cont:
-            continue
-            
-        # k did not yet appear in any previous chain. We create a new chain
-        current_chain = [k]
-        for l in range(M):
-            if l in current_chain:
-                continue
-                
-            if set([k, l]) not in mtab:
-                # check if element l also commutes with all the other elements in the current chain. If so, then append l to current chain.
-                if not any([set([j, l]) in mtab for j in current_chain]):
-                    current_chain.append(l)
-            # if element l does not commute with k, then we proceed with the next element
-        chains.append(current_chain)
-        
-    return chains
-
-### Algorithm 2
-# This algorithm has in general a better performance than algorithm 1 in higher dimensions.
-
-def get_commuting_parts2(monomials, minimal=True, **kwargs):
+def get_commuting_parts(monomials, minimal=True, **kwargs):
     '''
     Obtain a list of lists, each containing indices of the given monomials which
     commute with each other.
@@ -302,9 +261,12 @@ def get_commuting_parts2(monomials, minimal=True, **kwargs):
     A list of the same length as the given monomials. Each entry at position k 
     is a proposed list of indices for the monomials which commute with monomial k.
     '''
-    mtab = _get_commuting_table(monomials)
+    p1, p2 = _get_commuting_table(monomials)
+    p1, p2 = np.array(p1), np.array(p2)
     M = len(monomials)
-    comm = {N: set([c for c in range(M) if set({N, c}) not in mtab]) for N in range(M)} # comm[k] is the set of elements which commute with element k. They do not necessarily commute with each other, but commutation with k is guaranteed.
+    get_comm = lambda k: set(range(M)).difference(set(p2[p1 == k]).union(set(p1[p2 == k])))
+    comm = [get_comm(k) for k in range(M)]
+    # comm[k] is the set of elements which commute with element k. They do not necessarily commute with each other, but commutation with k is guaranteed.
     parts = []
     covering = []
     for k in range(M):
@@ -319,6 +281,10 @@ def get_commuting_parts2(monomials, minimal=True, **kwargs):
     return parts
 
 def _get_indices_oi(comm, j, exclude, include):
+    '''
+    For a given dictionary 'comm', mapping every index k to a list of indices which belong to elements which commute with k,
+    find those indices which have the largest intersection of their commuting elements.
+    '''
     max_elements = 2
     k_of_interest = []
     intersections = []
