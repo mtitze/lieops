@@ -1,4 +1,5 @@
 import numpy as np
+import heapq
 
 import lieops.ops.poly
 
@@ -72,9 +73,9 @@ class yoshida:
                 k += 1
         return out
     
-################
-# General tools
-################
+#################
+# General tools #
+#################
     
 def get_scheme_ordering(scheme):
     '''
@@ -106,8 +107,7 @@ def get_scheme_ordering(scheme):
             max_index += 1
     return [index_map[ind] for ind in indices]
 
-    
-def combine_equal_hamiltonians(hamiltonians):
+def combine_adjacent_hamiltonians(hamiltonians):
     '''
     Combine Hamiltonians which are adjacent to each other and admit the same keys.
     '''
@@ -128,121 +128,8 @@ def combine_equal_hamiltonians(hamiltonians):
         new_hamiltonians.append(new_part)
     return new_hamiltonians
 
-def split_by_order(hamiltonian, scheme):
-    '''
-    Split a Hamiltonian according to its orders.
-    '''
-    maxdeg = hamiltonian.maxdeg()
-    mindeg = hamiltonian.mindeg()
-    hom_parts = [hamiltonian.homogeneous_part(k) for k in range(mindeg, maxdeg + 1)]
-    hamiltonians = [hamiltonian]
-    for k in range(len(hom_parts)):
-        keys1 = [u for u in hom_parts[k].keys()]
-        new_hamiltonians = []
-        for e in hamiltonians:
-            new_hamiltonians += [h for h in e.split(keys=keys1, scheme=scheme) if h != 0]
-        hamiltonians = new_hamiltonians
-    return combine_equal_hamiltonians(new_hamiltonians) # combine_equal_hamiltonians is necessary here, because otherwise there may be adjacent Hamiltonians having the same keys, using the above algorithm.
-
-######################################################
-# Recursively split a hamiltonian into its monomials #
-######################################################
-
-def recursive_monomial_split(hamiltonian, scheme, include_values=True, **kwargs):
-    '''
-    Split a Hamiltonian into its monomials according to a given scheme.
-    The scheme hereby defines a splitting of a Hamiltonian into alternating operators.
-    This scheme will be applied recursively.
-    
-    Parameters
-    ----------
-    hamiltonian: poly
-        A poly object (or dictionary) representing the Hamiltonian to be split.
-        
-    scheme: list
-        A list of floats to define an alternating splitting.
-        
-    include_values: boolean, optional
-        If True, then include the individual coefficients in front of the monomials in the final result.
-        If False, then the initial individual coefficients are set to 1. This allows to conveniently 
-        obtain the factors coming from the splitting routine.
-        
-    **kwargs
-        Optional keyworded arguments passed to the internal routine _recursive_monomial_split.
-        
-    Returns
-    -------
-    list
-        A list of dictionaries representing the requested splitting.
-    '''
-    # Preparation
-    if include_values:
-        splits = [{key: hamiltonian[key] for key in hamiltonian.keys()}]
-    else:
-        splits = [{key: 1 for key in hamiltonian.keys()}]
-        
-    split_result = _recursive_monomial_split(*splits, scheme=scheme, **kwargs)
-    return [lieops.ops.poly(values=sr, dim=hamiltonian.dim, max_power=hamiltonian.max_power) for sr in split_result]
-
-
-def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]):
-    '''
-    Parameters
-    ----------
-    key_selection: callable, optional
-        Function to map a given list of keys to a sublist, determining how to split
-        the keys of a given Hamiltonian.
-        
-        For example:
-        1. key_selection = lambda keys: [keys[0]]
-           This will separate the first mononial from the others.
-        2. key_selection = lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]
-           This will separate the first N/2 (ceil) keys from the others. This may produce more
-           terms than case 1. for small schemes, but may have better performance for larger schemes.
-    '''
-
-    new_splits = []
-    iteration_required = False
-    for split in splits:
-        keys = list(split.keys())
-        if len(keys) > 1:
-            keys1 = key_selection(keys)
-            keys2 = [k for k in keys if k not in keys1]
-            # assert len(keys1) > 0 and len(keys2) > 0
-            for k in range(len(scheme)):
-                if k%2 == 0:
-                    new_splits.append({k1: split[k1]*scheme[k] for k1 in keys1})
-                else:
-                    new_splits.append({k2: split[k2]*scheme[k] for k2 in keys2})
-            iteration_required = True
-        else:
-            new_splits.append(split)
-            
-    if iteration_required:
-        return _recursive_monomial_split(*new_splits, scheme=scheme)
-    else:
-        return new_splits
-    
-#################################################
-# Algorithm to find sets of commuting monomials #
-#################################################
-    
-def _get_commuting_table(monomials):
-    '''
-    Return a list of sets containing two indices each. If a set {i, j} appear in that list, this means
-    that elements j and k do not commute.
-    '''
-    # Determine the 'multiplication table' of the given monomials
-    powers = [list(m.keys())[0] for m in monomials]
-    dim = len(powers[0])//2    
-    partition1, partition2 = [], []
-    for k in range(1, len(monomials)):
-        for l in range(k):
-            powers1, powers2 = powers[k], powers[l]
-            if any([powers1[r]*powers2[r + dim] - powers1[r + dim]*powers2[r] != 0 for r in range(dim)]):
-                partition1.append(k)
-                partition2.append(l)
-    return partition1, partition2
+# Find sets of commuting monomials
+# ================================
 
 def get_commuting_parts(monomials, minimal=True, **kwargs):
     '''
@@ -255,6 +142,9 @@ def get_commuting_parts(monomials, minimal=True, **kwargs):
         If True, then return a set of indices which cover every element.
         If False, return a list of indices for every element (i.e. the return list has length = len(monomials)).
         In this case the code may yield several entries representing the same combinations.
+        
+    **kwargs
+        Optional keyworded arguments passed to _propagate_branches routine.
     
     Returns
     -------
@@ -279,6 +169,23 @@ def get_commuting_parts(monomials, minimal=True, **kwargs):
         parts.append(p)
         covering += p
     return parts
+
+def _get_commuting_table(monomials):
+    '''
+    Return a list of sets containing two indices each. If a set {i, j} appear in that list, this means
+    that elements j and k do not commute.
+    '''
+    # Determine the 'multiplication table' of the given monomials
+    powers = [list(m.keys())[0] for m in monomials]
+    dim = len(powers[0])//2    
+    partition1, partition2 = [], []
+    for k in range(1, len(monomials)):
+        for l in range(k):
+            powers1, powers2 = powers[k], powers[l]
+            if any([powers1[r]*powers2[r + dim] - powers1[r + dim]*powers2[r] != 0 for r in range(dim)]):
+                partition1.append(k)
+                partition2.append(l)
+    return partition1, partition2
 
 def _get_indices_oi(comm, j, exclude, include):
     '''
@@ -325,3 +232,221 @@ def _propagate_branches(comm, start, branch_index=0):
         exclude.append(jj) # (+)
         
     return exclude
+
+###################
+# Splitting tools #
+###################
+
+# Split according to total orders
+# ===============================
+
+def split_by_order(hamiltonian, scheme):
+    '''
+    Split a Hamiltonian according to its orders.
+    '''
+    maxdeg = hamiltonian.maxdeg()
+    mindeg = hamiltonian.mindeg()
+    hom_parts = [hamiltonian.homogeneous_part(k) for k in range(mindeg, maxdeg + 1)]
+    hamiltonians = [hamiltonian]
+    for k in range(len(hom_parts)):
+        keys1 = [u for u in hom_parts[k].keys()]
+        new_hamiltonians = []
+        for e in hamiltonians:
+            new_hamiltonians += [h for h in e.split(keys=keys1, scheme=scheme) if h != 0]
+        hamiltonians = new_hamiltonians
+    return combine_adjacent_hamiltonians(new_hamiltonians) # combine_adjacent_hamiltonians is necessary here, because otherwise there may be adjacent Hamiltonians having the same keys, using the above algorithm.
+
+# Recursively split a hamiltonian into its monomials
+# ==================================================
+
+def recursive_monomial_split(hamiltonian, scheme, include_values=True, **kwargs):
+    '''
+    Split a Hamiltonian into its monomials according to a given scheme.
+    The scheme hereby defines a splitting of a Hamiltonian into alternating operators.
+    This scheme will be applied recursively.
+    
+    Parameters
+    ----------
+    hamiltonian: poly
+        A poly object (or dictionary) representing the Hamiltonian to be split.
+        
+    scheme: list
+        A list of floats to define an alternating splitting.
+        
+    include_values: boolean, optional
+        If True, then include the individual coefficients in front of the monomials in the final result.
+        If False, then the initial individual coefficients are set to 1. This allows to conveniently 
+        obtain the factors coming from the splitting routine.
+        
+    **kwargs
+        Optional keyworded arguments passed to the internal routine _recursive_monomial_split.
+        
+    Returns
+    -------
+    list
+        A list of dictionaries representing the requested splitting.
+    '''
+    # Preparation
+    if include_values:
+        splits = [{key: hamiltonian[key] for key in hamiltonian.keys()}]
+    else:
+        # If include_values == False, then we set every value to one, thereby collecting
+        # the split-coefficients on the go while computing the overall split.
+        splits = [{key: 1 for key in hamiltonian.keys()}]
+        
+    split_result = _recursive_monomial_split(*splits, scheme=scheme, **kwargs)
+    return [lieops.ops.poly(values=sr, dim=hamiltonian.dim, max_power=hamiltonian.max_power) for sr in split_result]
+
+def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]):
+    '''
+    Parameters
+    ----------
+    key_selection: callable, optional
+        Function to map a given list of keys to a sublist, determining how to split
+        the keys of a given Hamiltonian.
+        
+        For example:
+        1. key_selection = lambda keys: [keys[0]]
+           This will separate the first mononial from the others.
+        2. key_selection = lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]
+           This will separate the first N/2 (ceil) keys from the others. This may produce more
+           terms than case 1. for small schemes, but may have better performance for larger schemes.
+    '''
+
+    new_splits = []
+    iteration_required = False
+    for split in splits:
+        keys = list(split.keys())
+        if len(keys) > 1:
+            keys1 = key_selection(keys)
+            keys2 = [k for k in keys if k not in keys1]
+            # assert len(keys1) > 0 and len(keys2) > 0
+            for k in range(len(scheme)):
+                if k%2 == 0:
+                    new_splits.append({k1: split[k1]*scheme[k] for k1 in keys1})
+                else:
+                    new_splits.append({k2: split[k2]*scheme[k] for k2 in keys2})
+            iteration_required = True
+        else:
+            new_splits.append(split)
+            
+    if iteration_required:
+        return _recursive_monomial_split(*new_splits, scheme=scheme)
+    else:
+        return new_splits
+    
+# Split according to subsets of commuting monomials
+# =================================================
+
+def recursive_commuting_split(hamiltonian, scheme):
+    '''
+    Split a given Hamiltonian recursively into commuting parts according to a given scheme.
+    
+    Parameters
+    ----------
+    hamiltonian, poly
+        A poly object, modeling the Hamiltonian to be split.
+        
+    scheme, list
+        A list of values according to which the splitting of the Hamiltonian should be done.
+        If scheme = [a0, b0, a1, b1, ...], then the largest part A of the Hamiltonian H which mutually commute are
+        split to exp(a0*A) o exp(b0*CA) o exp(a1*A) o exp(b1*CA) o ...
+        where H = A + CA. The operators exp(bj*CA) are subsequently been split into their commuting parts in the same manner.
+        
+    Returns
+    -------
+    list
+    '''
+    monomials = hamiltonian.monomials()
+    # 1. Find subsets of monomials which commute with each other
+    parts = get_commuting_parts(monomials)
+    # 2. Find a decomposition of those monomials for the entire Hamiltonian, using a greedy algorithm to find
+    #    a disjoint covering from the above commuting parts 
+    covering = _greedy_set_cover([set(p) for p in parts])
+    disjoint_covering = []
+    partial_covering = set()
+    for cs in covering:
+        disjoint_covering.append(cs - partial_covering)
+        partial_covering.update(cs)
+    # 3. Now recursively split the given Hamiltonian into these parts
+    
+    return disjoint_covering
+
+def _greedy_set_cover(subsets):
+    '''
+    For a given cover of a parent set, attempt to find a covering using the least number of sets, by using a greedy algorithm.
+    
+    Parameters
+    ----------
+    subsets, list
+        A list of sets, describing a covering of a 'total' set X.
+        
+    Returns
+    -------
+    list
+        A list of sets, corresponding to a subset of the input sets, corresponding to a "local" minimal covering of X.
+    
+    Taken & modified with some additional comments from:
+    https://stackoverflow.com/questions/21973126/set-cover-or-hitting-set-numpy-least-element-combinations-to-make-up-full-set
+    '''
+    parent_set = set().union(*subsets)
+    _max = len(parent_set)
+    # create the initial heap. Note 'subsets' can be unsorted,
+    # so this is independent of whether remove_redunant_subsets is used.
+    heap = []
+    for s in subsets:
+        # Python's heapq lets you pop the *smallest* value, so we
+        # want to use max - len(s) as a score, not len(s).
+        # len(heap) is just proving a unique number to each subset,
+        # used to tiebreak equal scores.
+        # See also https://docs.python.org/3/library/heapq.html
+        heapq.heappush(heap, [_max - len(s), len(heap), s]) # len(heap) grows within this loop.
+    results = []
+    result_set = set()
+    while result_set < parent_set:
+        # determine the best set to be added to the covering.
+        best = []
+        unused = []
+        while heap:
+            score, count, s = heapq.heappop(heap) # score = _max - len(s), the smaller the score, the bigger the set 's'.
+            if not best: # start with the current (first) element 's' of the heap to be considered the 'best'
+                best = [_max - len(s - result_set), count, s]
+                continue
+            # 'best[0]' corresponds to the number of elements in the total set minus those which are supposed to 
+            # enlarge the current set 'result_set', using the current 'best' set 'best[2]'. This means that the 
+            # smaller this number is, the better this set will be suited as a candidate of the next choice of the cover.
+            #
+            # 'score' is of the form "_max - len(s - some_previous_result_set)", according to (1) and (2) below.
+            if score >= best[0]:
+                # Then score = _max - len(s - some_previous_result_set) >= _max - len(s - result_set) = best[0], i.e.
+                # with best[2] =: sb we have
+                # len(sb - result_set) >= len(s - some_previous_result_set), and for every other set s2 in the heap it holds
+                # score2 >= score, i.e.
+                # _max - len(s2 - some_previous_result_set2) >= _max - len(s - some_previous_result_set), i.e.
+                # len(s - some_previous_result_set) >= len(s2 - some_previous_result_set2), overall therefore:
+                # len(sb - result_set) >= len(s - some_previous_result_set) >= len(s2 - some_previous_result_set2).
+                #
+                # Consequently we know that the rest of the heap cannot beat
+                # the best score "len(sb - result_set)". So push the subset "s" back on the heap, use the best set "sb" and
+                # stop this iteration.
+                heapq.heappush(heap, [score, count, s]) # (1)
+                break
+            # Now it holds score < best[0], so that (as commented above) with the current 'best' set best[2] =: sb we have
+            # len(s - some_previous_result_set) < len(sb - result_set).
+            # We now check if len(s - result_set) is actually smaller than len(sb - result_set):
+            score = _max - len(s - result_set) # (2)
+            if score >= best[0]: # equivalent to: len(sb - result_set) >= len(s - result_set)
+                unused.append([score, count, s]) # do not use the set s, but add the set s, including its "updated" score, to the heap.
+            else:
+                # append the currently selected best set to the unused ones (including its "updated" score) & set the new 'best' value
+                unused.append(best)
+                best = [score, count, s]
+        add_set = best[2]
+        results.append(add_set)
+        result_set.update(add_set)
+        # subsets that were not the best get put back on the heap for next time.
+        while unused:
+            heapq.heappush(heap, unused.pop())
+    return results
+
+    
