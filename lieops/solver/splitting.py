@@ -1,5 +1,6 @@
 import numpy as np
 import heapq
+import warnings
 
 import lieops.ops.poly
 
@@ -237,6 +238,60 @@ def _propagate_branches(comm, start, branch_index=0):
 # Splitting tools #
 ###################
 
+def _iterative_split_gen(k: int, n: int, r={(1,)}):
+    '''
+    Generator for iterative split. 
+    
+    At every step (iteration), split away the 0, 2, 4, ... - entries of a given expression. 
+    
+    Parameters
+    ----------
+    k: int
+        Number of iterations.
+        
+    n: int
+        Number of splits per iteration.
+    '''
+    for x in range(k):
+        r = {t + (l,) if t[-1]%2 == 1 and len(t) == x + 1 else t for l in range(n) for t in r}
+        yield r
+        
+def iterative_split(n, scheme):
+    '''
+    Split a list of integers 0, 1, 2, ..., n - 1 iteratively, using a given scheme.
+    
+    At each step, item k will be split away from the remaining k + 1, k + 2, ..., n - 1 items.
+    
+    Parameters
+    ----------
+    n: int
+        The number of unique items to be split.
+        
+    scheme: list
+        A list of coefficients to be used in the split.
+    '''
+    assert n > 0
+    if n == 1:
+        warnings.warn('Splitting of a non-splittable element requested.')
+        return [(0, 1)]
+    n = n - 1 # the number of split iterations required to split n elements.
+    split = []
+    final_tree = list(_iterative_split_gen(k=n, n=len(scheme)))[-1]
+    order = sorted(final_tree)
+    for history in order:
+        coeff = 1
+        for l in history[1:]:
+            coeff *= scheme[l]
+        if len(history) < n + 1:
+            index = len(history) - 2
+        elif history[-1]%2 == 0:
+            # the last indices which are split are "n - 1" and "n".
+            index = n - 1
+        else:
+            index = n
+        split.append((index, coeff))
+    return split
+
 # Split according to total orders
 # ===============================
 
@@ -256,14 +311,41 @@ def split_by_order(hamiltonian, scheme):
         hamiltonians = new_hamiltonians
     return combine_adjacent_hamiltonians(new_hamiltonians) # combine_adjacent_hamiltonians is necessary here, because otherwise there may be adjacent Hamiltonians having the same keys, using the above algorithm.
 
-# Recursively split a hamiltonian into its monomials
-# ==================================================
+# Split a hamiltonian into its monomials
+# ======================================
+
+def iterative_monomial_split(hamiltonian, scheme, include_values=True):
+    '''
+    Split a given Hamiltonian iteratively into its monomials, by applying a given scheme.
+    
+    Parameters
+    ----------
+    hamiltonian: poly
+        A poly object representing the Hamiltonian to be split.
+        
+    scheme: list
+        A list of coefficients describing the split.
+        
+    include_values: boolean, optional
+        A boolean switch to include the original values of the monomials in the final split (default),
+        or to simply return the coefficients.
+    '''
+    monomials = hamiltonian.monomials()
+    split = iterative_split(len(monomials), scheme=scheme)
+    result = []
+    for s in split:
+        index, value = s
+        if include_values:
+            result.append(monomials[index]*value)
+        else:
+            power = list(monomials[index].keys())[0]
+            result.append(lieops.ops.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
+    return result
 
 def recursive_monomial_split(hamiltonian, scheme, include_values=True, **kwargs):
     '''
-    Split a Hamiltonian into its monomials according to a given scheme.
+    Split a Hamiltonian recursively into its monomials according to a given scheme.
     The scheme hereby defines a splitting of a Hamiltonian into alternating operators.
-    This scheme will be applied recursively.
     
     Parameters
     ----------
@@ -297,7 +379,7 @@ def recursive_monomial_split(hamiltonian, scheme, include_values=True, **kwargs)
     split_result = _recursive_monomial_split(*splits, scheme=scheme, **kwargs)
     return [lieops.ops.poly(values=sr, dim=hamiltonian.dim, max_power=hamiltonian.max_power) for sr in split_result]
 
-def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]):
+def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[0]]):
     '''
     Parameters
     ----------
@@ -305,9 +387,10 @@ def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[
         Function to map a given list of keys to a sublist, determining how to split
         the keys of a given Hamiltonian.
         
-        For example:
+        Examples:
         1. key_selection = lambda keys: [keys[0]]
-           This will separate the first mononial from the others.
+           This will separate the first mononial from the others. This should provide
+           similar results as the "iterative_monomial_split" routine.
         2. key_selection = lambda keys: [keys[j] for j in range(int(np.ceil(len(keys)/2)))]
            This will separate the first N/2 (ceil) keys from the others. This may produce more
            terms than case 1. for small schemes, but may have better performance for larger schemes.
@@ -338,28 +421,42 @@ def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[
 # Split according to subsets of commuting monomials
 # =================================================
 
-def recursive_commuting_split(hamiltonian, scheme):
+def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=True):
     '''
-    Split a given Hamiltonian recursively into commuting parts according to a given scheme.
+    Split a given Hamiltonian iteratively into commuting parts, according to a given scheme.
     
     Parameters
     ----------
-    hamiltonian, poly
+    hamiltonian: poly
         A poly object, modeling the Hamiltonian to be split.
         
-    scheme, list
+    scheme: list
         A list of values according to which the splitting of the Hamiltonian should be done.
         If scheme = [a0, b0, a1, b1, ...], then the largest part A of the Hamiltonian H which mutually commute are
         split to exp(a0*A) o exp(b0*CA) o exp(a1*A) o exp(b1*CA) o ...
         where H = A + CA. The operators exp(bj*CA) are subsequently been split into their commuting parts in the same manner.
+    
+    combine: boolean, optional
+        If set to true, return the commuting parts in individual poly objects. If false, return
+        Lie operators for every monomial.
+        
+    include_values: boolean, optional
+        *** Only supported if combine = False ***
+        If True, then include the individual coefficients in front of the monomials in the final result.
+        If False, then the initial individual coefficients are set to 1. This allows to conveniently 
+        obtain the factors coming from the splitting routine.
         
     Returns
     -------
     list
+        A list of poly objects, representing a compositional approximation of the given Hamiltonian
+        as described above.
     '''
     monomials = hamiltonian.monomials()
+    
     # 1. Find subsets of monomials which commute with each other
     parts = get_commuting_parts(monomials)
+    
     # 2. Find a decomposition of those monomials for the entire Hamiltonian, using a greedy algorithm to find
     #    a disjoint covering from the above commuting parts 
     covering = _greedy_set_cover([set(p) for p in parts])
@@ -368,9 +465,27 @@ def recursive_commuting_split(hamiltonian, scheme):
     for cs in covering:
         disjoint_covering.append(cs - partial_covering)
         partial_covering.update(cs)
-    # 3. Now recursively split the given Hamiltonian into these parts
-    
-    return disjoint_covering
+        
+    # 3. Now recursively split the given Hamiltonian into these parts, starting with the largest parts first, which should be the very first elements in disjoint_covering, since we did apply a greedy algorithm.
+    split = iterative_split(len(disjoint_covering), scheme=scheme)
+    split_groups = []
+    hamiltonians = []
+    for s in split:
+        index, value = s
+        monomial_indices = disjoint_covering[index] # all these monomials commute with each other
+        split_groups.append((monomial_indices, value))
+        if combine:            
+            hamiltonians.append(sum([monomials[index] for index in monomial_indices])*value)
+        else:
+            s_hamiltonians = []
+            for index in monomial_indices:
+                if include_values:
+                    s_hamiltonians.append(monomials[index]*value)
+                else:
+                    power = list(monomials[index].keys())[0]
+                    s_hamiltonians.append(lieops.ops.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
+            hamiltonians += s_hamiltonians
+    return hamiltonians
 
 def _greedy_set_cover(subsets):
     '''
