@@ -6,7 +6,7 @@ import lieops.ops.poly
 
 class yoshida:
     
-    def __init__(self, scheme=[1, 1/2]):
+    def __init__(self, start=[1, 1/2]):
         '''
         Model a symplectic integrator which is symmetric according to Yoshida [1].
         
@@ -23,15 +23,15 @@ class yoshida:
         [1] H. Yoshida: "Construction of higher order symplectic integrators", 
         Phys. Lett. A 12, volume 150, number 5,6,7 (1990).
         '''
-        self.scheme = scheme
+        self.start = start
         
     @staticmethod
-    def branch_factors(m: int, scheme=[1, 1/2]):
+    def branch_factors(m: int, start=[1, 1/2]):
         '''
         Compute the quantities in Eq. (4.14) in Ref. [1].
         '''
         if m == 0:
-            return scheme
+            return start
         else:
             frac = 1/(2*m + 1)
             z0 = -2**frac/(2 - 2**frac)
@@ -48,12 +48,12 @@ class yoshida:
         n: int
             The order of the integrator.
         '''
-        z0, z1 = self.branch_factors(m=n, scheme=self.scheme)
+        z0, z1 = self.branch_factors(m=n, start=self.start)
         steps_k = [z1, z0, z1]
         for k in range(n):
             new_steps = []
             for step in steps_k:
-                z0, z1 = self.branch_factors(m=n - k - 1, scheme=self.scheme)
+                z0, z1 = self.branch_factors(m=n - k - 1, start=self.start)
                 new_steps += [z1*step, z0*step, z1*step]
             steps_k = new_steps
             
@@ -252,11 +252,19 @@ def _iterative_split_gen(k: int, n: int, r={(1,)}):
     n: int
         Number of splits per iteration.
     '''
+    # This routine may start to perform less effective for large k and n values, but this is unavoidable:
+    # The number M of terms after applying a split for k unique items -- and using a scheme of length n -- is in the order of
+    # M ~ (n//2)**(k - 1)*n 
+    # Hereby n//2 denotes the number of branches at every step which are repeatedly split. The number of steps is k - 1 and
+    # the last factor n denotes the number of final branches. In fact, M is slightly larger than the above estimate.
+    # For a large Hamiltonian with e.g. around 40 non-commuting terms, using n = 3 gives a small number (M ~ 3), but n = 7, which
+    # is the 4th order Yoshida integrator, we get M ~ 3e19 terms, which can not be avoided. That's why this algorithm
+    # can be used only for the basic [1/2, 1, 1/2]-scheme for a large non-trivial Hamiltonian. This makes splitting
     for x in range(k):
         r = {t + (l,) if t[-1]%2 == 1 and len(t) == x + 1 else t for l in range(n) for t in r}
         yield r
         
-def iterative_split(n, scheme):
+def split_iteratively(n, scheme):
     '''
     Split a list of integers 0, 1, 2, ..., n - 1 iteratively, using a given scheme.
     
@@ -331,7 +339,7 @@ def iterative_monomial_split(hamiltonian, scheme, include_values=True):
         or to simply return the coefficients.
     '''
     monomials = hamiltonian.monomials()
-    split = iterative_split(len(monomials), scheme=scheme)
+    split = split_iteratively(len(monomials), scheme=scheme)
     result = []
     for s in split:
         index, value = s
@@ -441,7 +449,6 @@ def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=
         Lie operators for every monomial.
         
     include_values: boolean, optional
-        *** Only supported if combine = False ***
         If True, then include the individual coefficients in front of the monomials in the final result.
         If False, then the initial individual coefficients are set to 1. This allows to conveniently 
         obtain the factors coming from the splitting routine.
@@ -467,24 +474,24 @@ def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=
         partial_covering.update(cs)
         
     # 3. Now recursively split the given Hamiltonian into these parts, starting with the largest parts first, which should be the very first elements in disjoint_covering, since we did apply a greedy algorithm.
-    split = iterative_split(len(disjoint_covering), scheme=scheme)
-    split_groups = []
+    split = split_iteratively(len(disjoint_covering), scheme=scheme)
     hamiltonians = []
     for s in split:
         index, value = s
         monomial_indices = disjoint_covering[index] # all these monomials commute with each other
-        split_groups.append((monomial_indices, value))
-        if combine:            
-            hamiltonians.append(sum([monomials[index] for index in monomial_indices])*value)
+        
+        if include_values:
+            s_hamiltonians = [monomials[index]*value for index in monomial_indices]
         else:
             s_hamiltonians = []
             for index in monomial_indices:
-                if include_values:
-                    s_hamiltonians.append(monomials[index]*value)
-                else:
-                    power = list(monomials[index].keys())[0]
-                    s_hamiltonians.append(lieops.ops.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
-            hamiltonians += s_hamiltonians
+                power = list(monomials[index].keys())[0]
+                s_hamiltonians.append(lieops.ops.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
+            
+        if combine:
+            s_hamiltonians = [sum([h for h in s_hamiltonians])]
+            
+        hamiltonians += s_hamiltonians
     return hamiltonians
 
 def _greedy_set_cover(subsets):
