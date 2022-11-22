@@ -1,5 +1,5 @@
 from njet.functions import exp
-from .splitting import recursive_monomial_split
+from .splitting import iterative_commuting_split
 
 def productExceptSelf(arr):
     '''
@@ -167,7 +167,10 @@ def flow(hamiltonian, reverse=False, **kwargs):
     '''
     assert len(hamiltonian.keys()) > 0
     if len(hamiltonian.keys()) > 1:
-        split_method = kwargs.get('split_method', recursive_monomial_split)
+        split_method = kwargs.get('split_method', iterative_commuting_split)
+        if 'split_method' not in kwargs.keys():
+            # need to ensure that the default splitting routine "iterative_commuting_split" returns individual monomials
+            kwargs['combine'] = False
         _ = kwargs.pop('split_method', None)
         monomials = split_method(hamiltonian, **kwargs)
     else:

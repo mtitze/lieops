@@ -237,7 +237,7 @@ def _propagate_branches(comm, start, branch_index=0):
 ###################
 # Splitting tools #
 ###################
-
+    
 def _iterative_split_gen(k: int, n: int, r={(1,)}):
     '''
     Generator for iterative split. 
@@ -256,10 +256,10 @@ def _iterative_split_gen(k: int, n: int, r={(1,)}):
     # The number M of terms after applying a split for k unique items -- and using a scheme of length n -- is in the order of
     # M ~ (n//2)**(k - 1)*n 
     # Hereby n//2 denotes the number of branches at every step which are repeatedly split. The number of steps is k - 1 and
-    # the last factor n denotes the number of final branches. In fact, M is slightly larger than the above estimate.
-    # For a large Hamiltonian with e.g. around 40 non-commuting terms, using n = 3 gives a small number (M ~ 3), but n = 7, which
+    # the last factor n denotes the number of final branches.
+    # For a large Hamiltonian with e.g. around 40 non-commuting terms, using n = 3 gives a small number (M ~ 3), but for n = 7, which
     # is the 4th order Yoshida integrator, we get M ~ 3e19 terms, which can not be avoided. That's why this algorithm
-    # can be used only for the basic [1/2, 1, 1/2]-scheme for a large non-trivial Hamiltonian. This makes splitting
+    # can be used only for the basic [1/2, 1, 1/2]-scheme for a large non-trivial Hamiltonian.
     for x in range(k):
         r = {t + (l,) if t[-1]%2 == 1 and len(t) == x + 1 else t for l in range(n) for t in r}
         yield r
@@ -322,7 +322,7 @@ def split_by_order(hamiltonian, scheme):
 # Split a hamiltonian into its monomials
 # ======================================
 
-def iterative_monomial_split(hamiltonian, scheme, include_values=True):
+def iterative_monomial_split(hamiltonian, scheme, include_values=True, **kwargs):
     '''
     Split a given Hamiltonian iteratively into its monomials, by applying a given scheme.
     
@@ -445,7 +445,7 @@ def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=
         where H = A + CA. The operators exp(bj*CA) are subsequently been split into their commuting parts in the same manner.
     
     combine: boolean, optional
-        If set to true, return the commuting parts in individual poly objects. If false, return
+        If set to true, combine the commuting parts to individual poly objects. If false, return
         Lie operators for every monomial.
         
     include_values: boolean, optional
