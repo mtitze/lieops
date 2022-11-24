@@ -357,7 +357,11 @@ def iterative_monomial_split(hamiltonian, scheme, include_values=True, **kwargs)
         or to simply return the coefficients.
     '''
     monomials = hamiltonian.monomials()
-    split = split_iteratively(len(monomials), scheme=scheme)
+    n_monomials = len(monomials)
+    if n_monomials == 1:
+        split = [(0, 1)]
+    else:
+        split = split_iteratively(len(monomials), scheme=scheme)
     result = []
     for s in split:
         index, value = s
@@ -492,7 +496,11 @@ def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=
         partial_covering.update(cs)
         
     # 3. Now recursively split the given Hamiltonian into these parts, starting with the largest parts first, which should be the very first elements in disjoint_covering, since we did apply a greedy algorithm.
-    split = split_iteratively(len(disjoint_covering), scheme=scheme)
+    n_cover = len(disjoint_covering)
+    if n_cover == 1:
+        split = [(0, 1)]
+    else:
+        split = split_iteratively(len(disjoint_covering), scheme=scheme)
     hamiltonians = []
     for s in split:
         index, value = s
