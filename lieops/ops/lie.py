@@ -191,11 +191,15 @@ class lieoperator:
         elif hasattr(generator, '__call__'):
             if not 'power' in kwargs.keys():
                 raise RuntimeError("Generation with callable object requires 'power' argument to be set.")
-            # assume that g is a function of one variable which needs to be derived n-times at zero.
-            assert generator.__code__.co_argcount == 1, 'Function needs to depend on a single variable.'
-            dg = derive(generator, order=kwargs['power'])
-            taylor_coeffs = dg(0, mult_drv= False)
-            self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
+            try:
+                # Some of the generators in ops.generators
+                self.generator = generator(**kwargs)
+            except:
+                # assume that g is a function of one variable which needs to be derived n-times at zero.
+                assert generator.__code__.co_argcount == 1, 'Generator function needs to depend on a single variable.'
+                dg = derive(generator, order=kwargs['power'])
+                taylor_coeffs = dg(0, mult_drv= False)
+                self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
         else:
             raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1

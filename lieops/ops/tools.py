@@ -213,11 +213,11 @@ def ad3poly(A, **kwargs):
 def action_on_poly(*mu, C, func=lambda z: z):
     '''
     The poisson bracket of the polynomial X := sum_k mu_k epsilon_k 
-    (notation as in Ref. [1]), where
-    epsilon_k denotes the k-th action and mu_k the k-th tune, and some arbitrary polynomial C
-    can be computed directly due to the fact that the xi/eta-coordinates are an "eigenbasis" of X.
+    (notation as in Ref. [1], where epsilon_k denotes the k-th action and mu_k 
+    the k-th tune), applied to some arbitrary polynomial C, can be computed directly 
+    due to the fact that the xi/eta-coordinates constitute an "eigenbasis" of X.
     
-    This routine will perform the computation and return the respective result polynomial.
+    This routine will perform the calculation and return the resulting polynomial.
     
     Parameters
     ----------
@@ -229,6 +229,11 @@ def action_on_poly(*mu, C, func=lambda z: z):
         
     func: callable (optional)
         A function f so that f(X) is applied instead.
+        
+    Returns
+    -------
+    poly
+        The poly object {X, C} (or {f(X), C}, if a function has been provided).
     '''
     assert len(mu) == C.dim
     return lieops.ops.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
