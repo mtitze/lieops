@@ -1,6 +1,5 @@
 import numpy as np
 
-from njet import derive
 from lieops.linalg.nf import first_order_nf_expansion
 
 from .generators import genexp
@@ -180,26 +179,14 @@ class lieoperator:
             
             g(z) = sum_k a_k*z**k.
             
-            If g is a callable object, then the a_k's are determined from the Taylor coefficients of
-            g. Hereby g must depend on only one parameter and it has to be supported by the njet
-            module. Furthermore, the additional (integer) parameter 'power' is required to define the 
-            maximal order up to which the Taylor coefficients will be determined.
+            If g is a callable object, then additional arguments are passed to this callable to
+            create the a_k's.
         '''
         if hasattr(generator, '__iter__'):
             # assume that g is in the form of a series, e.g. given by a generator function.
             self.generator = generator
         elif hasattr(generator, '__call__'):
-            if not 'power' in kwargs.keys():
-                raise RuntimeError("Generation with callable object requires 'power' argument to be set.")
-            try:
-                # Some of the generators in ops.generators
-                self.generator = generator(**kwargs)
-            except:
-                # assume that g is a function of one variable which needs to be derived n-times at zero.
-                assert generator.__code__.co_argcount == 1, 'Generator function needs to depend on a single variable.'
-                dg = derive(generator, order=kwargs['power'])
-                taylor_coeffs = dg(0, mult_drv= False)
-                self.generator = [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
+            self.generator = generator(**kwargs)
         else:
             raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1
