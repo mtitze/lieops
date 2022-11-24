@@ -238,7 +238,7 @@ def _propagate_branches(comm, start, branch_index=0):
 # Splitting tools #
 ###################
     
-def _iterative_split_gen(k: int, n: int, r={(1,)}):
+def _iterative_split_gen(k: int, n: int, r={(1,)}, warn=True):
     '''
     Generator for iterative split. 
     
@@ -260,6 +260,24 @@ def _iterative_split_gen(k: int, n: int, r={(1,)}):
     # For a large Hamiltonian with e.g. around 40 non-commuting terms, using n = 3 gives a small number (M ~ 3), but for n = 7, which
     # is the 4th order Yoshida integrator, we get M ~ 3e19 terms, which can not be avoided. That's why this algorithm
     # can be used only for the basic [1/2, 1, 1/2]-scheme for a large non-trivial Hamiltonian.
+    
+    assert k >= 1
+    if warn:
+        # 1. Compute the expected number of splits for a user warning:
+        a = np.floor(n/2) # the number of terms which are not split away at one step
+        b = np.ceil(n/2) # the number of terms which are split away at one step
+        n_terms = a**(k - 1)*n # the number of terms which were split at the last step
+        # add the numbers which were split away in the course of the split up (but not including) the last step:   
+        if a > 1:
+            # Geometric sum times the number of terms which are split away:
+            n_terms += (1 - a**(k - 1))/(1 - a)*b
+        else:
+            # at every step, b terms are split away
+            n_terms += b*(k - 1)
+        if n_terms > 1000:
+            warnings.warn(f'The number of terms, if using {k} items and a scheme of length {n}, will be {int(n_terms)}.')
+    
+    # 2. Compute the splits
     for x in range(k):
         r = {t + (l,) if t[-1]%2 == 1 and len(t) == x + 1 else t for l in range(n) for t in r}
         yield r
@@ -282,7 +300,7 @@ def split_iteratively(n, scheme):
     if n == 1:
         warnings.warn('Splitting of a non-splittable element requested.')
         return [(0, 1)]
-    n = n - 1 # the number of split iterations required to split n elements.
+    n = n - 1 # the number of split iterations required to split n elements.    
     split = []
     final_tree = list(_iterative_split_gen(k=n, n=len(scheme)))[-1]
     order = sorted(final_tree)

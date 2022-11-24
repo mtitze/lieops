@@ -22,5 +22,5 @@ def create(generator, power: int):
     '''
     assert generator.__code__.co_argcount == 1, 'Generator function needs to depend on a single variable.'
     dg = derive(generator, order=power)
-    taylor_coeffs = dg(0, mult_drv= False)
+    taylor_coeffs = dg(0, mult_drv=False)
     return [taylor_coeffs.get((k,), 0) for k in range(len(taylor_coeffs))]
