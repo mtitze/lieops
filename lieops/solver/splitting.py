@@ -275,7 +275,7 @@ def _iterative_split_gen(k: int, n: int, r={(1,)}, warn=True):
             # at every step, b terms are split away
             n_terms += b*(k - 1)
         if n_terms > 1000:
-            warnings.warn(f'The number of terms, if using {k} items and a scheme of length {n}, will be {int(n_terms)}.')
+            warnings.warn(f'The number of terms, if using {k} items and a scheme of length {n}, will be {int(n_terms)} ...')
     
     # 2. Compute the splits
     for x in range(k):
