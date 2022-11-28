@@ -9,12 +9,33 @@ def _load_bch_data(filename):
     including order 20. The code which has been used to generate the raw data
     is credited to H. Hofstaetter in https://github.com/HaraldHofstaetter/BCH.
     
-    This routine converts the .txt file bch20.txt contained in lieops.ops.bch into
-    a pandas dataframe and returns it. This file has been created with the command
-    "./bch N=20 table_output=1 > bch20.txt"
+    This routine converts the .txt file bch20.txt created with the command
+    "./bch N=20 table_output=1 > bch20.txt" to a Pandas dataframe object.
     
-    A .csv file can then be generated with the command (e.g. data denotes the dataframe)
+    A .csv file can subsequently be generated with the command (e.g. data denotes the dataframe)
     data.to_csv('bch20.csv', index=False).
+    
+    Parameters
+    ----------
+    filename: str
+        The name of the output .txt file as described above.
+        
+    Returns
+    -------
+    dataframe
+        A Pandas dataframe object whose columns have the following meaning:
+        Let A and B be two operators, whose BCH expression Z(A, B) = log(exp(A) o exp(B)) has
+        to be computed. Then Z(A, B) = sum_(j = 0)^N x_j*c_j(A, B), where the operators c_j
+        are given in terms of nested commutator expressions of A and B, and x_j is some rational
+        coefficient.
+        
+        'index': The index j of the basis element c_j.
+        'order': The number of involved operators A and B in the expression of c_j.
+         'left': The index k so that c_j = [c_k, c_l] holds.
+        'right': The index l so that c_j = [c_k, c_l] holds.
+          'nom': The nominator of x_j.
+        'denom': The denominator of x_j.
+        'coeff': The coefficient x_j.
     '''
     data = pd.read_csv(raw_data, sep="\t| |/", header=None, engine='python')#, delimiter = "\t")
     data.columns = ["index", "order", "left", "right", "nom", "denom"]
@@ -28,6 +49,34 @@ def bch(A, B, order, database=[], output_format='order', **kwargs):
     '''
     Compute the terms in the Baker-Campbell-Hausdorff series for
     orders up and including "order".
+    
+    Z(A, B) = log(exp(A) o exp(B))
+    
+    Parameters
+    ----------
+    A: poly
+        The first operator.
+        
+    B: poly
+        The second operator.
+        
+    database: Pandas dataframe, optional
+        A dataframe which can hold the BCH coefficients up to a desired order. See _load_bch_data routine for more
+        information.
+        
+    output_format: str, optional
+        Define how the output should be returned:
+             "order": Return a dictionary, where the key 'k' denotes the contribution of the k-th order to Z.
+        "individual": Return a dictionary holding the individual non-zero entries. The keys are hereby deduced from
+                      the indices of the given database.
+                      
+    **kwargs
+        Optional keyworded arguments to control the progress bar output.
+        
+    Returns
+    -------
+    dict
+        A dictionary of poly objects which contribute to Z(A, B), as described above.
     '''
     # check & prepare input
     assert output_format in ['order', 'individual'], f'Requested output format {output_format} not understood.'
