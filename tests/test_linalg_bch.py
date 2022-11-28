@@ -8,6 +8,12 @@ from lieops.linalg.bch.bch_2x2 import get_params
 def bch_2x2_multiplication_table(A, B):
     '''
     Get the multiplication table in Thm. 1 in Ref. [1].
+
+    References
+    ----------
+    [1] Foulis: "The algebra of complex 2 × 2 matrices and a 
+                 general closed Baker–Campbell–Hausdorff formula",
+                 J. Phys. A: Math. Theor. 50 305204 (2017).
     '''
     params = get_params(A, B)
     alpha = params['alpha']

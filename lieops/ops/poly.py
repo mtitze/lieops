@@ -10,6 +10,7 @@ class _poly:
     '''
     Class to model the Lie operator :p:, where p is a polynomial given in terms of
     complex (xi, eta)-coordinates. For the notation of these coordinates see Ref. [1] p. 33 onwards.
+    In the literature this polynomial itself may be called a "Lie polynomial", see e.g. Ref. [2].
     
     Parameters
     ----------
@@ -35,7 +36,8 @@ class _poly:
         Optional arguments passed to self.set_monimial and self.set_max_power
         
     Reference(s):
-        [1] "M. Titze: Space Charge Modeling at the Integer Resonance for the CERN PS and SPS" (2019).
+        [1] Titze, M. "Space Charge Modeling at the Integer Resonance for the CERN PS and SPS" (2019).
+        [2] Casas, F. and Murua, M. "An efficient algorithm for computing the Baker-Campbell-Hausdorff series and some of its applications" (2008) arXiv:0810.2656.
     '''
     
     def __init__(self, **kwargs):

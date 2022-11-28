@@ -27,7 +27,7 @@ def Sinhc(x):
     
 def get_case(C):
     '''
-    Determine the case (see Thm. 2 in Ref. [1]) in which the current problem falls.
+    Determine the case outlined in Thm. 2, Ref. [1], for C.
     '''
     assert C[0, 0] + C[1, 1] == 0 # Tr(C) == 0
     detC = C[0, 0]*C[1, 1] - C[1, 0]*C[0, 1] # det(C)

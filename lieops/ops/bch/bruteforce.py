@@ -1,49 +1,63 @@
-def nc(*args):
-    '''
-    Returns the nested commutator expression (sometimes called Chibrikov basis)
-    x1@(x2@(x3@(x4@ .... )))
-    '''
-    out = args[-1]
-    for x in args[len(args) - 2::-1]:
-        out = x@out
-    return out
+import os
+import pandas as pd
+from tqdm import tqdm
+import warnings
 
-def bch(x, y):
+def _load_bch_data(filename):
     '''
-    Compute the explicit commutators of the Baker-Campbell-Hausdorff series for
-    orders up and including 7.
+    Load a pre-calculated file for the Baker-Campbell-Hausdorff coefficients up and
+    including order 20. The code which has been used to generate the raw data
+    is credited to H. Hofstaetter in https://github.com/HaraldHofstaetter/BCH.
+    
+    This routine converts the .txt file bch20.txt contained in lieops.ops.bch into
+    a pandas dataframe and returns it. This file has been created with the command
+    "./bch N=20 table_output=1 > bch20.txt"
+    
+    A .csv file can then be generated with the command (e.g. data denotes the dataframe)
+    data.to_csv('bch20.csv', index=False).
     '''
-    result = {}
-    result[1] = x + y
-    result[2] = 0.5*(x@y)
-    result[3] = 1/12*(nc(x, x, y) + nc(y, y, x))
-    result[4] = -1/24*nc(y, x, x, y)
-    #result[5] = 1/180*nc(y, y, x, x, y) - 1/360*(x@y)@nc(y, x, y) - 1/180*nc(y, x, x, x, y) - 1/120*(x@y)@nc(x, x, y) + 1/720*nc(y, y, y, x, y) - 1/720*nc(x, x, x, x, y)
-    result[5] = -1/720*(nc(y, y, y, y, x) + nc(x, x, x, x, y)) + \
-                1/360*(nc(x, y, y, y, x) + nc(y, x, x, x, y)) + \
-                1/120*(nc(y, x, y, x, y) + nc(x, y, x, y, x))
-    # From Wiki (fails at symmetry test!)
-    #result[6] = 1/240*nc(x, y, x, y, x, y) + \
-    #            1/720*(nc(x, y, x, x, x, y) - nc(x, x, y, y, x, y)) + \
-    #            1/1440*(nc(x, y, y, y, x, y) - nc(x, x, y, x, x, y))
-    # Instead, we will use the results from the BCH routine of H. Hofstaetter (https://github.com/HaraldHofstaetter/BCH)
-    result[6] = -1/1440*nc(y, x, x, x, y, x) + 1/720*nc(y, y, x, x, y, x) - 1/240*nc(y, x, y, x, y, x) + 1/1440*nc(y, y, y, x, y, x) - 1/720*nc(y, x, y, y, y, x)
-    result[7] = -1/30240 * nc(x, x, x, x, x, y, x) + \
-                 1/10080 * nc(y, x, x, x, x, y, x) - \
-                 1/10080 * nc(x, y, x, x, x, y, x) - \
-                 1/3360  * nc(y, y, x, x, x, y, x) - \
-                 1/5040 *  nc(x, x, y, x, x, y, x) + \
-                 1/1260 *  nc(y, x, y, x, x, y, x) + \
-                 1/7560 *  nc(x, y, y, x, x, y, x) - \
-                 1/7560 *  nc(y, y, y, x, x, y, x) + \
-                 1/10080 * nc(x, x, y, y, x, y, x) - \
-                 1/1008 *  nc(x, y, x, y, x, y, x) + \
-                 1/3360 *  nc(y, y, x, y, x, y, x) + \
-                 1/1680 *  nc(y, x, y, y, x, y, x) - \
-                 1/3360 *  nc(x, y, y, y, x, y, x) - \
-                 1/10080 * nc(y, y, y, y, x, y, x) - \
-                 1/5040 *  nc(x, y, x, y, y, y, x) + \
-                 1/2520 *  nc(y, y, x, y, y, y, x) - \
-                 1/10080 * nc(x, y, y, y, y, y, x) + \
-                 1/30240 * nc(y, y, y, y, y, y, x)
-    return result
+    data = pd.read_csv(raw_data, sep="\t| |/", header=None, engine='python')#, delimiter = "\t")
+    data.columns = ["index", "order", "left", "right", "nom", "denom"]
+    data.drop(columns=["index"], inplace=True) # drop unecessary information
+    data.drop(data[data.nom == 0].index, inplace=True) # drop items which are zero anyways
+    data = data.astype({"nom": float, "denom": float})
+    data['coeff'] = data.apply(lambda x: x.nom/x.denom, axis=1) # compute the coefficients
+    return data
+
+def bch(A, B, order, database=[], output_format='order', **kwargs):
+    '''
+    Compute the terms in the Baker-Campbell-Hausdorff series for
+    orders up and including "order".
+    '''
+    # check & prepare input
+    assert output_format in ['order', 'individual'], f'Requested output format {output_format} not understood.'
+    if len(database) == 0:
+        database_filename = os.path.join(os.path.dirname(__file__), 'bch20.csv')
+        database = pd.read_csv(database_filename)
+    max_order = int(database.iloc[-1]['order'])
+    if order > max_order:
+        warnings.warn(f"Requested order {order} exceeds the maximal supported order {max_order} in the database.")
+    database = database.drop(database[database.order > order].index)
+    
+    # initiate calculation
+    commutators = {0: A, 1: B} # the commutators needs to be stored without their coefficients, because some 
+                               # higher-order expressions are not zero, while they depend on lower-order 
+                               # expressions which may have zero as coefficients.
+    results = {0: A, 1: B} # here the results are stored *with* their coefficients
+    pbar = tqdm(range(2, len(database)), 
+                leave=kwargs.get('leave_tqdm', True), 
+                disable=kwargs.get('disable_tqdm', False)) # a progress bar to show the progress of the calculation
+    for j in pbar:
+        data_j = database.iloc[j]
+        index = int(data_j['index'])
+        k = int(data_j['left'])
+        l = int(data_j['right'])
+        coeff = data_j['coeff']
+        commutators[index] = commutators[k]@commutators[l]
+        if coeff != 0:
+            results[index] = commutators[index]*coeff
+    if output_format == 'individual':
+        return results
+    elif output_format == 'order':
+        # return a result which gives the individual contributions for each order
+        return {k: sum([results[w] for w in database.loc[(database['order'] == k) & (database['coeff'] != 0)]['index']]) for k in database['order'].unique()}

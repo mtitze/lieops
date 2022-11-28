@@ -71,7 +71,7 @@ def bch_vs_reference(x, y, result, tol=1e-11):
     Check combine(x, y) vs. the prediction from the clasical Baker-Campbell-Hausdorff equation
     for orders up and including 7.
     '''
-    reference = bruteforce(x, y)
+    reference = bruteforce(x, y, order=7)
     for r in result.keys():
         if r == 0:
             continue
@@ -327,6 +327,7 @@ def test_associativity_vs_bch(max_power=10, tol=5e-10):
     a, b, c, d = H0, Hs1, H1*1j, Hs0
     
     power = 6
+    bch_order = 7
     
     ab, _, _ = combine(a, b, power=power, time=False)
     abc_1, _, _ = combine(sum(ab.values()), c, power=power, time=False)
@@ -334,10 +335,10 @@ def test_associativity_vs_bch(max_power=10, tol=5e-10):
     abc_2, _, _ = combine(a, sum(bc.values()), power=power, time=False)
     diff = sum(abc_1.values()) - sum(abc_2.values())
     
-    ref_ab = sum(bruteforce(a, b).values())
-    ref_abc_1 = sum(bruteforce(ref_ab, c).values())
-    ref_bc = sum(bruteforce(b, c).values())
-    ref_abc_2 = sum(bruteforce(a, ref_bc).values())
+    ref_ab = sum(bruteforce(a, b, order=bch_order).values())
+    ref_abc_1 = sum(bruteforce(ref_ab, c, order=bch_order).values())
+    ref_bc = sum(bruteforce(b, c, order=bch_order).values())
+    ref_abc_2 = sum(bruteforce(a, ref_bc, order=bch_order).values())
     
     assert abc_1.keys() == abc_2.keys()
     ref_diff = ref_abc_1 - ref_abc_2
