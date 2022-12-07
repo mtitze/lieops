@@ -221,7 +221,7 @@ class lieoperator:
         else:
             raise NotImplementedError(f"method '{self._flow_parameters['method']}' not recognized.")
         
-    def _update_flow_parameters(self, update=True, **kwargs):
+    def _update_flow_parameters(self, update=False, **kwargs):
         '''
         Update self._flow_parameters if necessary; return boolean if they have been updated 
         (and therefore self.flow may have to be re-calculated).
@@ -229,21 +229,15 @@ class lieoperator:
         This internal routine is indended to help in speeding up flow calculations, so that the flow
         is only calculated if parameters have been changed.
         '''
-        if 't' in kwargs.keys():
-            if self._flow_parameters['t'] != kwargs['t']:
-                self._flow_parameters['t'] = kwargs['t']
-                update = True
-                
-        if 'method' in kwargs.keys():
-            if self._flow_parameters['method'] != kwargs['method']:
-                self._flow_parameters['method'] = kwargs['method']
-                update = True
-                
+        update = update or not kwargs.items() <= self._flow_parameters.items()
         if 'components' in kwargs.keys():
             # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
             if any([next(iter(self.components[k:]), None) != kwargs['components'][k] for k in range(len(kwargs['components']))]):
                 self.components = kwargs['components']
                 update = True
+
+        if update:
+            self._flow_parameters.update(kwargs)
         return update
 
     def evaluate(self, *z, **kwargs):
@@ -363,7 +357,7 @@ class lexp(lieoperator):
         self.generator = genexp(power)
         self.power = len(self.generator) - 1
         
-    def _update_flow_parameters(self, update=True, **kwargs):
+    def _update_flow_parameters(self, update=False, **kwargs):
         if 'power' in kwargs.keys():
             # if the user is giving the routine a 'power' argument, it will be assumed that the bruteforce method should be used with respect to the given power. Therefore:
             self.set_generator(kwargs['power'])

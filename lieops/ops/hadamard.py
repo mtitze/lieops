@@ -104,4 +104,3 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
     return new_hamiltonians, [ad2poly(current_g1_operator)], [ad2poly(op) for op in g1_operators]
 
-
