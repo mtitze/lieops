@@ -13,6 +13,8 @@ from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 import lieops.ops.tools
 import lieops.ops.birkhoff
 
+from njet import derive
+
 class poly(_poly):
     
     def lexp(self, *args, **kwargs):
@@ -64,7 +66,7 @@ class poly(_poly):
             Order up to which the normal form should be computed.
             
         **kwargs
-            Optional arguments passed to 'bnf' routine.
+            Optional arguments passed to 'lieops.ops.birkhoff.bnf' routine.
         '''
         kwargs['max_power'] = kwargs.get('max_power', self.max_power)
         return lieops.ops.birkhoff.bnf(self, order=order, power=power, n_args=self.dim*2, **kwargs)
@@ -361,7 +363,7 @@ class lexp(lieoperator):
         self.generator = genexp(power)
         self.power = len(self.generator) - 1
         
-    def _update_flow_parameters(self, update=False, **kwargs):
+    def _update_flow_parameters(self, update=True, **kwargs):
         if 'power' in kwargs.keys():
             # if the user is giving the routine a 'power' argument, it will be assumed that the bruteforce method should be used with respect to the given power. Therefore:
             self.set_generator(kwargs['power'])
@@ -421,14 +423,59 @@ class lexp(lieoperator):
             
     def _calcFlowFromParameters(self, **kwargs):
         if self._flow_parameters['method'] == '2flow':
-            # if self.argument has order <= 2, one can compute the flow exactlyen changed at a later point.
+            # if self.argument has order <= 2, one can compute the flow exactly
             self._2flow_xieta = create_coords(self.argument.dim)
-            self._2flow = get_2flow(self.argument*self._flow_parameters['t'], 
-                                        tol=kwargs.get('tol', 1e-12))
+            self._2flow = get_2flow(self.argument*self._flow_parameters['t'], tol=kwargs.get('tol', 1e-12))
             # apply self._2flow on the individual xi/eta-coordinates. They will be used
             # later on, for each of the given components, using the pull-back property of the flow
             self._2flow_xietaf = [self._2flow(xieta, **kwargs) for xieta in self._2flow_xieta]
             self.flow = [c(*self._2flow_xietaf) for c in kwargs.get('components', self.components)]
+            
+        elif self._flow_parameters['method'] == 'njet':
+            # Pass an njet through the lie operator, derived at zero. This requires a different method by which the one-turn map is evaluated. A splitting or slicing can be used to improve the result.
+            
+            # Step 1: Handle user input; determine method to calculate the flow of the parts
+            njet_flow_method = kwargs.get('njet_flow_method', 'bruteforce')
+            assert njet_flow_method != 'njet', "Argument 'njet_flow_method' can not be 'njet' itself."
+            if njet_flow_method == 'bruteforce':
+                try:
+                    kwargs.setdefault('power', getattr(self, 'power'))
+                except:
+                    raise RuntimeError("Default njet_flow_method: bruteforce requires 'power' argument to be set.")
+
+            # Step 2: Compute the flow of the individual sliced and/or splitted operators
+            if 'njet_split_method' in kwargs.keys():
+                # use a user-defined custom splitting method (see lieops.solver.splitting
+                hamiltonians = kwargs['njet_split_method'](self.argument*self._flow_parameters['t'], **kwargs)
+            else:
+                # slice the Hamiltonian according to a given number of slices
+                n_slices = kwargs.get('n_slices', 1)
+                hamiltonians = [self.argument*self._flow_parameters['t']/n_slices]*n_slices
+            operators = [self.__class__(h) for h in hamiltonians]
+            _ = kwargs.pop('method', None)
+            requested_components = kwargs.pop('components', self.components)
+            self._njet_xieta = create_coords(self.argument.dim)
+            for op in operators:
+                op.calcFlow(method=njet_flow_method, components=self._njet_xieta, **kwargs)
+            self._njet_operators = operators
+            def lo_concat(*z):
+                for op in operators:
+                    z = op(*z)
+                return z
+            self._njet_flow_func = lo_concat
+            
+            # Step 3: Derive the concatenated operator
+            if self.argument.maxdeg() == 2:
+                order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term only.
+            else:
+                assert self.argument.max_power < np.inf, 'Argument needs a finite max_power.'
+                order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.ops.poly._poly concerning max_power
+            n_args = self.argument.dim*2
+            dcomb = derive(lo_concat, n_args=n_args, order=order)
+            self._njet_dflow_func = dcomb
+            expansion = dcomb(*(0,)*n_args)
+            self._njet_xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
+            self.flow = [c(*self._njet_xietaf) for c in requested_components]
             
         elif self._flow_parameters['method'] == 'channell':
             kwargs.setdefault('scheme', [0.5, 1, 0.5])

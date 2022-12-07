@@ -321,7 +321,7 @@ def split_iteratively(n, scheme):
 # Split according to total orders
 # ===============================
 
-def split_by_order(hamiltonian, scheme):
+def split_by_order(hamiltonian, scheme, **kwargs):
     '''
     Split a Hamiltonian according to its orders.
     '''
@@ -451,7 +451,7 @@ def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[
 # Split according to subsets of commuting monomials
 # =================================================
 
-def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=True):
+def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=True, **kwargs):
     '''
     Split a given Hamiltonian iteratively into commuting parts, according to a given scheme.
     

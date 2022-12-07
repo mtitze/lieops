@@ -7,11 +7,11 @@ import lieops.ops.lie
 
 def get_2flow(ham, tol=1e-12):
     '''
-    Compute the exact flow of a 2nd-order Hamiltonian, for polynomials up to second-order.
+    Compute the exact flow of a Hamiltonian, modeled by a polynomial of first or second-order.
     I.e. compute the solution of
         dz/dt = {H, z}, z(0) = p,
     where { , } denotes the poisson bracket, H the requested Hamiltonian.
-    Hereby p must be a polynomial of order <= 2.
+    Hereby H and p must be polynomials of order <= 2.
     
     Parameters
     ----------
@@ -23,6 +23,7 @@ def get_2flow(ham, tol=1e-12):
         admits an invertible matrix of eigenvalues according to np.linalg.eig. In this case, one can use
         fast matrix multiplication in the resulting flow. Otherwise we have to rely on scipy.linalg.expm.
     '''
+    assert ham.maxdeg() <= 2, 'Hamiltonian of degree <= 2 required.'
     poisson_factor = ham._poisson_factor
     
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix

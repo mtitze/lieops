@@ -257,7 +257,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
         entries denote powers of xi, while the last n entries denote powers of eta.
         
     dict
-        The output of linalg.normal_form routine, providing the linear map information at the requested point.
+        The output of lieops.linalg.nf.normal_form routine, providing the linear map information at the requested point.
     '''
     assert power >= 2
     dim = getNargs(H, n_args=n_args)

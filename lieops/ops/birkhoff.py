@@ -72,13 +72,13 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         Tolerance below which values are assumed to be zero.
         
     **kwargs
-        Keyword arguments are passed to .first_order_nf_expansion routine.
+        Keyword arguments are passed to lieops.linalg.nf.first_order_nf_expansion routine.
         
     Returns
     -------
     dict
         A dictionary with the following keys:
-        nfdict : The output of hte first_order_nf_expansion routine.
+        nfdict : The output of lieops.linalg.nf.first_order_nf_expansion.
         H      : Dictionary denoting the used Hamiltonian.
         H0     : Dictionary denoting the second-order coefficients of H.
         mu     : List of the tunes used (coefficients of H0).

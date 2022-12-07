@@ -27,6 +27,16 @@ class _poly:
         Similar to 'a', this tuple will define the powers of the monomial belonging to the eta-variables.
     
     max_power: int, optional
+        An integer beyond we do not perform calculations. In particular it is assumed for the poisson
+        bracket that terms beyond that integer are zero.
+        Attention:
+        The poisson bracket of two homogeneous Lie polynomials of orders n and m has order K = m + n - 2. 
+        For a general polynomial, we have in order K a contribution of m which could be e.g. of order K + 1 
+        (with n = 1). This means that orders K + 1 will in general
+        contribute to the K-th order in the poisson bracket, making repeated application of
+        poisson brackets not reliable if max_power is set too small.
+
+        Specificially, if we set max_power = K for two Lie polynomials a and b, then in {a, b} only those powers up and including K - 1 can be expected to be correct.
         
     dim: int, optional
         The number of xi- (or eta-) variables. Will be determined automatically from the input, if nothing
