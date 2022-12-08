@@ -428,7 +428,7 @@ class lexp(lieoperator):
         elif self._flow_parameters['method'] == 'njet':
             # Pass an njet through the lie operator, derived at zero. This requires a different method by which the one-turn map is evaluated. A splitting or slicing can be used to improve the result.
             
-            # Step 1: Handle user input; determine method to calculate the flow of the parts
+            # Step 1: Handle user input; determine method to calculate the flow of the individual parts.
             njet_flow_method = kwargs.get('njet_flow_method', 'bruteforce')
             assert njet_flow_method != 'njet', "Argument 'njet_flow_method' can not be 'njet' itself."
             if njet_flow_method == 'bruteforce':
@@ -437,7 +437,7 @@ class lexp(lieoperator):
                 except:
                     raise RuntimeError("Default njet_flow_method: bruteforce requires 'power' argument to be set.")
 
-            # Step 2: Compute the flow of the individual sliced and/or splitted operators
+            # Step 2: Split hamiltonian into parts and compute their flows.
             if 'njet_split_method' in kwargs.keys():
                 # use a user-defined custom splitting method (see lieops.solver.splitting
                 hamiltonians = kwargs['njet_split_method'](self.argument*self._flow_parameters['t'], **kwargs)
@@ -447,10 +447,10 @@ class lexp(lieoperator):
                 hamiltonians = [self.argument*self._flow_parameters['t']/n_slices]*n_slices
             operators = [self.__class__(h) for h in hamiltonians]
             _ = kwargs.pop('method', None)
-            requested_components = kwargs.pop('components', self.components)
+            requested_components = kwargs.pop('components', self.components) # we remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
             self._njet_xieta = create_coords(self.argument.dim)
             for op in operators:
-                op.calcFlow(method=njet_flow_method, components=self._njet_xieta, **kwargs)
+                op.calcFlow(method=njet_flow_method, components=self._njet_xieta, **kwargs) # (+)
             self._njet_operators = operators
             def lo_concat(*z):
                 for op in operators:
@@ -458,16 +458,18 @@ class lexp(lieoperator):
                 return z
             self._njet_flow_func = lo_concat
             
-            # Step 3: Derive the concatenated operator
-            if self.argument.maxdeg() == 2:
-                order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term only.
+            # Step 3: Derive the concatenated operator.
+            if self.argument.maxdeg() <= 2:
+                order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term, so order 1 is sufficient here.
+            elif 'order' in kwargs.keys():
+                order = kwargs['order']
             else:
-                assert self.argument.max_power < np.inf, 'Argument needs a finite max_power.'
+                assert self.argument.max_power < np.inf, 'max_power of argument can not be infinite.'
                 order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.ops.poly._poly concerning max_power
             n_args = self.argument.dim*2
             dcomb = derive(lo_concat, n_args=n_args, order=order)
             self._njet_dflow_func = dcomb
-            expansion = dcomb(*(0,)*n_args)
+            expansion = dcomb(*(0,)*n_args, mult_prm=True, mult_drv=False)
             self._njet_xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
             self.flow = [c(*self._njet_xietaf) for c in requested_components]
             
