@@ -6,6 +6,8 @@ from .lie import poly, lexp
 from lieops.linalg.bch import bch_2x2
 from lieops.ops.tools import poly2ad, ad2poly
 
+from lieops.ops import create_coords
+
 def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
     '''
     Rearrange the terms in a sequence of Hamiltonians according to Hadamard's theorem:
@@ -75,7 +77,6 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         A list of polynomials representing the operators
         h0, h0#h2, h0#h2#h3, h0#h2#h3#h5, ...
     '''
-    current_g1_operator = []
     g1_operators = []
     new_hamiltonians = []
     for hamiltonian in tqdm(hamiltonians, disable=kwargs.get('disable_tqdm', False)):
@@ -86,10 +87,10 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
             condition = set(hamiltonian.keys()).issubset(set(keys))
         
         if condition and hamiltonian != 0:
-            # in this case the entry k belongs to group 1, which will be exchanged with the
+            # in this case the Hamiltonian belongs to group 1, which will be exchanged with the
             # entries in group 2.
             hamiltonian_ad = poly2ad(hamiltonian)
-            if len(current_g1_operator) == 0:
+            if not 'current_g1_operator' in locals():
                 current_g1_operator = hamiltonian_ad
             else:
                 current_g1_operator = bch_2x2(current_g1_operator, hamiltonian_ad)
@@ -103,3 +104,4 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
     if len(current_g1_operator) == 0 or len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
     return new_hamiltonians, [ad2poly(current_g1_operator)], [ad2poly(op) for op in g1_operators]
+

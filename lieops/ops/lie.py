@@ -362,8 +362,7 @@ class lexp(lieoperator):
         if 'power' in kwargs.keys():
             # if the user is giving the routine a 'power' argument, it will be assumed that the bruteforce method should be used with respect to the given power. Therefore:
             self.set_generator(kwargs['power'])
-            self._flow_parameters['method'] = 'bruteforce'
-            update = True
+            kwargs.setdefault('method', 'bruteforce')
         return lieoperator._update_flow_parameters(self, update=update, **kwargs)
         
     def bch(self, *z, bch_sign=-1, **kwargs):
@@ -427,13 +426,22 @@ class lexp(lieoperator):
         else:
             lieoperator._calcFlowFromParameters(self, **kwargs)
             
-    def _calcFlow_channell(self, **kwargs):
+    def _calcFlow_channell(self, n_slices: int=1, **kwargs):
         '''
         Compute flow using the algorithm by P. Channell.
+        
+        This routine may need to use a slicing or splitting to improve its accuracy.
         '''
         kwargs.setdefault('scheme', [0.5, 1, 0.5])
         self._channell_scheme = kwargs['scheme']
-        self.flow = channell(-self.argument*self._flow_parameters['t'], reverse=True, **kwargs)         
+        hamiltonian_part = -self.argument*self._flow_parameters['t']/n_slices # N.B. minus sign here due to the way of how channell works... TODO: may need to unify this for other routines.
+        flow_func = channell(hamiltonian_part, reverse=True, **kwargs)
+        def cflow(*z):
+            for k in range(n_slices):
+                z = flow_func(*z)
+            return z
+        self._channell_flow = cflow
+        self.flow = self._channell_flow
     
     def _calcFlow_2flow(self, **kwargs):
         '''
@@ -447,7 +455,7 @@ class lexp(lieoperator):
         self._2flow_xietaf = [self._2flow(xieta, **kwargs) for xieta in self._2flow_xieta]
         self.flow = [c(*self._2flow_xietaf) for c in kwargs.get('components', self.components)]
         
-    def _calcFlow_njet(self, **kwargs):
+    def _calcFlow_njet(self, n_slices: int=1, **kwargs):
         '''
         Pass an njet through the current Lie operator, derived at zero. 
         This requires a different method by which the one-turn map is evaluated. 
@@ -465,11 +473,9 @@ class lexp(lieoperator):
             
         njet_split_method: str, optional
             Customized splitting method of the hamiltonians. See lieops.solver.splitting for examples.
-            Note: An additional slicing has to be implemented in such a routine separately, if required.
             
         n_slices: int, optional
             Slice the hamiltonian uniformly into n_slices parts before passing the njets.
-            Will be ignored if njet_split_method is used.
             
         order: int, optional
             Control the order of the njets passed through the Lie operator. If nothing specified,
@@ -492,20 +498,21 @@ class lexp(lieoperator):
                 raise RuntimeError("Default njet_flow_method: bruteforce requires 'power' argument to be set.")
 
         # Step 2: Split hamiltonian into parts and compute their flows according to the requested parameters
-        if 'njet_split_method' in kwargs.keys():
-            # use a user-defined custom splitting method (see lieops.solver.splitting
-            hamiltonians = kwargs['njet_split_method'](self.argument*self._flow_parameters['t'], **kwargs)
-        else:
-            # slice the Hamiltonian according to the given number of slices
-            n_slices = kwargs.get('n_slices', 1)
-            hamiltonians = [self.argument*self._flow_parameters['t']/n_slices]*n_slices
-        operators = [self.__class__(h) for h in hamiltonians]
+        self._njet_xieta = create_coords(self.argument.dim)
         _ = kwargs.pop('method', None)
         requested_components = kwargs.pop('components', self.components) # we remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
-        self._njet_xieta = create_coords(self.argument.dim)
+        if 'njet_split_method' in kwargs.keys():
+            # use a user-defined custom splitting method (see lieops.solver.splitting
+            hamiltonians = kwargs['njet_split_method'](self.argument*self._flow_parameters['t']/n_slices, **kwargs)
+        else:
+            hamiltonians = [self.argument*self._flow_parameters['t']/n_slices]
+        operators = [self.__class__(h) for h in hamiltonians]
         for op in operators:
             op.calcFlow(method=njet_flow_method, components=self._njet_xieta, **kwargs) # (+)
+        operators = operators*n_slices
         self._njet_operators = operators
+            
+        # slice the Hamiltonian according to the given number of slices
         def lo_concat(*z):
             for op in operators:
                 z = op(*z)
@@ -524,8 +531,8 @@ class lexp(lieoperator):
         dcomb = derive(lo_concat, n_args=n_args, order=order)
         self._njet_dflow_func = dcomb
         position = kwargs.get('position', (0,)*n_args)
-        self._njet_position = position
-        expansion = dcomb(*position, mult_prm=True, mult_drv=False)
+        self._njet_position = position # also (indirectly) stored in self._njet_dflow_func._input
+        expansion = dcomb(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in self._njet_dflow_func._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
         self._njet_xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
         self.flow = [c(*self._njet_xietaf) for c in requested_components]
 
