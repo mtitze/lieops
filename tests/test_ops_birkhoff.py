@@ -32,19 +32,19 @@ def get_all_powers(dim, order):
             all_powers.append(c)
     return sorted(set(all_powers)) # set() necessary by construction; code may be improved
 
-def create_random_poly(dim, order, scaling=1):
+def create_random_poly(dim, order, scaling=1, **kwargs):
     '''
     create a random n-th order polynomial
     '''
     dim2 = dim*2
     r = (1 - 2*np.random.rand(1)) + (1 - 2*np.random.rand(1))*1j
     v = {tuple([0]*dim2): complex(r[0])*scaling}
-    xieta = create_coords(dim)
+    xieta = create_coords(dim, **kwargs)
     for power in range(order + 1):
         for powers in get_all_powers(dim2, power):
             r = (1 - 2*np.random.rand(1)) + (1 - 2*np.random.rand(1))*1j
             v[tuple(powers)] = complex(r[0])*scaling
-    return poly(values=v)
+    return poly(values=v, **kwargs)
 
 def referencebnf(H, order: int, z=[], tol=1e-14, **kwargs):
     '''
@@ -163,7 +163,7 @@ def test_bnf(dim, power, check, tol=1e-14, tol2=1e-4, symlogs_tol2=1e-12):
     '''
     # Attention: This test currently gets slow for dim > 1; Jordan normal form needs to be implemented
     # for dim >= 3 or check needs to be removed (TODO)
-    r1 = create_random_poly(dim, power)
+    r1 = create_random_poly(dim, power, max_power=10)
     H1 = r1.extract(key_cond=lambda k: sum(k) > 1) # drop constants and gradients
 
     bnfdict1 = H1.bnf(order=power - 1, symlogs_tol2=symlogs_tol2, check=check)
@@ -205,7 +205,7 @@ def test_bnf_diagonalization(tol=5e-15, **kwargs):
                 (1, 4): (4.935918019596501e-05+6.548455672129347e-05j),
                 (4, 1): (4.935918019596501e-05-6.548455672129347e-05j),
                 (2, 3): (9.871836039193003e-05+4.365637114752898e-05j),
-                (5, 0): (9.871836039193e-06-2.1828185573764483e-05j)})
+                (5, 0): (9.871836039193e-06-2.1828185573764483e-05j)}, max_power=10)
     bnfdict = heff.bnf(order=3, check=True, **kwargs)
     assert all([abs(v) for v in (heff - bnfdict['H']).values()])
     

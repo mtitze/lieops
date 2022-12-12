@@ -192,35 +192,6 @@ class lieoperator:
         else:
             raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1
-     
-    def calcFlow(self, **kwargs):
-        '''
-        Compute the function(s) [g(t:x:)]y for a given parameter t, for every y in self.components.
-        The result will be written to self.flow.
-        
-        Parameters
-        ----------
-        method: str, optional
-            The method to be applied in calculating the flow.
-            
-        update: boolean, optional
-            An internal switch to force the calculation of the current flow (default=True).
-            
-        **kwargs
-            Optional arguments passed to flow subroutines.
-        '''
-        update = self._update_flow_parameters(**kwargs)
-        if not update and hasattr(self, 'flow'):
-            return
-        _ = kwargs.pop('method', None)
-        self._calcFlowFromParameters(**kwargs)
-        
-    def _calcFlowFromParameters(self, **kwargs):
-        method = self._flow_parameters['method']
-        if method == 'bruteforce':
-            self.flow = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-        else:
-            raise NotImplementedError(f"method '{method}' not recognized.")
         
     def _update_flow_parameters(self, update=False, **kwargs):
         '''
@@ -240,28 +211,38 @@ class lieoperator:
         if update:
             self._flow_parameters.update(kwargs)
         return update
-
-    def evaluate(self, *z, **kwargs):
+     
+    def calcFlow(self, **kwargs):
         '''
-        Evaluate current flow of Lie operator at a specific point, using finite Taylor series.
+        Compute the function(s) [g(t:x:)]y for a given parameter t, for every y in self.components.
+        The result will be written to self.flow.
         
         Parameters
         ----------
-        z: subscriptable
-            The vector z in the expression (g(t:x:)y)(z)
+        method: str, optional
+            The method to be applied in calculating the flow.
             
-        Returns
-        -------
-        list
-            The values (g(t:x:)y)(z) for y in self.components.
+        update: boolean, optional
+            An internal switch to force the calculation of the current flow (default=True).
+            
+        **kwargs
+            Optional arguments passed to flow subroutines.
         '''
-        self.calcFlow(**kwargs)
-        if hasattr(self.flow, '__getitem__'):
-            # We assume that self.flow is a list of functions, one for each coordinate
-            return [self.flow[k](*z) for k in range(len(self.flow))]
+        update = self._update_flow_parameters(**kwargs)
+        if update or not hasattr(self, 'flow'):
+            _ = kwargs.pop('method', None) # the method has now been stored in self._flow_parameters
+            self._calcFlowFromParameters(**kwargs)
+        
+    def _calcFlowFromParameters(self, **kwargs):
+        method = self._flow_parameters['method']
+        if method == 'bruteforce':
+            self._bruteforce_xietaf = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
+            self._bruteforce_flow = lambda *z: [self._bruteforce_xietaf[k](*z) for k in range(len(self._bruteforce_xietaf))]
+            self.flow = self._bruteforce_flow
+            self.xietaf = self._bruteforce_xietaf
         else:
-            return self.flow(*z)
-
+            raise NotImplementedError(f"method '{method}' not recognized.")
+        
     def __call__(self, *z, **kwargs):
         '''
         Compute the result of the current Lie operator g(:x:), applied to either 
@@ -283,14 +264,19 @@ class lieoperator:
             1) If z is a list, then the values (g(:x:)y)(z) for the current poly elements y in self.components
             are returned (see self.evaluate).
             2) If z is a Lie polynomial, then the orbit of g(:x:)z will be computed and the flow returned as 
-               poly class (see self.act).
+               poly class.
             3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
         '''
         if isinstance(z[0], poly):
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
-            self.calcFlow(components=z, **kwargs)
-            result = self.flow
-            if len(z) == 1 and hasattr(result, '__getitem__'): # if the input was a single element, naturally return a single element as well (and not a list of length 1)
+            self.calcFlow(**kwargs)
+            flow_method = self._flow_parameters['method']
+            try:
+                self.xietaf = getattr(self, f'_{flow_method}_xietaf')
+            except:
+                raise RuntimeError(f"Flow method '{flow_method}' does not provide final xi/eta coordinates.")
+            result = [c(*self.xietaf) for c in z]
+            if len(z) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
                 result = result[0]
             return result
         
@@ -301,7 +287,8 @@ class lieoperator:
                 raise NotImplementedError(f"Operation on type '{z[0].__class__.__name__}' not supported.")
                 
         else:
-            return self.evaluate(*z, **kwargs)
+            self.calcFlow(**kwargs)
+            return self.flow(*z)
             
     def copy(self):
         '''
@@ -319,10 +306,9 @@ class lieoperator:
             kwargs['generator'] = self.generator
         out = self.__class__(self.argument, **kwargs)
         if hasattr(self, 'flow'):
-            if hasattr(self.flow, '__getitem__'):
-                out.flow = [l.copy() for l in self.flow]
-            else:
-                out.flow = self.flow
+            out.flow = self.flow
+        if hasattr(self, 'xietaf'):
+            out.xietaf = [l.copy() for l in self.xietaf]
         return out
 
     
@@ -440,15 +426,12 @@ class lexp(lieoperator):
                 z = flow_func(*z)
             return z
         self._channell_flow = cflow
-        self.flowFunc = cflow
+        self.flow = cflow
         if tpsa:
             # compute the final xi/eta-coordinates
-            dflow, xietaf = self.tpsa(**kwargs)
+            xietaf = self.tpsa(**kwargs)
             self._channell_xietaf = xietaf
-            self._channell_dflowFunc = dflow
-            self.flow = [c(*self._channell_xietaf) for c in kwargs.get('components', self.components)]
-        else:
-            self.flow = cflow
+            self._channell_dflow = self.dflow
     
     def _calcFlow_2flow(self, **kwargs):
         '''
@@ -460,7 +443,7 @@ class lexp(lieoperator):
         # apply self._2flow on the individual xi/eta-coordinates. They will be used
         # later on, for each of the given components, using the pull-back property of the flow
         self._2flow_xietaf = [self._2flow(xieta, **kwargs) for xieta in self._2flow_xieta]
-        self.flow = [c(*self._2flow_xietaf) for c in kwargs.get('components', self.components)]
+        self.flow = lambda *z: [xe(*z) for xe in self._2flow_xietaf]
         
     def _calcFlow_njet(self, n_slices: int=1, **kwargs):
         '''
@@ -503,7 +486,7 @@ class lexp(lieoperator):
         # Step 2: Split hamiltonian into parts and compute their flows according to the requested parameters
         self._njet_xieta = create_coords(self.argument.dim)
         _ = kwargs.pop('method', None)
-        requested_components = kwargs.pop('components', self.components) # We remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
+        _ = kwargs.pop('components', self.components) # We remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
         if 'njet_split_method' in kwargs.keys():
             # use a user-defined custom splitting method (see lieops.solver.splitting
             hamiltonians = kwargs['njet_split_method'](self.argument/n_slices, **kwargs)
@@ -523,14 +506,12 @@ class lexp(lieoperator):
             for op in operators:
                 z = op(*z)
             return z
-        self._njet_flowFunc = lo_concat
-        self.flowFunc = self._njet_flowFunc
+        self._njet_flow = lo_concat
+        self.flow = self._njet_flow
 
         # Step 3: Derive the concatenated operator.
-        dflow, xietaf = self.tpsa(**kwargs)
-        self._njet_xietaf = xietaf
-        self._njet_dflowFunc = dflow
-        self.flow = [c(*self._njet_xietaf) for c in requested_components]
+        self._njet_xietaf = self.tpsa(**kwargs)
+        self._njet_dflow = self.dflow
         
     def tpsa(self, **kwargs):
         '''
@@ -545,7 +526,7 @@ class lexp(lieoperator):
         **kwargs
             Optional keyworded arguments passed to 
         '''
-        assert hasattr(self, 'flowFunc'), 'Flow has to be computed first.'
+        assert hasattr(self, 'flow'), 'Flow has to be computed first.'
         if self.argument.maxdeg() <= 2:
             order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term, so order 1 is sufficient here.
         elif 'order' in kwargs.keys():
@@ -554,11 +535,12 @@ class lexp(lieoperator):
             assert self.argument.max_power < np.inf, 'max_power of argument can not be infinite.'
             order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.ops.poly._poly concerning max_power
         n_args = self.argument.dim*2
-        dflow = derive(self.flowFunc, n_args=n_args, order=order)
+        dflow = derive(self.flow, n_args=n_args, order=order)
         position = kwargs.get('position', (0,)*n_args)
-        expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in self.dflowFunc._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
+        expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
+        self.dflow = dflow
         xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
-        return dflow, xietaf
+        return xietaf
 
     
 def combine(*args, power: int, mode='default', **kwargs):
