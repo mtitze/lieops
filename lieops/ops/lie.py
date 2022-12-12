@@ -265,7 +265,6 @@ class lieoperator:
         Compute the result of the current Lie operator g(:x:), applied to either 
         1) a specific point
         2) another Lie polynomial
-        3) another Lie operator
         
         Parameters
         ----------
@@ -282,7 +281,6 @@ class lieoperator:
             are returned (see self.evaluate).
             2) If z is a Lie polynomial, then the orbit of g(:x:)z will be computed and the flow returned as 
                poly class.
-            3) If z is a Lie operator f(:y:), then the Lie operator h(:z:) = g(:x:) f(:y:) is returned (see self.compose).
         '''
         if isinstance(z[0], poly):
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
@@ -483,21 +481,22 @@ class lexp(lieoperator):
         
     def _calcFlow_njet(self, n_slices: int=1, **kwargs):
         '''
-        Pass an njet through the current Lie operator, derived at zero. 
-        This requires a different method by which the one-turn map is evaluated. 
-        A splitting or slicing can be used to improve the result.
+        Split and/or slice the current lie operator and compute its resulting flow, ready to
+        take an njet.
+        
+        The flow maps are hereby calculated by any other method determined by the user. 
         
         Parameters
         ----------
-        power: int
-            Control the number of nested commutators in case 'njet_flow_method' == 'bruteforce'.
-            Required if 'njet_flow_method' is not specified (default).
+        power: int, (optional)
+            Control the number of nested commutators in case 'flow_method' == 'bruteforce'.
+            Required if 'flow_method' is not specified (default).
 
-        njet_flow_method: str, optional
+        flow_method: str, optional
             The method to compute the flow of the individual slices, used in calculating the outcome
             of passing the jets through these slices.
             
-        njet_split_method: str, optional
+        split_method: str, optional
             Customized splitting method of the hamiltonians. See lieops.solver.splitting for examples.
             
         n_slices: int, optional
@@ -505,27 +504,29 @@ class lexp(lieoperator):
             
         order: int, optional
             Control the order of the njets passed through the Lie operator. If nothing specified,
-            the order will depend on max_power of the Lie operator argument.
+            a reasonable order will be attempted, depending on max_power of the current Lie operator argument.
             
         components: list, optional
-            A list of poly objects which to apply the Lie operator onto. By default, self.components are taken.            
+            A list of poly objects which to apply the Lie operator onto. By default, self.components are taken.           
+        **kwargs
+            Optional keyworded arguments passed to the flow_method routine.
         '''
         # Step 1: Handle user input; determine method to calculate the flow of the individual parts.
-        njet_flow_method = kwargs.get('njet_flow_method', 'bruteforce')
-        assert njet_flow_method != 'njet', "Argument 'njet_flow_method' can not be 'njet' itself."
-        if njet_flow_method == 'bruteforce':
+        flow_method = kwargs.get('flow_method', 'bruteforce')
+        assert flow_method != 'njet', "Argument 'flow_method' can not be 'njet' itself."
+        if flow_method == 'bruteforce':
             try:
                 _ = kwargs.setdefault('power', getattr(self, 'power'))
             except:
-                raise RuntimeError("Default njet_flow_method: bruteforce requires 'power' argument to be set.")
+                raise RuntimeError("Default flow_method: bruteforce requires 'power' argument to be set.")
 
         # Step 2: Split hamiltonian into parts and compute their flows according to the requested parameters
         self._njet_xieta = create_coords(self.argument.dim)
         _ = kwargs.pop('method', None)
         _ = kwargs.pop('components', self.components) # We remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
-        if 'njet_split_method' in kwargs.keys():
+        if 'split_method' in kwargs.keys():
             # use a user-defined custom splitting method (see lieops.solver.splitting
-            hamiltonians = kwargs['njet_split_method'](self.argument/n_slices, **kwargs)
+            hamiltonians = kwargs['split_method'](self.argument/n_slices, **kwargs)
         else:
             hamiltonians = [self.argument/n_slices]
         # N.B. We do not multiply self.argument with self._flow_parameters['t'] for the hamiltonians here,
@@ -535,7 +536,7 @@ class lexp(lieoperator):
         operators = [self.__class__(h) for h in hamiltonians]
         for op in operators:
             op._flow_parameters.update(self._flow_parameters) # (++)
-            op.calcFlow(method=njet_flow_method, components=self._njet_xieta, **kwargs) # (+)
+            op.calcFlow(method=flow_method, components=self._njet_xieta, **kwargs) # (+)
         operators = operators*n_slices
         self._njet_operators = operators
         def lo_concat(*z):
