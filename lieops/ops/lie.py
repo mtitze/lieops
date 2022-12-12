@@ -151,7 +151,6 @@ class lieoperator:
     '''
     def __init__(self, argument, **kwargs):
         self._flow_parameters = {'t': 1, 'method': 'bruteforce'} # default parameters for flow calculations.
-        
         self.init_kwargs = kwargs
         self.set_argument(argument, **kwargs)        
         self.set_components(**kwargs)
@@ -167,7 +166,9 @@ class lieoperator:
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
         else:
-            self.components = create_coords(dim=self.argument.dim, **kwargs)
+            kwargs.setdefault('dim', self.argument.dim)
+            kwargs.setdefault('max_power', self.argument.max_power)
+            self.components = create_coords(**kwargs)
         
     def set_generator(self, generator, **kwargs):
         '''
@@ -204,8 +205,9 @@ class lieoperator:
         update = update or not kwargs.items() <= self._flow_parameters.items()
         if 'components' in kwargs.keys():
             # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
-            if any([next(iter(self.components[k:]), None) != kwargs['components'][k] for k in range(len(kwargs['components']))]):
-                self.components = kwargs['components']
+            components = kwargs['components']
+            if any([next(iter(self.components[k:]), None) != components[k] for k in range(len(components))]):
+                self.components = components
                 update = True
 
         if update:
@@ -236,12 +238,16 @@ class lieoperator:
     def _calcFlowFromParameters(self, **kwargs):
         method = self._flow_parameters['method']
         if method == 'bruteforce':
-            self._bruteforce_xietaf = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-            self._bruteforce_flow = lambda *z: [self._bruteforce_xietaf[k](*z) for k in range(len(self._bruteforce_xietaf))]
-            self.flow = self._bruteforce_flow
-            self.xietaf = self._bruteforce_xietaf
+            self._calcFlow_bruteforce(**kwargs)
         else:
             raise NotImplementedError(f"method '{method}' not recognized.")
+            
+    def _calcFlow_bruteforce(self, **kwargs):
+        # For a general Lie operator g(:f:), we apply g(:f:) to the given operand directly
+        self._bruteforce_xietaf = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
+        self._bruteforce_flow = lambda *z: [self._bruteforce_xietaf[k](*z) for k in range(len(self._bruteforce_xietaf))]
+        self.flow = self._bruteforce_flow
+        self.xietaf = self._bruteforce_xietaf
         
     def __call__(self, *z, **kwargs):
         '''
@@ -269,14 +275,14 @@ class lieoperator:
         '''
         if isinstance(z[0], poly):
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
-            self.calcFlow(**kwargs)
+            self.calcFlow(components=z, **kwargs)
             flow_method = self._flow_parameters['method']
             try:
                 self.xietaf = getattr(self, f'_{flow_method}_xietaf')
             except:
                 raise RuntimeError(f"Flow method '{flow_method}' does not provide final xi/eta coordinates.")
-            result = [c(*self.xietaf) for c in z]
-            if len(z) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
+            result = self.xietaf #= [c(*self.xietaf) for c in z]
+            if len(result) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
                 result = result[0]
             return result
         
@@ -410,6 +416,21 @@ class lexp(lieoperator):
             self._calcFlow_njet(**kwargs)
         else:
             lieoperator._calcFlowFromParameters(self, **kwargs)
+            
+    def _calcFlow_bruteforce(self, pullback=False, **kwargs):
+        if pullback:
+            # Since the lexp class represents the Lie operator exp(:f:), we can apply this operator
+            # to the components first, and then apply the given operand Q, i.e.
+            # exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:)xi_1, ..., exp(:f:)eta_n). This is done here.
+            requested_components = kwargs.pop('components', self.components)
+            xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
+            xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
+            self._bruteforce_xietaf = [c(*xietaf) for c in requested_components]
+            self._bruteforce_flow = lambda *z: [self._bruteforce_xietaf[k](*z) for k in range(len(self._bruteforce_xietaf))]
+            self.flow = self._bruteforce_flow
+            self.xietaf = self._bruteforce_xietaf
+        else:
+            lieoperator._calcFlow_bruteforce(self, **kwargs)
             
     def _calcFlow_channell(self, n_slices: int=1, tpsa=True, **kwargs):
         '''
