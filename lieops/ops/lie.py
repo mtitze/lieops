@@ -200,8 +200,8 @@ class lieoperator:
         Update self._flow_parameters if necessary; return boolean if they have been updated 
         (and therefore self.flow may have to be re-calculated).
         
-        This internal routine is indended to help in speeding up flow calculations, so that the flow
-        is only calculated if parameters have been changed.
+        This internal routine is indended to help in determining when to re-calculate
+        the flow and thus speeding up flow calculations.
         '''
         update = update or not kwargs.items() <= self._flow_parameters.items()
         if 'components' in kwargs.keys():
@@ -258,7 +258,7 @@ class lieoperator:
         if hasattr(self, f'_{method}_result'):
             return getattr(self, f'_{method}_result')
         else:
-            raise RuntimeError(f"No result(s) found for method '{method}'.")
+            raise RuntimeError(f"No result(s) field present for method '{method}'.")
         
     def __call__(self, *z, **kwargs):
         '''
@@ -307,6 +307,34 @@ class lieoperator:
         out = self.__class__(self.argument)
         out.__dict__.update(copy.deepcopy(self.__dict__))
         return out
+    
+    def tpsa(self, **kwargs):
+        '''
+        Pass n-jets through the flow function, given by the current Lie operator.
+        
+        Parameters
+        ----------
+        position: array-like, optional
+            A list of floats defining the position relative to which we want to calculate the flow. 
+            By default the position will be the origin.
+        
+        **kwargs
+            Optional keyworded arguments passed to 
+        '''
+        assert hasattr(self, 'flow'), 'Flow has to be computed first.'
+        if self.argument.maxdeg() <= 2:
+            order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term, so order 1 is sufficient here.
+        elif 'order' in kwargs.keys():
+            order = kwargs['order']
+        else:
+            assert self.argument.max_power < np.inf, 'max_power of argument can not be infinite.'
+            order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.ops.poly._poly concerning max_power
+        n_args = self.argument.dim*2
+        dflow = derive(self.flow, n_args=n_args, order=order)
+        position = kwargs.get('position', (0,)*n_args)
+        expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
+        xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
+        return xietaf, dflow
 
     
 class lexp(lieoperator):
@@ -409,8 +437,9 @@ class lexp(lieoperator):
             
     def _calcFlow_bruteforce(self, pullback=False, **kwargs):
         if pullback:
-            # Since the lexp class represents the Lie operator exp(:f:), we can apply this operator
-            # to the components first, and then apply the given operand Q, i.e.
+            # Since the lexp class represents the Lie operator exp(:f:), there is a second
+            # possibility to compute the flow: Namely, we can apply the operator
+            # to the components first, and then apply the given operand Q:
             # exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:)xi_1, ..., exp(:f:)eta_n)
             # The resulting set of Lie operators (for a given set of Q-polynomials) is stored
             # in self._bruteforce_result below.
@@ -423,7 +452,7 @@ class lexp(lieoperator):
         else:
             lieoperator._calcFlow_bruteforce(self, **kwargs)
             
-    def _calcFlow_channell(self, n_slices: int=1, tpsa=True, **kwargs):
+    def _calcFlow_channell(self, n_slices: int=1, **kwargs):
         '''
         Compute flow using the algorithm by P. Channell.
         
@@ -439,11 +468,6 @@ class lexp(lieoperator):
             return z
         self._channell_flow = cflow
         self.flow = cflow
-        if tpsa:
-            # compute the final xi/eta-coordinates
-            xietaf = self.tpsa(**kwargs)
-            self._channell_xietaf = xietaf
-            self._channell_dflow = self.dflow
     
     def _calcFlow_2flow(self, **kwargs):
         '''
@@ -520,39 +544,6 @@ class lexp(lieoperator):
             return z
         self._njet_flow = lo_concat
         self.flow = self._njet_flow
-
-        # Step 3: Derive the concatenated operator.
-        self._njet_xietaf = self.tpsa(**kwargs)
-        self._njet_dflow = self.dflow
-        
-    def tpsa(self, **kwargs):
-        '''
-        Pass n-jets through the flow function, given by the current Lie operator.
-        
-        Parameters
-        ----------
-        position: array-like, optional
-            A list of floats defining the position relative to which we want to calculate the flow. 
-            By default the position will be the origin.
-        
-        **kwargs
-            Optional keyworded arguments passed to 
-        '''
-        assert hasattr(self, 'flow'), 'Flow has to be computed first.'
-        if self.argument.maxdeg() <= 2:
-            order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term, so order 1 is sufficient here.
-        elif 'order' in kwargs.keys():
-            order = kwargs['order']
-        else:
-            assert self.argument.max_power < np.inf, 'max_power of argument can not be infinite.'
-            order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.ops.poly._poly concerning max_power
-        n_args = self.argument.dim*2
-        dflow = derive(self.flow, n_args=n_args, order=order)
-        position = kwargs.get('position', (0,)*n_args)
-        expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
-        self.dflow = dflow
-        xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
-        return xietaf
     
     def _calcPolyFromFlow(self, **kwargs):
         '''
@@ -560,11 +551,21 @@ class lexp(lieoperator):
         for every y in self.components.
         '''
         method = self._flow_parameters['method']
-        if not hasattr(self, f'_{method}_result') and hasattr(self, f'_{method}_xietaf'):
-            # Compute the result by pullback, using the fact that
-            # exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
-            xietaf = getattr(self, f'_{method}_xietaf')
-            return [c(*xietaf) for c in self.components]
+        result_str = f'_{method}_result'
+        xietaf_str = f'_{method}_xietaf'
+        if not hasattr(self, result_str):
+            if hasattr(self, xietaf_str):
+                xietaf = getattr(self, xietaf_str)
+            elif hasattr(self, f'_{method}_flow'):
+                # compute the final xi/eta-coordinates from the bare flow function, using TPSA
+                xietaf, dflow = self.tpsa(**kwargs)
+                setattr(self, xietaf_str, xietaf)
+                setattr(self, f'_{method}_dflow', dflow)
+            else:
+                raise RuntimeError(f"No result(s) field present for method '{method}'.")
+            result = [c(*xietaf) for c in self.components] # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
+            setattr(self, result_str, result)
+            return result
         else:
             return lieoperator._calcPolyFromFlow(self, **kwargs)
     
