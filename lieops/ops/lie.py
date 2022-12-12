@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 
 from lieops.linalg.nf import first_order_nf_expansion
 
@@ -303,13 +304,8 @@ class lieoperator:
         lieoperator
             A copy of the current Lie operator.
         '''
-        kwargs = {}
-        kwargs.update(self.init_kwargs)
-        kwargs['components'] = self.components
-        if hasattr(self, 'generator'):
-            kwargs['generator'] = self.generator
-        out = self.__class__(self.argument, **kwargs)
-        out.__dict__.update(self.__dict__)
+        out = self.__class__(self.argument)
+        out.__dict__.update(copy.deepcopy(self.__dict__))
         return out
 
     
@@ -340,9 +336,8 @@ class lexp(lieoperator):
         else:
             raise TypeError(f"Argument of type '{H.__class__.__name__}' not supported.")
             
-    def set_generator(self, power):
-        self.generator = genexp(power)
-        self.power = len(self.generator) - 1
+    def set_generator(self, power, **kwargs):
+        lieoperator.set_generator(self, generator=genexp(power), **kwargs)
                 
     def bch(self, *z, bch_sign=-1, **kwargs):
         '''
