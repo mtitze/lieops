@@ -166,8 +166,8 @@ class lieoperator:
         if 'components' in kwargs.keys():
             self.components = kwargs['components']
         else:
-            kwargs.setdefault('dim', self.argument.dim)
-            kwargs.setdefault('max_power', self.argument.max_power)
+            _ = kwargs.setdefault('dim', self.argument.dim)
+            _ = kwargs.setdefault('max_power', self.argument.max_power)
             self.components = create_coords(**kwargs)
         
     def set_generator(self, generator, **kwargs):
@@ -244,10 +244,20 @@ class lieoperator:
             
     def _calcFlow_bruteforce(self, **kwargs):
         # For a general Lie operator g(:f:), we apply g(:f:) to the given operand directly
-        self._bruteforce_xietaf = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-        self._bruteforce_flow = lambda *z: [self._bruteforce_xietaf[k](*z) for k in range(len(self._bruteforce_xietaf))]
+        self._bruteforce_result = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
+        self._bruteforce_flow = lambda *z: [self._bruteforce_result[k](*z) for k in range(len(self._bruteforce_result))]
         self.flow = self._bruteforce_flow
-        self.xietaf = self._bruteforce_xietaf
+        
+    def _calcPolyFromFlow(self, **kwargs):
+        '''
+        If self.flow has been computed, compute (or return) the resulting polynomial g(:x:):y:, 
+        for every y in self.components.
+        '''
+        method = self._flow_parameters['method']
+        if hasattr(self, f'_{method}_result'):
+            return getattr(self, f'_{method}_result')
+        else:
+            raise RuntimeError(f"No result(s) found for method '{method}'.")
         
     def __call__(self, *z, **kwargs):
         '''
@@ -276,22 +286,10 @@ class lieoperator:
         if isinstance(z[0], poly):
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
             self.calcFlow(components=z, **kwargs)
-            flow_method = self._flow_parameters['method']
-            try:
-                self.xietaf = getattr(self, f'_{flow_method}_xietaf')
-            except:
-                raise RuntimeError(f"Flow method '{flow_method}' does not provide final xi/eta coordinates.")
-            result = self.xietaf #= [c(*self.xietaf) for c in z]
+            result = self._calcPolyFromFlow(**kwargs)
             if len(result) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
                 result = result[0]
             return result
-        
-        elif isinstance(z[0], type(self)):
-            if hasattr(self, 'bch'):
-                return self.bch(*z, **kwargs) # Baker-Campbell-Hausdorff (using Magnus/combine routine)
-            else:
-                raise NotImplementedError(f"Operation on type '{z[0].__class__.__name__}' not supported.")
-                
         else:
             self.calcFlow(**kwargs)
             return self.flow(*z)
@@ -311,10 +309,7 @@ class lieoperator:
         if hasattr(self, 'generator'):
             kwargs['generator'] = self.generator
         out = self.__class__(self.argument, **kwargs)
-        if hasattr(self, 'flow'):
-            out.flow = self.flow
-        if hasattr(self, 'xietaf'):
-            out.xietaf = [l.copy() for l in self.xietaf]
+        out.__dict__.update(self.__dict__)
         return out
 
     
@@ -421,14 +416,15 @@ class lexp(lieoperator):
         if pullback:
             # Since the lexp class represents the Lie operator exp(:f:), we can apply this operator
             # to the components first, and then apply the given operand Q, i.e.
-            # exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:)xi_1, ..., exp(:f:)eta_n). This is done here.
+            # exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:)xi_1, ..., exp(:f:)eta_n)
+            # The resulting set of Lie operators (for a given set of Q-polynomials) is stored
+            # in self._bruteforce_result below.
             requested_components = kwargs.pop('components', self.components)
             xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
-            xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-            self._bruteforce_xietaf = [c(*xietaf) for c in requested_components]
-            self._bruteforce_flow = lambda *z: [self._bruteforce_xietaf[k](*z) for k in range(len(self._bruteforce_xietaf))]
+            self._bruteforce_xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
+            self._bruteforce_result = [c(*self._bruteforce_xietaf) for c in requested_components]
+            self._bruteforce_flow = lambda *z: [self._bruteforce_result[k](*z) for k in range(len(self._bruteforce_result))]
             self.flow = self._bruteforce_flow
-            self.xietaf = self._bruteforce_xietaf
         else:
             lieoperator._calcFlow_bruteforce(self, **kwargs)
             
@@ -562,6 +558,26 @@ class lexp(lieoperator):
         self.dflow = dflow
         xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
         return xietaf
+    
+    def _calcPolyFromFlow(self, **kwargs):
+        '''
+        If self.flow has been computed, compute (or return) the resulting polynomial g(:x:):y:, 
+        for every y in self.components.
+        '''
+        method = self._flow_parameters['method']
+        if not hasattr(self, f'_{method}_result') and hasattr(self, f'_{method}_xietaf'):
+            # Compute the result by pullback, using the fact that
+            # exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
+            xietaf = getattr(self, f'_{method}_xietaf')
+            return [c(*xietaf) for c in self.components]
+        else:
+            return lieoperator._calcPolyFromFlow(self, **kwargs)
+    
+    def __call__(self, *z, **kwargs):
+        if isinstance(z[0], type(self)):
+            return self.bch(*z, **kwargs) # Baker-Campbell-Hausdorff (using Magnus/combine routine)
+        else:
+            return lieoperator.__call__(self, *z, **kwargs)
 
     
 def combine(*args, power: int, mode='default', **kwargs):
