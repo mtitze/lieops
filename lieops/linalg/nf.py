@@ -119,7 +119,6 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
     assert dim%2 == 0, 'Dimension must be even.'
     code = get_package_name(H2)
         
-    # Perform symplectic diagonalization
     if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
         T_ctr = T.transpose()
         H2 = T@H2@T_ctr
@@ -136,8 +135,9 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
         G_symp = sympy_matrix(H2)
         P_symp, JNF = (G_symp@J_symp).jordan_form()
         if not JNF.is_diagonal():
-            raise RuntimeError('Jordan normal form of H2@J not diagonal.')
+            raise RuntimeError(f'Jordan normal form of H2@J not diagonal:\nH2:\n{H2}\nJNF:\n{JNF}')
             
+    # Perform symplectic diagonalization
     if mode == 'new':
         # will become the default in future; TODO: some tests are failing
         S, X = symplectic_takagi(H2, **kwargs)

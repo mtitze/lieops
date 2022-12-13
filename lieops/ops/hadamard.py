@@ -75,7 +75,7 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         
     list
         A list of polynomials representing the operators
-        h0, h0#h2, h0#h2#h3, h0#h2#h3#h5, ...
+        h0, h0#h2#h3, h0#h2#h3#h5, ...
     '''
     g1_operators = []
     new_hamiltonians = []
@@ -96,7 +96,7 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
                 current_g1_operator = bch_2x2(current_g1_operator, hamiltonian_ad)
             g1_operators.append(current_g1_operator)
         else:
-            if len(current_g1_operator) == 0:
+            if not 'current_g1_operator' in locals():
                 new_hamiltonians.append(hamiltonian)
             else:
                 op = lexp(ad2poly(current_g1_operator), **kwargs)
@@ -105,7 +105,7 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
     return new_hamiltonians, [ad2poly(current_g1_operator)], [ad2poly(op) for op in g1_operators]
 
-def hadamard(*hamiltonians, keys, exact=False, **kwargs):
+def chain(*hamiltonians, condition: lambda h: False, **kwargs):
     '''
     Rearrange the terms in a sequence of Hamiltonians according to Hadamard's theorem:
 
@@ -150,49 +150,36 @@ def hadamard(*hamiltonians, keys, exact=False, **kwargs):
     hamiltonians: poly object(s)
         The Hamiltonians to be considered.
         
-    keys: list
-        A list of keys to distinguish the first group of Hamiltonians against the second group.
-        
-    exact: boolean, optional
-        Whether to distinguish the Hamiltonians of group 1 by the given keys (True) or a subset of the given keys (False).
-        
-    **kwargs
-        Optional keyworded arguments passed to the lexp.calcFlow routine.
-    
+    condition: callable
+        A function determining the condition when to decide if a Hamiltonian belongs to group 1 or group 2.
+        This function must take as input a poly object and return a boolean.
+
     Returns
     -------
     list
-        A list of the Hamiltonians [exp(h0)h1, exp(h0)exp(h2)exp(h3)h4, ...] as in the example above.
+        A list of dictionaries, representing the Hamiltonians [exp(h0)h1, exp(h0)exp(h2)exp(h3)h4, ...] as in the example above.
+        Hereby every dictionary maps an integer to the respective Hamiltonian. An integer k represents a
+        chain of exp-operators. Namely, in the second output A (below) the list Ak := A[:k]. The value represents the single Hamiltonian 
+        which should be operated on. In the example above we would have:
+        
+        A = [h0, h2, h3, h5, ...]
+        Thus
+        [(1, h1), (3, h4), ...]
         
     list
-        A list of polynomials representing the chain of the trailing operator h0#h2#h3#h5, ...
-        
-    list
-        A list of polynomials representing the operators
-        h0, h0#h2, h0#h2#h3, h0#h2#h3#h5, ...
+        A list of polynomials representing the final chain of the trailing operator. In the example above: A = [h0, h2, h3, h5, ...]
     '''
     g1_operators = []
     new_hamiltonians = []
-    current_g1_flow = create_coords(hamiltonian.dim)
-    for hamiltonian in tqdm(hamiltonians, disable=kwargs.get('disable_tqdm', False)):
+    for hamiltonian in hamiltonians:
         
-        if exact:
-            condition = hamiltonian.keys() == set(keys)
+        if condition(hamiltonian) and hamiltonian != 0:
+            # In this case the Hamiltonian belongs to group 1, which will be exchanged with the entries in group 2.
+            g1_operators.append(hamiltonian)
         else:
-            condition = set(hamiltonian.keys()).issubset(set(keys))
-        
-        if condition and hamiltonian != 0:
-            # in this case the Hamiltonian belongs to group 1, which will be exchanged with the
-            # entries in group 2.
-            op = lexp(hamiltonian)
-            op.calcFlow(**kwargs)
-            g1_operators.append(op)
-            current_g1_flow = op(current_g1_flow)
-        else:
-            if len(g1_operators) == 0:
-                new_hamiltonians.append(hamiltonian)
-            else:
-                new_hamiltonians.append(current_g1_flow(new_hamiltonian, **kwargs))
+            new_hamiltonians.append((len(g1_operators), hamiltonian))
+            
     if len(g1_operators) == 0 or len(new_hamiltonians) == 0:
-        warnings.warn(f'No operators found to commute with, using keys: {keys}.')
-    return new_hamiltonians, [current_g1_operator], [op.argument for op in g1_operators]
+        warnings.warn(f'No operators found to commute with for given condition {condition}.')
+        
+    return new_hamiltonians, g1_operators

@@ -92,6 +92,9 @@ def realHamiltonEqs(hamiltonian, **kwargs):
     callable
         A function taking values in real (q, p)-variables, representing the right-hand side of the
         Hamilton-equations \dot z = J \nabla H(z).
+        
+    callable
+        The given Hamiltonian in (real) (q, p)-variables.
     '''
     realHam = getRealHamiltonFunction(hamiltonian, **kwargs)
     dim = hamiltonian.dim
@@ -99,6 +102,7 @@ def realHamiltonEqs(hamiltonian, **kwargs):
     def eqs(*qp):
         dH = dhamiltonian.grad(*qp)
         # we have to use qp[0]*0 to broadcast zero in the data type of qp[0]
-        dqp = [dH.get((k + dim,), qp[0]*0) for k in range(dim)] + [-dH.get((k,), qp[0]*0) for k in range(dim)]
+        zero = qp[0]*0
+        dqp = [dH.get((k + dim,), zero) for k in range(dim)] + [-dH.get((k,), zero) for k in range(dim)]
         return dqp
     return eqs, realHam
