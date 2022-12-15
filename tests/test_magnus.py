@@ -4,9 +4,9 @@ import pytest
 
 from njet.jet import factorials
 
-from lieops.ops.magnus import forests, fast_hard_edge_chain
-from lieops.ops.lie import combine, create_coords, lexp, poly
-from lieops.ops.bch import bruteforce
+from lieops.core.bch.magnus import forests, fast_hard_edge_chain
+from lieops.core.lie import combine, create_coords, lexp, poly
+from lieops.core.bch import bruteforce
 
 def number_of_graphs(order):
     '''

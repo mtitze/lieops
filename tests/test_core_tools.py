@@ -1,7 +1,7 @@
 import pytest
 
 import numpy as np
-from lieops.ops.tools import poly2ad, ad2poly, poly3ad, ad3poly, vec2poly, poly2vec
+from lieops.core.tools import poly2ad, ad2poly, poly3ad, ad3poly, vec2poly, poly2vec
 from lieops import create_coords
 from lieops.linalg.matrix import create_J
 

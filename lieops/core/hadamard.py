@@ -4,9 +4,9 @@ import warnings
 
 from .lie import poly, lexp
 from lieops.linalg.bch import bch_2x2
-from lieops.ops.tools import poly2ad, ad2poly
+from lieops.core.tools import poly2ad, ad2poly
 
-from lieops.ops import create_coords
+from lieops.core import create_coords
 
 def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
     '''

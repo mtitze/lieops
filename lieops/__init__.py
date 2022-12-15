@@ -18,6 +18,6 @@
 
 __version__ = '0.1.8'
 
-from lieops.ops import *
+from lieops.core import *
 from lieops.linalg import *
 

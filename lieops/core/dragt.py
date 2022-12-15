@@ -3,8 +3,8 @@ from scipy.linalg import expm
 
 from lieops.linalg.matrix import create_J
 from lieops.linalg.nf import symlogs
-from lieops.ops.lie import create_coords, lexp
-from lieops.ops.tools import const2poly, poly2vec, ad2poly
+from lieops.core.lie import create_coords, lexp
+from lieops.core.tools import const2poly, poly2vec, ad2poly
 
 def _integrate_k(p, k: int):
     '''
@@ -99,6 +99,11 @@ def dragtfinn(*p, tol=0, **kwargs):
     list
         A list of poly objects [f1, f2_a, f2_b, f3, f4, ...] as described above.
         Note that the rightmost Lie polynomial needs to be applied first.
+        
+    References
+    ----------
+    [1] A. Dragt: "Lie Methods for Nonlinear Dynamics with Applications to Accelerator Physics", University of Maryland, 2020,
+        http://www.physics.umd.edu/dsat/
     '''
     # check input consistency
     dim = p[0].dim
@@ -106,9 +111,8 @@ def dragtfinn(*p, tol=0, **kwargs):
     assert all([e.dim == dim for e in p])
     pf = p[0]._poisson_factor
     assert all([e._poisson_factor == pf for e in p])
-    assert all([e.max_power == p[0].max_power for e in p])
-    assert len(p) == dim2
-    order = kwargs.pop('order', p[0].max_power)
+    assert len(p) == dim2, f'Polynomials received: {len(p)} Expected: {dim2}'
+    order = kwargs.pop('order', max([e.max_power for e in p]))
     assert order < np.inf
     
     # determine the polynomial determining the translation(s):
@@ -119,7 +123,7 @@ def dragtfinn(*p, tol=0, **kwargs):
     
     # determine the linear map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
-    A, B = symlogs(R) # TODO: tol1, tol2 if tol > 0 here?
+    A, B = symlogs(R, tol2=tol)
     SA, SB = ad2poly(A, poisson_factor=pf), ad2poly(B, poisson_factor=pf)
     Ri = np.linalg.inv(R)
     
@@ -134,7 +138,7 @@ def dragtfinn(*p, tol=0, **kwargs):
     # invert the linear map, see Ref. [1], Eq. (7.6.17).
     p_new = [sum([p[k]*Ri[l, k] for l in range(dim2)]) for k in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy
     
-    f_all = [g1, SB, SA]
+    f_all = [g1, SB, SA] # TODO: check (again) why g1 should be set at the first position here (compare 7.7.10 in Ref. [1], where it appears at the last position)
     for k in range(2, order):
         gk = [e.homogeneous_part(k) for e in p_new]
 

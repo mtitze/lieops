@@ -7,7 +7,7 @@ from njet.functions import cos, sin, exp
 from njet import derive
 
 from lieops import __version__
-from lieops.ops import poly, create_coords, construct, lexp
+from lieops.core import poly, create_coords, construct, lexp
 
 from lieops.linalg.matrix import expandingSum, create_J
 from lieops.linalg.congruence.takagi import symplectic_takagi_old

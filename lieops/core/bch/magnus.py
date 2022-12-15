@@ -4,6 +4,8 @@ from scipy.special import bernoulli
 from tqdm import tqdm
 from njet.common import factorials
 
+import lieops.core.lie
+
 import warnings
 import numpy as np
 
@@ -905,3 +907,90 @@ def norsett_iserles(order: int, hamiltonian, time=True, **kwargs):
                 result_fo.append((I, tr.factor))
         result[fo] = result_fo
     return result, forest_oi
+
+
+def combine(*args, power: int, mode='default', **kwargs):
+    r'''
+    Compute the Lie polynomials of the Magnus expansion, up to a given order.
+    
+    Parameters
+    ----------
+    power: int
+        The power in s (s: the variable of integration) up to which we consider the Magnus expansion.
+        
+    *args
+        A series of poly objects p_j, j = 0, 1, ..., k which to be combined. They may represent 
+        the exponential operators exp(:p_j:).
+        
+    mode: str, optional
+        Modus how the magnus series should be evaluated. Supported modes are:
+        1) 'default': Use routines optimized to work with numpy arrays (fast)
+        2) 'general': Use routines which are intended to work with general objects.
+        
+    lengths: list, optional
+        An optional list of lengths. If nothing specified, the lengths are assumed to be 1.
+        
+    **kwargs
+        Optional keyworded arguments passed to poly instantiation and norsett_iserles routine.
+        
+    Returns
+    -------
+    dict
+        The resulting Lie-polynomials z_j, j \in \{0, 1, ..., r\}, r := power, so that 
+        z := z_0 + z_1 + ... z_r satisfies exp((L0 + ... + Lk):z:) = exp(L0:p_0:) exp(L1:p_1:) ... exp(Lk:p_k:),
+        accurately up to the requested power r. Hereby it holds: lengths = [L0, L1, ..., Lk].
+        Every z_j belongs to Norsett & Iserles approach to the Magnus series.
+        
+    hard_edge_chain
+        The s-dependent Hamiltonian used to construct z.
+        
+    dict
+        A dictionary containing the forest used in the calculation. This is the outcome of the norsett_iserles
+        routine, which is called internally here.
+    '''
+    n_operators = len(args)
+
+    # some consistency checks
+    assert n_operators > 0
+    assert type(power) == int and power >= 0
+    dim = args[0].dim
+    assert all([op.dim == dim for op in args]), 'The number of variables of the individual Lie-operators are different.'
+    
+    lengths = kwargs.get('lengths', [1]*n_operators)
+    kwargs['max_power'] = kwargs.get('max_power', min([op.max_power for op in args]))
+    # The given Lie-polynomials p_1, p_2, ... are representing the chain exp(:p_1:) exp(:p_2:) ... exp(:p_k:) of Lie operators.
+    # This means that the last entry p_k is the operator which will be executed first:
+    args = args[::-1] 
+    lengths = lengths[::-1]
+    
+    # remove any possible zeros
+    args1, lengths1 = [], []
+    for k in range(n_operators):
+        if args[k] != 0 and lengths[k] != 0:
+            args1.append(args[k])
+            lengths1.append(lengths[k])
+    assert len(args1) > 0, 'No non-zero operators in the chain.'
+    n_operators = len(args1)
+    
+    # Build the hard-edge Hamiltonian model.
+    all_powers = set([k for op in args1 for k in op.keys()])
+    if mode == 'general':
+        # use hard-edge element objects which are intended to carry general objects.
+        hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args1[m].get(k, 0)], lengths={1: lengths1[m]}) for m in range(n_operators)]) for k in all_powers}
+    if mode == 'default':
+        # use fast hard-edge element class which is optimized to work with numpy arrays.
+        hamiltonian_values = {k: fast_hard_edge_chain(values=[args1[m].get(k, 0) for m in range(n_operators)], lengths=lengths1, blocksize=kwargs.get('blocksize', power + 2)) for k in all_powers}
+    hamiltonian = lieops.core.lie.poly(values=hamiltonian_values, **kwargs)
+    
+    # Now perform the integration up to the requested power.
+    z_series, forest = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
+    out = {}
+    for order, trees in z_series.items():
+        lp_order = 0 # the poly object for the specific order, further polynoms will be added to this value
+        for tpl in trees: # index corresponds to an enumeration of the trees for the specific order
+            lp, factor = tpl
+            # lp is a poly object. Its keys consist of hard_edge_hamiltonians. However we are only interested in their integrals. Therefore:
+            lp_order += lieops.core.lie.poly(values={k: v._integral*factor for k, v in lp.items()}, **kwargs)
+        if lp_order != 0:
+            out[order] = lp_order
+    return out, hamiltonian, forest

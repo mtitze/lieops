@@ -7,8 +7,8 @@ from operator import sub
 from scipy.linalg import expm
 from njet import derive
 
-from lieops.ops import create_coords, poly, lexp
-from lieops.ops.birkhoff import homological_eq, bnf
+from lieops.core import create_coords, poly, lexp
+from lieops.core.birkhoff import homological_eq, bnf
 from lieops.linalg.nf import first_order_nf_expansion
 
 # Some helper routines to generate arbitrary Lie-polynomials; these routines are not optimal 

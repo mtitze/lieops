@@ -1,7 +1,7 @@
-import lieops.ops.lie
+import lieops.core.lie
 from lieops.solver.common import getRealHamiltonFunction
 from lieops.linalg.nf import first_order_nf_expansion
-from lieops.ops.tools import ad2poly
+from lieops.core.tools import ad2poly
 
 def homological_eq(mu, Z, **kwargs):
     '''
@@ -33,7 +33,7 @@ def homological_eq(mu, Z, **kwargs):
     Q: poly
         Polynomial of degree n with the above property.
     '''
-    chi, Q = lieops.ops.lie.poly(values={}, dim=Z.dim, **kwargs), lieops.ops.lie.poly(values={}, dim=Z.dim, **kwargs)
+    chi, Q = lieops.core.lie.poly(values={}, dim=Z.dim, **kwargs), lieops.core.lie.poly(values={}, dim=Z.dim, **kwargs)
     for powers, value in Z.items():
         om = sum([(powers[k] - powers[Z.dim + k])*mu[k] for k in range(len(mu))])
         if om != 0:
@@ -115,7 +115,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         # assume that H is given as a function, depending on phase space coordinates.
         kwargs['power'] = power
         Hinp = H
-        if isinstance(H, lieops.ops.lie.poly):
+        if isinstance(H, lieops.core.lie.poly):
             # we have to transfom the call-routine of H: H depend on (xi, eta)-coordinates, but the nf routines later on assume (q, p)-coordinates.
             # In principle, one can change this transformation somewhere else, but this may cause the normal form routines
             # to either yield inconsistent output at a general point z -- or it may introduce additional complexity.
@@ -149,7 +149,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
             muj = muj.real
         H0_values[tpl] = muj
         mu.append(muj)
-    H0 = lieops.ops.lie.poly(values=H0_values, dim=dim, max_power=max_power)
+    H0 = lieops.core.lie.poly(values=H0_values, dim=dim, max_power=max_power)
     assert len({k: v for k, v in taylor_coeffs.items() if sum(k) == 2 and abs(v) >= tol}) == 0 # All other 2nd order Taylor coefficients must be zero.
 
     # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
@@ -163,7 +163,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     ########################
                
     # Induction start (k = 2); get P_3 and R_4. Z_2 is set to zero.
-    Zk = lieops.ops.lie.poly(dim=dim, max_power=max_power) # Z_2
+    Zk = lieops.core.lie.poly(dim=dim, max_power=max_power) # Z_2
     Pk = H.homogeneous_part(3) # P_3
     Hk = H.copy() # H_2 = H
             
@@ -175,7 +175,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         if len(chi) == 0:
             # in this case the canonical transformation will be the identity and so the algorithm stops.
             break
-        lchi = lieops.ops.lie.lexp(-chi, power=lo_power)
+        lchi = lieops.core.lie.lexp(-chi, power=lo_power)
         Hk = lchi(Hk)
         # Hk = lexp(-chi, power=k + 1)(Hk) # faster but likely inaccurate; need tests
         Pk = Hk.homogeneous_part(k + 1)

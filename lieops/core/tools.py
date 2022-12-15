@@ -1,7 +1,7 @@
 # collection of specialized tools operating on polynomials
 
 import numpy as np
-import lieops.ops.lie
+import lieops.core.lie
 from lieops.linalg.matrix import create_J
 
 def poly2ad(pin):
@@ -122,7 +122,7 @@ def ad2poly(A, tol=0, poisson_factor=-1j):
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
             values[tuple(hom_key_eta)] = A[i + dim, j]/ff*-1/poisson_factor
-    return lieops.ops.lie.poly(values=values, poisson_factor=poisson_factor)
+    return lieops.core.lie.poly(values=values, poisson_factor=poisson_factor)
 
 def poly2vec(p):
     '''
@@ -143,7 +143,7 @@ def vec2poly(v):
     '''
     dim2 = len(v)
     assert dim2%2 == 0, 'Dimension must be even.'
-    xieta = lieops.ops.lie.create_coords(dim2//2)
+    xieta = lieops.core.lie.create_coords(dim2//2)
     return sum([xieta[k]*v[k] for k in range(dim2)])
 
 def poly3ad(pin):
@@ -203,7 +203,7 @@ def ad3poly(A, **kwargs):
     if len(p2) == 0:
         p2 = 0
     # 2. Get the first-order polynomials associated to the remaining line:
-    xieta = lieops.ops.lie.create_coords(dim)
+    xieta = lieops.core.lie.create_coords(dim)
     for k in range(dim):
         eta_k_coeff = A[dim2, k]/-poisson_factor
         xi_k_coeff = A[dim2, k + dim]/poisson_factor
@@ -220,7 +220,7 @@ def const2poly(*const, poisson_factor=-1j):
     assert dim2%2 == 0, 'Dimension must be even.'
     dim = dim2//2
     J = create_J(dim)
-    xieta = lieops.ops.lie.create_coords(dim, poisson_factor=poisson_factor)
+    xieta = lieops.core.lie.create_coords(dim, poisson_factor=poisson_factor)
     return sum([xieta[k]*(J@const)[k] for k in range(dim2)])/poisson_factor
 
 def poly2const(p1):
@@ -228,7 +228,7 @@ def poly2const(p1):
     The inverse of the 'const2poly' routine.
     '''
     assert p1.mindeg() == 1 and p1.maxdeg() == 1
-    xieta = lieops.ops.lie.create_coords(p1.dim, poisson_factor=p1._poisson_factor)
+    xieta = lieops.core.lie.create_coords(p1.dim, poisson_factor=p1._poisson_factor)
     return [(p1@xe)[(0,)*p1.dim*2] for xe in xieta] # "p1@xe - xe" not necessary, we access the constant immediately
 
 def action_on_poly(*mu, C, func=lambda z: z):
@@ -257,5 +257,5 @@ def action_on_poly(*mu, C, func=lambda z: z):
         The poly object {X, C} (or {f(X), C}, if a function has been provided).
     '''
     assert len(mu) == C.dim
-    return lieops.ops.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
+    return lieops.core.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
                 dim=C.dim, max_power=C.max_power)

@@ -1,2 +1,2 @@
-from .test_ops_birkhoff import referencebnf
-from .test_ops import expandingSum
+from .test_core_birkhoff import referencebnf
+from .test_core import expandingSum

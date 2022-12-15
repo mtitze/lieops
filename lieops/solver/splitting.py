@@ -2,7 +2,7 @@ import numpy as np
 import heapq
 import warnings
 
-import lieops.ops.poly
+import lieops.core.poly
 
 class yoshida:
     
@@ -369,7 +369,7 @@ def iterative_monomial_split(hamiltonian, scheme, include_values=True, **kwargs)
             result.append(monomials[index]*value)
         else:
             power = list(monomials[index].keys())[0]
-            result.append(lieops.ops.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
+            result.append(lieops.core.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
     return result
 
 def recursive_monomial_split(hamiltonian, scheme, include_values=True, **kwargs):
@@ -407,7 +407,7 @@ def recursive_monomial_split(hamiltonian, scheme, include_values=True, **kwargs)
         splits = [{key: 1 for key in hamiltonian.keys()}]
         
     split_result = _recursive_monomial_split(*splits, scheme=scheme, **kwargs)
-    return [lieops.ops.poly(values=sr, dim=hamiltonian.dim, max_power=hamiltonian.max_power) for sr in split_result]
+    return [lieops.core.poly(values=sr, dim=hamiltonian.dim, max_power=hamiltonian.max_power) for sr in split_result]
 
 def _recursive_monomial_split(*splits, scheme, key_selection=lambda keys: [keys[0]]):
     '''
@@ -512,7 +512,7 @@ def iterative_commuting_split(hamiltonian, scheme, combine=True, include_values=
             s_hamiltonians = []
             for index in monomial_indices:
                 power = list(monomials[index].keys())[0]
-                s_hamiltonians.append(lieops.ops.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
+                s_hamiltonians.append(lieops.core.poly(values={power: value}, max_power=hamiltonian.max_power, dim=hamiltonian.dim))
             
         if combine:
             s_hamiltonians = [sum([h for h in s_hamiltonians])]
