@@ -2,6 +2,7 @@
 
 import numpy as np
 import lieops.ops.lie
+from lieops.linalg.matrix import create_J
 
 def poly2ad(pin):
     '''
@@ -209,6 +210,26 @@ def ad3poly(A, **kwargs):
         p2 += xieta[k]*xi_k_coeff
         p2 += xieta[k + dim]*eta_k_coeff
     return p2
+
+def const2poly(*const, poisson_factor=-1j):
+    '''
+    Let c_1, ..., c_{2n} be constants. Then compute a first-order polynomial g_1
+    so that {g_1, z_j} = z_j + c_j holds.
+    '''
+    dim2 = len(const)
+    assert dim2%2 == 0, 'Dimension must be even.'
+    dim = dim2//2
+    J = create_J(dim)
+    xieta = lieops.ops.lie.create_coords(dim, poisson_factor=poisson_factor)
+    return sum([xieta[k]*(J@const)[k] for k in range(dim2)])/poisson_factor
+
+def poly2const(p1):
+    '''
+    The inverse of the 'const2poly' routine.
+    '''
+    assert p1.mindeg() == 1 and p1.maxdeg() == 1
+    xieta = lieops.ops.lie.create_coords(p1.dim, poisson_factor=p1._poisson_factor)
+    return [(p1@xe)[(0,)*p1.dim*2] for xe in xieta] # "p1@xe - xe" not necessary, we access the constant immediately
 
 def action_on_poly(*mu, C, func=lambda z: z):
     '''
