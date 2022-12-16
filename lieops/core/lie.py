@@ -4,7 +4,7 @@ import copy
 from lieops.linalg.nf import first_order_nf_expansion
 
 from .generators import genexp
-from .bch.magnus import combine
+from .combine import magnus
 from .poly import _poly
 
 from lieops.solver import heyoka, get_2flow, channell
@@ -343,7 +343,7 @@ class lexp(lieoperator):
           exp(:x:),
         where :x: is a poly class.
 
-        In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the 'combine' routine.
+        In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the lieops.core.combine.magnus routine.
         '''
         self._bch_power_default = 6 # the default power when composing two Lie-operators (used in self.bch)
         if 'power' in kwargs.keys():
@@ -379,10 +379,10 @@ class lexp(lieoperator):
             
         power: int, optional
             The power in the integration variable, to control the degree of accuracy of the result.
-            See also lie.combine routine. If nothing specified, self._bch_power_default will be used.
+            See also lie.core.combine.magnus routine. If nothing specified, self._bch_power_default will be used.
             
         **kwargs
-            Additional parameters sent to lie.combine routine.
+            Additional parameters sent to lie.core.combine.magnus routine.
             
         Returns
         -------
@@ -392,7 +392,7 @@ class lexp(lieoperator):
         assert isinstance(self, type(z[0]))
         _ = kwargs.setdefault('power', self._bch_power_default)
         _ = kwargs.setdefault('disable_tqdm', True)
-        comb, _, _ = combine(self.argument*bch_sign, *[other.argument*bch_sign for other in z], **kwargs)
+        comb, _, _ = magnus(self.argument*bch_sign, *[other.argument*bch_sign for other in z], **kwargs)
         if len(comb) > 0:
             outp = sum(comb.values())*bch_sign
         else: # return zero poly

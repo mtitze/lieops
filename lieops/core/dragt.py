@@ -147,7 +147,7 @@ def dragtfinn(*p, tol=0, **kwargs):
             for i in range(len(gk)):
                 for j in range(i):
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
-                    assert zero.above(tol) == 0, f'It appears that the Poincare Lemma can not be applied, using tol: {tol})'
+                    assert zero.above(tol) == 0, f'It appears that the Poincare Lemma can not be applied, using tol: {tol}\n{zero}'
         
         fk = sympoincare(*gk)
         lk = lexp(-fk)
