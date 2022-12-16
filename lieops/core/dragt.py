@@ -68,7 +68,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, front1=True, tol=0, **kwargs):
+def dragtfinn(*p, point=[], tol=0, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -89,10 +89,10 @@ def dragtfinn(*p, front1=True, tol=0, **kwargs):
     order: int, optional
         The maximal power of the polynomials f_k.
         
-    front1: boolean, optional
-        If True, then determine a chain in which f_1 is in front of the f_k for k >= 2. If false,
-        then return a chain in which f_1 is at the last position.
-        
+    point: subscriptable, optional
+        An optional point of reference around which the map should be represented instead.
+        By default, this point is zero.
+                
     **kwargs
         Optional keyworded arguments passed to lieops.ops.lie.lexp call (flow calculation).
     
@@ -107,8 +107,8 @@ def dragtfinn(*p, front1=True, tol=0, **kwargs):
     [1] A. Dragt: "Lie Methods for Nonlinear Dynamics with Applications to Accelerator Physics", University of Maryland, 2020,
         http://www.physics.umd.edu/dsat/
     '''
-    # TODO: 1) add option to reverse the order
-    #       2) check front1 options
+    # TODO: add option to reverse the order
+    
     # check input consistency
     dim = p[0].dim
     dim2 = dim*2
@@ -119,11 +119,18 @@ def dragtfinn(*p, front1=True, tol=0, **kwargs):
     order = kwargs.pop('order', max([e.max_power for e in p]))
     assert order < np.inf
     
-    # determine the polynomial determining the translation(s):
-    g1 = const2poly(*[e.get((0,)*dim2, 0) for e in p], 
-                    poisson_factor=pf)
-    if order == 1:
-        return [g1]
+    # determine the start and end points of the map
+    if len(point) == 0:
+        start = [0]*dim2
+        final = [e.get((0,)*dim2, 0) for e in p]
+    else:
+        assert len(point) == dim2, f'Reference point dimension: {len(point)}, expected: {dim2}.'
+        start = point
+        final = [e(*point) for e in p]
+    
+    if order == 1: # return a first-order polynomial providing the translation:
+        diff = [final[k] - start[k] for k in range(dim2)]
+        return [const2poly(*diff, poisson_factor=pf)]
     
     # determine the linear map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
@@ -141,11 +148,8 @@ def dragtfinn(*p, front1=True, tol=0, **kwargs):
         # Further idea: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
     
     # invert the linear map, see Ref. [1], Eq. (7.6.17).
-    if front1:
-        p1 = p
-    else:
-        p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
-    p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy. TODO: Ri transpose or Ri here?
+    p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
+    p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     
     # R = exp(A) o exp(B). For the Lie operators, however, first exp(SA) needs to be executed, then exp(SB).
     f_all = [SA, SB]
@@ -166,19 +170,13 @@ def dragtfinn(*p, front1=True, tol=0, **kwargs):
         if tol > 0: # (+) check if the Lie operators cancel the Taylor-map up to the current order
             # further idea: check if fk is the potential of the gk's
             for i in range(dim2):
-                if front1:
-                    remainder = (p_new[i] - xieta[i] - p_new[i].get((0,)*dim2, 0)).above(tol)
-                else:
-                    remainder = (p_new[i] - xieta[i]).above(tol)
+                remainder = (p_new[i] - xieta[i]).above(tol)
                 assert remainder.mindeg() >= k + 1, f'It appears that the Lie operators do not properly cancel the Taylor-map terms (tol: {tol}):\n{remainder}'
 
         f_all.append(fk)
         
-    if front1:
-        g1 = const2poly(*[e.get((0,)*dim2, 0) for e in p_new], 
-                        poisson_factor=pf)
-        f_all = [g1] + f_all
-    else:
-        f_all = f_all + [g1]
-
+    if any([e != 0 for e in start]):
+        f_all.insert(0, -const2poly(*start, poisson_factor=pf))
+    if any([e != 0 for e in final]):
+        f_all.append(const2poly(*final, poisson_factor=pf))
     return f_all
