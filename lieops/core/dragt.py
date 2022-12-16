@@ -68,13 +68,11 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, tol=0, **kwargs):
+def dragtfinn(*p, front1=True, tol=0, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
-    
-    TODO: 1) add constant 2) add option to reverse the order).
-    
+        
     Then this routine will find polynomials f_1, f2_a, f2_b, f3, f4, f5, ...,
     where f_k is a homogeneous polynomial of degree k, so that
     M ~ exp(:f2_a:) o exp(:f2_b:) o exp(:f3:) o exp(:f4:) o ... o exp(:fn:) o exp(:f1:)
@@ -91,6 +89,10 @@ def dragtfinn(*p, tol=0, **kwargs):
     order: int, optional
         The maximal power of the polynomials f_k.
         
+    front1: boolean, optional
+        If True, then determine a chain in which f_1 is in front of the f_k for k >= 2. If false,
+        then return a chain in which f_1 is at the last position.
+        
     **kwargs
         Optional keyworded arguments passed to lieops.ops.lie.lexp call (flow calculation).
     
@@ -105,6 +107,8 @@ def dragtfinn(*p, tol=0, **kwargs):
     [1] A. Dragt: "Lie Methods for Nonlinear Dynamics with Applications to Accelerator Physics", University of Maryland, 2020,
         http://www.physics.umd.edu/dsat/
     '''
+    # TODO: 1) add option to reverse the order
+    #       2) check front1 options
     # check input consistency
     dim = p[0].dim
     dim2 = dim*2
@@ -116,7 +120,7 @@ def dragtfinn(*p, tol=0, **kwargs):
     assert order < np.inf
     
     # determine the polynomial determining the translation(s):
-    g1 = const2poly(*[e.homogeneous_part(0).get((0,)*dim2, 0) for e in p], 
+    g1 = const2poly(*[e.get((0,)*dim2, 0) for e in p], 
                     poisson_factor=pf)
     if order == 1:
         return [g1]
@@ -127,31 +131,54 @@ def dragtfinn(*p, tol=0, **kwargs):
     SA, SB = ad2poly(A, poisson_factor=pf), ad2poly(B, poisson_factor=pf)
     Ri = np.linalg.inv(R)
     
-    if tol > 0:
+    if tol > 0: # Perform some consistency checks
         # symplecticity check:
         J = create_J(dim) 
         assert np.linalg.norm(R.transpose()@J@R - J) < tol, f'It appears that the given map is not symplectic within a tolerance of {tol}.'
         # check if symlogs gives correct results
         assert np.linalg.norm(expm(A)@expm(B) - R) < tol
-        xieta = create_coords(dim) # for check at (+) below
+        xieta = create_coords(dim) # for checks at (+) below
+        # Further idea: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
     
     # invert the linear map, see Ref. [1], Eq. (7.6.17).
-    p_new = [sum([p[k]*Ri[l, k] for l in range(dim2)]) for k in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy
+    if front1:
+        p1 = p
+    else:
+        p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
+    p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy. TODO: Ri transpose or Ri here?
     
-    f_all = [g1, SB, SA] # TODO: check (again) why g1 should be set at the first position here (compare 7.7.10 in Ref. [1], where it appears at the last position)
+    # R = exp(A) o exp(B). For the Lie operators, however, first exp(SA) needs to be executed, then exp(SB).
+    f_all = [SA, SB]
+    f_nl = []
     for k in range(2, order):
         gk = [e.homogeneous_part(k) for e in p_new]
 
-        if tol > 0: # (+)
-            # check if prerequisits for application of the Poincare Lemma are satisfied
-            for i in range(len(gk)):
+        if tol > 0: # (+) check if prerequisits for application of the Poincare Lemma are satisfied
+            for i in range(dim2):
                 for j in range(i):
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
-                    assert zero.above(tol) == 0, f'It appears that the Poincare Lemma can not be applied, using tol: {tol}\n{zero}'
+                    assert zero.above(tol) == 0, f'It appears that the Poincare Lemma can not be applied (tol: {tol}):\n{zero}'
         
         fk = sympoincare(*gk)
         lk = lexp(-fk)
         p_new = [lk(e, **kwargs) for e in p_new]
+        
+        if tol > 0: # (+) check if the Lie operators cancel the Taylor-map up to the current order
+            # further idea: check if fk is the potential of the gk's
+            for i in range(dim2):
+                if front1:
+                    remainder = (p_new[i] - xieta[i] - p_new[i].get((0,)*dim2, 0)).above(tol)
+                else:
+                    remainder = (p_new[i] - xieta[i]).above(tol)
+                assert remainder.mindeg() >= k + 1, f'It appears that the Lie operators do not properly cancel the Taylor-map terms (tol: {tol}):\n{remainder}'
+
         f_all.append(fk)
+        
+    if front1:
+        g1 = const2poly(*[e.get((0,)*dim2, 0) for e in p_new], 
+                        poisson_factor=pf)
+        f_all = [g1] + f_all
+    else:
+        f_all = f_all + [g1]
 
     return f_all
