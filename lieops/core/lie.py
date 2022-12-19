@@ -194,7 +194,7 @@ class lieoperator:
         else:
             raise NotImplementedError('Input generator not recognized.')
         self.power = len(self.generator) - 1
-        
+
     def _update_flow_parameters(self, update=False, **kwargs):
         '''
         Update self._flow_parameters if necessary; return boolean if they have been updated 
@@ -233,6 +233,14 @@ class lieoperator:
         '''
         update = self._update_flow_parameters(**kwargs)
         if update or not hasattr(self, 'flow'):
+            method = self._flow_parameters['method']
+            # remove the current output for this method, because the flow parameters have been updated.
+            if hasattr(self, f'_{method}_flow'):
+                delattr(self, f'_{method}_flow')
+            if hasattr(self, f'_{method}_result'):
+                delattr(self, f'_{method}_result')
+            if hasattr(self, f'_{method}_xietaf'):
+                delattr(self, f'_{method}_xietaf')
             _ = kwargs.pop('method', None) # the method has now been stored in self._flow_parameters
             self._calcFlowFromParameters(**kwargs)
         

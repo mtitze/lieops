@@ -161,17 +161,17 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
             for i in range(dim2):
                 for j in range(i):
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
-                    assert zero.above(tol) == 0, f'It appears that the Poincare Lemma can not be applied (tol: {tol}):\n{zero}'
+                    assert zero.above(tol) == 0, f'It appears that the Poincare Lemma can not be applied for order {k} (tol: {tol}):\n{zero}'
         
         fk = sympoincare(*gk)
         lk = lexp(-fk)
-        p_new = [lk(e, **kwargs) for e in p_new]
+        p_new = lk(*p_new, **kwargs)
         
         if tol > 0: # (+) check if the Lie operators cancel the Taylor-map up to the current order
             # further idea: check if fk is the potential of the gk's
             for i in range(dim2):
                 remainder = (p_new[i] - xieta[i]).above(tol)
-                assert remainder.mindeg() >= k + 1, f'It appears that the Lie operators do not properly cancel the Taylor-map terms (tol: {tol}):\n{remainder}'
+                assert remainder.mindeg() >= k + 1, f'It appears that the Lie operators do not properly cancel the Taylor-map terms of order {k + 1} (tol: {tol}):\n{remainder}'
 
         f_all.append(fk)
         
