@@ -16,7 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
-__version__ = '0.1.8'
+__version__ = '0.1.9'
 
 from lieops.core import *
 from lieops.linalg import *
