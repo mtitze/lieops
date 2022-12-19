@@ -68,7 +68,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, point=[], tol=0, **kwargs):
+def dragtfinn(*p, offset=[], tol=0, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -89,8 +89,8 @@ def dragtfinn(*p, point=[], tol=0, **kwargs):
     order: int, optional
         The maximal power of the polynomials f_k.
         
-    point: subscriptable, optional
-        An optional point of reference around which the map should be represented instead.
+    offset: subscriptable, optional
+        An optional point of reference around which the map should be represented.
         By default, this point is zero.
                 
     **kwargs
@@ -120,13 +120,13 @@ def dragtfinn(*p, point=[], tol=0, **kwargs):
     assert order < np.inf
     
     # determine the start and end points of the map
-    if len(point) == 0:
+    if len(offset) == 0:
         start = [0]*dim2
         final = [e.get((0,)*dim2, 0) for e in p]
     else:
-        assert len(point) == dim2, f'Reference point dimension: {len(point)}, expected: {dim2}.'
-        start = point
-        final = [e(*point) for e in p]
+        assert len(offset) == dim2, f'Reference point dimension: {len(offset)}, expected: {dim2}.'
+        start = offset
+        final = [e(*offset) for e in p]
     
     if order == 1: # return a first-order polynomial providing the translation:
         diff = [final[k] - start[k] for k in range(dim2)]

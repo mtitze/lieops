@@ -306,14 +306,14 @@ class lieoperator:
         out.__dict__.update(copy.deepcopy(self.__dict__))
         return out
     
-    def tpsa(self, **kwargs):
+    def tpsa(self, *position, **kwargs):
         '''
         Pass n-jets through the flow function, given by the current Lie operator.
         
         Parameters
         ----------
-        position: array-like, optional
-            A list of floats defining the position relative to which we want to calculate the flow. 
+        *pos: float or array, optional
+            The point defining the position relative to which we want to calculate the flow. 
             By default the position will be the origin.
         
         **kwargs
@@ -325,13 +325,14 @@ class lieoperator:
         elif 'order' in kwargs.keys():
             order = kwargs['order']
         else:
-            assert self.argument.max_power < np.inf, 'max_power of argument can not be infinite.'
+            assert self.argument.max_power < np.inf, f'No order set. In this case max_power of {self.__class__.__name__}.argument can not be infinite.'
             order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.core.poly._poly concerning max_power
         n_args = self.argument.dim*2
         dflow = derive(self.flow, n_args=n_args, order=order)
-        position = kwargs.get('position', (0,)*n_args)
+        if len(position) == 0:
+            position = (0,)*n_args
         expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
-        xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
+        xietaf = [poly(values=e, dim=self.argument.dim, max_power=order) for e in expansion]
         return xietaf, dflow
 
     
