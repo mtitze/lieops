@@ -312,7 +312,7 @@ class lieoperator:
         
         Parameters
         ----------
-        *pos: float or array, optional
+        *position: float or array, optional
             The point defining the position relative to which we want to calculate the flow. 
             By default the position will be the origin.
         

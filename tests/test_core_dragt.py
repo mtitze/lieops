@@ -41,9 +41,8 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5, power=30,
     mu = 1.236
     th = 0.5*mu*(q**2 + p**2) - q**3
     
-    op = lexp(-th)
+    op = lexp(th)
     _ = kwargs.setdefault('n_slices', 2)
-    #_ = kwargs.setdefault('t', -1)
     op.calcFlow(method='channell', scheme=yoshida_scheme, **kwargs)
     reference = op(xi0 + offset1, eta0 + offset2)
     
