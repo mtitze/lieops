@@ -10,7 +10,7 @@ y1 = yoshida()
 yoshida_scheme = y1.build(1)
 
 @pytest.mark.parametrize("q0, p0, offset1, offset2", [(0, 0, 0.027, -0.018), (0.02, 0.007, 0.027, -0.018)])
-def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5, power=30, 
+def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5,
                       tol1=1e-8, tol2=1e-10, tol3=1e-8, **kwargs):
     '''
     Test if the Dragt-Finn factorization gives the same numerical values as if passing
@@ -28,9 +28,6 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5, power=30,
     order: int, optional
         The order of the n-jets which will be passed through the flow function, therefore controlling
         the order of the Taylor-series of the symplectic map.
-        
-    power: int, optional
-        Input for the internal Dragt-Finn flow calculation.
     '''
  
     # Define the start coordinates and the Hamiltonian, which will be a rotation and some
@@ -58,7 +55,7 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5, power=30,
     
     # Check if the approximation is sufficiently close to the original values:
     run = [offset1, offset2]
-    for f in fk:
+    for f in fk: # N.B. Although the order of Lie operators is reversed, applied on the coordinates it is again the same.
         run = lexp(f)(*run, **op._flow_parameters)
         
     assert all([abs(run[k] - reference[k]) < tol3 for k in range(2)])

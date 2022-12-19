@@ -92,7 +92,7 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
     offset: subscriptable, optional
         An optional point of reference around which the map should be represented.
         By default, this point is zero.
-                
+                        
     **kwargs
         Optional keyworded arguments passed to lieops.ops.lie.lexp call (flow calculation).
     
@@ -151,8 +151,7 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
     p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
     p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     
-    # R = exp(A) o exp(B). For the Lie operators, however, first exp(SA) needs to be executed, then exp(SB).
-    f_all = [SA, SB]
+    f_all = [SA, SB] # R = exp(A) o exp(B)
     f_nl = []
     for k in range(2, order):
         gk = [e.homogeneous_part(k) for e in p_new]
