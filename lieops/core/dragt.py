@@ -92,9 +92,9 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
     offset: subscriptable, optional
         An optional point of reference around which the map should be represented.
         By default, this point is zero.
-                        
-    **kwargs
-        Optional keyworded arguments passed to lieops.ops.lie.lexp call (flow calculation).
+        
+    flinp: dict, optional
+        Input parameters passed to lieops.ops.lie.lexp call (flow calculation).
     
     Returns
     -------
@@ -116,8 +116,8 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
     pf = p[0]._poisson_factor
     assert all([e._poisson_factor == pf for e in p])
     assert len(p) == dim2, f'Polynomials received: {len(p)} Expected: {dim2}'
-    order = kwargs.pop('order', max([e.max_power for e in p]))
-    assert order < np.inf
+    order = kwargs.pop('order', max([e.maxdeg() for e in p]) + 1)
+    assert order < np.inf, 'Requested order of the Dragt-Finn series infinite.'
     
     # determine the start and end points of the map
     if len(offset) == 0:
@@ -164,7 +164,7 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
         
         fk = sympoincare(*gk)
         lk = lexp(-fk)
-        p_new = lk(*p_new, **kwargs)
+        p_new = lk(*p_new, **kwargs.get('flinp', {}))
         
         if tol > 0: # (+) check if the Lie operators cancel the Taylor-map up to the current order
             # further idea: check if fk is the potential of the gk's

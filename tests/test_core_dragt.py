@@ -28,13 +28,16 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5,
     order: int, optional
         The order of the n-jets which will be passed through the flow function, therefore controlling
         the order of the Taylor-series of the symplectic map.
+        
+    **kwargs
+        Optional keyword arguments passed to calcFlow.
     '''
  
     # Define the start coordinates and the Hamiltonian, which will be a rotation and some
     # 3rd order perturbation here:
     xi0 = (q0 + p0*1j)/float(np.sqrt(2))
     eta0 = xi0.conjugate()
-    q, p = create_coords(1, real=True)
+    q, p = create_coords(1, real=True, max_power=10)
     mu = 1.236
     th = 0.5*mu*(q**2 + p**2) - q**3
     
@@ -51,7 +54,8 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5,
     assert all([abs(reference[k] - reference2[k]) < tol1 for k in range(2)])
     
     # Compute the f_k's which will provide a Dragt-Finn factorization
-    fk = dragtfinn(*xietaf, offset=[offset1, offset2], tol=tol2, **op._flow_parameters)
+    fk = dragtfinn(*xietaf, offset=[offset1, offset2], tol=tol2, order=order, flinp={'power': 10})
+    # flinp=op._flow_parameters works as well, but takes a very long time
     
     # Check if the approximation is sufficiently close to the original values:
     run = [offset1, offset2]
@@ -59,3 +63,4 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5,
         run = lexp(f)(*run, **op._flow_parameters)
         
     assert all([abs(run[k] - reference[k]) < tol3 for k in range(2)])
+
