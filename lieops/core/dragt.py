@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import expm
+from tqdm import tqdm
 
 from lieops.linalg.matrix import create_J
 from lieops.linalg.nf import symlogs
@@ -68,7 +69,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, offset=[], tol=0, **kwargs):
+def dragtfinn(*p, offset=[], tol=0, order=0, flinp={}, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -94,7 +95,12 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
         By default, this point is zero.
         
     flinp: dict, optional
-        Input parameters passed to lieops.ops.lie.lexp call (flow calculation).
+        Specific input parameters passed to lieops.core.lie.lexp flow calculation.
+        For example, if a flow input parameter needs an 'order' parameter, it can
+        be specified here.
+        
+    **kwargs
+        Further input parameters passed to lieops.core.lie.lexp flow calculation.
     
     Returns
     -------
@@ -116,8 +122,10 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
     pf = p[0]._poisson_factor
     assert all([e._poisson_factor == pf for e in p])
     assert len(p) == dim2, f'Polynomials received: {len(p)} Expected: {dim2}'
-    order = kwargs.pop('order', max([e.maxdeg() for e in p]) + 1)
+    if order == 0:
+        order = max([e.maxdeg() for e in p]) + 1
     assert order < np.inf, 'Requested order of the Dragt-Finn series infinite.'
+    flinp.update(kwargs)
     
     # determine the start and end points of the map
     if len(offset) == 0:
@@ -134,8 +142,33 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
     
     # determine the linear map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
-    A, B = symlogs(R, tol2=tol)
-    SA, SB = ad2poly(A, poisson_factor=pf), ad2poly(B, poisson_factor=pf)
+    A, B = symlogs(R.transpose(), tol2=tol) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++).
+    SA, SB = ad2poly(A, poisson_factor=pf, tol=tol), ad2poly(B, poisson_factor=pf, tol=tol)
+    # (++) 
+    # Let us assume that we would have taken "symlogs(R) = A, B" (i.e. exp(A) o exp(B) = R) and consider a 1-dim case.
+    # In the following the '~' symbol means that we identify the (1, 0)-key with xi and the (0, 1)-key with eta.
+    # By definition of ad2poly:
+    # SA@xi ~ A@[1, 0]
+    # SA@eta ~ A@[0, 1]
+    # SB@xi ~ B@[1, 0]
+    # SB@eta ~ B@[0, 1]
+    # and thus (e.g.):
+    # SB@(SA@xi) ~ B@A@[1, 0] (Attention: The @-operator on the left side requires brackets: (SB@SA)@xi != SB@(SA@xi) )
+    # hence:
+    # lexp(SA)(xi) ~ expm(A)@[1, 0]
+    # lexp(SA)(lexp(SB)(xi)) ~ expm(A)@expm(B)@[1, 0] = R@[1, 0]
+    # So first SB needs to be executed, then SA, as expected from the relation R = exp(A) o exp(B)
+    #
+    # Let us translate the '~' relation back to an equality:
+    # By the above consideration, lexp(SA)(lexp(SB)(xi)) applied to a vector (xi0, eta0) will yield the sum of *rows* of the first column of R:
+    # lexp(SA)(lexp(SB)(xi))(xi0, eta0) = R[0, 0]*xi0 + R[1, 0]*eta0.
+    # 
+    # Therefore we have to construct SA and SB by R.transpose(), so we get for the corresponding SA' and SB':
+    # lexp(SA')(lexp(SB')(xi))(xi0, eta0) = R[0, 0]*xi0 + R[0, 1]*eta0 = [R@[xi0, eta0]]_0  (notice that now we have an equality, not '~' as above)
+    #
+    # In general we thus have, by construction for the coordinates xi/eta:
+    # lexp(SA')(*lexp(SB')(*xieta)) = R
+    # This is the reason why we had to use .transpose() in the construction of SA and SB above.
     Ri = np.linalg.inv(R)
     
     if tol > 0: # Perform some consistency checks
@@ -143,17 +176,17 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
         J = create_J(dim) 
         assert np.linalg.norm(R.transpose()@J@R - J) < tol, f'It appears that the given map is not symplectic within a tolerance of {tol}.'
         # check if symlogs gives correct results
-        assert np.linalg.norm(expm(A)@expm(B) - R) < tol
+        assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol
         xieta = create_coords(dim) # for checks at (+) below
         # Further idea: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
     
-    # invert the linear map, see Ref. [1], Eq. (7.6.17).
+    # invert the effect of the linear map R, see Ref. [1], Eq. (7.6.17):
     p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
     p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     
     f_all = [SA, SB] # R = exp(A) o exp(B)
     f_nl = []
-    for k in range(2, order):
+    for k in tqdm(range(2, order), disable=kwargs.get('disable_tqdm', False)):
         gk = [e.homogeneous_part(k) for e in p_new]
 
         if tol > 0: # (+) check if prerequisits for application of the Poincare Lemma are satisfied
@@ -164,7 +197,7 @@ def dragtfinn(*p, offset=[], tol=0, **kwargs):
         
         fk = sympoincare(*gk)
         lk = lexp(-fk)
-        p_new = lk(*p_new, **kwargs.get('flinp', {}))
+        p_new = lk(*p_new, **flinp)
         
         if tol > 0: # (+) check if the Lie operators cancel the Taylor-map up to the current order
             # further idea: check if fk is the potential of the gk's

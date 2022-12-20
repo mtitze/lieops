@@ -321,11 +321,10 @@ class lieoperator:
         Parameters
         ----------
         *position: float or array, optional
-            The point defining the position relative to which we want to calculate the flow. 
-            By default the position will be the origin.
+            An optional point of reference. By default the position will be the origin.
         
-        **kwargs
-            Optional keyworded arguments passed to 
+        order: int, optional
+            The number of derivatives we want to take into account.
         '''
         assert hasattr(self, 'flow'), 'Flow has to be computed first.'
         if self.argument.maxdeg() <= 2:
