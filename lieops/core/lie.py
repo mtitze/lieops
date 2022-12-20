@@ -340,7 +340,7 @@ class lieoperator:
         if len(position) == 0:
             position = (0,)*n_args
         expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
-        xietaf = [poly(values=e, dim=self.argument.dim, max_power=order) for e in expansion]
+        xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
         return xietaf, dflow
 
     

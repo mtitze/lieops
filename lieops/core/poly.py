@@ -326,20 +326,21 @@ class _poly:
         else:
             raise NotImplementedError('Division by Lie polynomial not supported.')
         
-    
     def __pow__(self, other):
         assert type(other) == int
         assert other >= 0
         if other == 0:
             return self.__class__(values={(0,)*self.dim*2: 1}, 
                                   dim=self.dim, max_power=self.max_power) # N.B. 0**0 := 1
-
-        remainder = other%2
-        half = self**(other//2)
-        if remainder == 1:
-            return self*half*half
+        elif other == 1:
+            return self
         else:
-            return half*half
+            remainder = other%2
+            half = self**(other//2)
+            if remainder == 1:
+                return self*half*half
+            else:
+                return half*half
         
     def conjugate(self):
         return self.__class__(values={k[self.dim:] + k[:self.dim]: v.conjugate() for k, v in self.items()},
