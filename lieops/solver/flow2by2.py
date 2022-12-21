@@ -85,7 +85,7 @@ def get_2flow(ham, tol=1e-12):
             if check:
                 expH_t = expm(t*adHmat)
             else:
-                expH_t = M@np.diag(np.exp(t*evals))@Mi                
+                expH_t = M@np.diag(np.exp(t*evals))@Mi  
         else:
             expH_t = expH
         p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
