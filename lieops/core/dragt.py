@@ -174,7 +174,7 @@ def dragtfinn(*p, offset=[], tol=0, order=0, flinp={}, **kwargs):
     if tol > 0: # Perform some consistency checks
         # symplecticity check:
         J = create_J(dim) 
-        assert np.linalg.norm(R.transpose()@J@R - J) < tol, f'It appears that the given map is not symplectic within a tolerance of {tol}.'
+        assert np.linalg.norm(R.transpose()@J@R - J) < tol, f'Map not symplectic within a tolerance of {tol}.'
         # check if symlogs gives correct results
         assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol
         xieta = create_coords(dim) # for checks at (+) below
@@ -193,7 +193,7 @@ def dragtfinn(*p, offset=[], tol=0, order=0, flinp={}, **kwargs):
             for i in range(dim2):
                 for j in range(i):
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
-                    assert zero.above(tol) == 0, f'It appears that the Poincare Lemma can not be applied for order {k} (tol: {tol}):\n{zero}'
+                    assert zero.above(tol) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol}):\n{zero}'
         
         fk = sympoincare(*gk)
         lk = lexp(-fk)
@@ -203,7 +203,7 @@ def dragtfinn(*p, offset=[], tol=0, order=0, flinp={}, **kwargs):
             # further idea: check if fk is the potential of the gk's
             for i in range(dim2):
                 remainder = (p_new[i] - xieta[i]).above(tol)
-                assert remainder.mindeg() >= k + 1, f'It appears that the Lie operators do not properly cancel the Taylor-map terms of order {k + 1} (tol: {tol}):\n{remainder}'
+                assert remainder.mindeg() >= k + 1, f'Lie operators do not properly cancel the Taylor-map terms of order {k + 1} (tol: {tol}):\n{remainder}'
 
         f_all.append(fk)
         
