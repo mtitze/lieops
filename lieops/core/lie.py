@@ -95,6 +95,13 @@ class poly(_poly):
         lo.calcFlow(**kwargs)
         return lo
     
+    def __matmul__(self, other):
+        if isinstance(other, lieoperator):
+            return -other(self)
+        else:
+            return _poly.__matmul__(self, other)        
+
+    
 def create_coords(dim, real=False, **kwargs):
     '''
     Create a set of complex (xi, eta)-Lie polynomials for a given dimension.
@@ -205,9 +212,10 @@ class lieoperator:
         '''
         update = update or not kwargs.items() <= self._flow_parameters.items()
         if 'components' in kwargs.keys():
-            # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
             components = kwargs['components']
-            if any([next(iter(self.components[k:]), None) != components[k] for k in range(len(components))]):
+            # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
+            n = max([len(components), len(self.components)])
+            if any([next(iter(self.components[k:]), None) != next(iter(components[k:]), None) for k in range(n)]):
                 self.components = components
                 update = True
 
@@ -300,6 +308,12 @@ class lieoperator:
         else:
             self.calcFlow(**kwargs)
             return self.flow(*z)
+        
+    def __matmul__(self, other):
+        if isinstance(other, poly):
+            return self(other)
+        else:
+            raise NotImplementedError(f"Operation on type {other.__class__.__name__} not supported.")
             
     def copy(self):
         '''
@@ -415,7 +429,7 @@ class lexp(lieoperator):
         if isinstance(self, type(other)):
             return self.bch(other)
         else:
-            raise NotImplementedError(f"Operation on type {other.__class__.__name__} not supported.")
+            return lieoperator.__matmul__(self, other)
             
     def __pow__(self, power):
         outp_kwargs = {}
