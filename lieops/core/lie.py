@@ -481,10 +481,10 @@ class lexp(lieoperator):
         an exact integration, see lieops.solver.get_2flow.
         '''
         self._2flow_xieta = create_coords(self.argument.dim)
-        self._2flow = get_2flow(self.argument, tol=kwargs.get('tol', 1e-12)) # No modification of self.argument with 't' parameter here; self._2flow has its own t-parameter handling (below).
+        self._2flow = get_2flow(self.argument*self._flow_parameters['t'], tol=kwargs.get('tol', 1e-12))
         # Apply self._2flow on the individual xi/eta-coordinates. They will be used
         # later on, for each of the given components, using the pull-back property of the flow:
-        self._2flow_xietaf = [self._2flow(xieta, **kwargs) for xieta in self._2flow_xieta]
+        self._2flow_xietaf = [self._2flow(xieta) for xieta in self._2flow_xieta]
         self.flow = lambda *z: [xe(*z) for xe in self._2flow_xietaf]
         
     def _calcFlow_njet(self, n_slices: int=1, **kwargs):
