@@ -62,3 +62,32 @@ def test_4d_hamiltonian(n_slices=100, tol=2e-3):
         
     assert all([abs(reference1[k] - ch1[k]) < tol for k in range(4)])
     assert all([abs(reference2[k] - ch2[k]) < tol for k in range(4)])
+    
+    
+def test_poly_actions(tol=1e-16):
+    '''
+    Test if exp(-alpha :f:)q_j = ... , where the right-hand side is the prediction
+    by Channell's equations and f a specific monomial.
+    '''
+    
+    q1, q2, p1, p2 = create_coords(2, real=True, max_power=10)
+
+    alpha = 0.4242
+
+    # Ensure k*n1 = (k - 1)*m1 so that m1/(m1 - n1) = k in this example, so
+    # we can computed the power of the respective Lie polynomial without having to
+    # rely on some generating function modeling a general power.
+    n1 = 3
+    n2 = 1
+    m1 = 4
+    m2 = 2
+
+    mon = -alpha*q1**n1*q2**n2*p1**m1*p2**m2
+    op = lexp(mon)
+    op.calcFlow(method='channell')    
+    
+    out_q1 = op@q1
+    A1 = q2**n2*p2**m2
+    ref_q1 = q1*(1 + alpha*(m1 - n1)*q1**(n1 - 1)*p1**(m1 - 1)*A1)**(int(m1/(m1 - n1)))
+    
+    assert (out_q1 - ref_q1).above(tol) == 0

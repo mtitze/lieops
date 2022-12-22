@@ -240,8 +240,8 @@ class lieoperator:
             Optional arguments passed to flow subroutines.
         '''
         update = self._update_flow_parameters(**kwargs)
+        method = self._flow_parameters['method']
         if update or not hasattr(self, 'flow'):
-            method = self._flow_parameters['method']
             # remove the current output for this method, because the flow parameters have been updated.
             if hasattr(self, f'_{method}_flow'):
                 delattr(self, f'_{method}_flow')
@@ -251,6 +251,8 @@ class lieoperator:
                 delattr(self, f'_{method}_xietaf')
             _ = kwargs.pop('method', None) # the method has now been stored in self._flow_parameters
             self._calcFlowFromParameters(**kwargs)
+        # set the current flow function to the requested method.
+        self.flow = getattr(self, f'_{method}_flow') 
         
     def _calcFlowFromParameters(self, **kwargs):
         method = self._flow_parameters['method']
@@ -263,7 +265,6 @@ class lieoperator:
         # For a general Lie operator g(:f:), we apply g(:f:) to the given operand directly
         self._bruteforce_result = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
         self._bruteforce_flow = lambda *z: [self._bruteforce_result[k](*z) for k in range(len(self._bruteforce_result))]
-        self.flow = self._bruteforce_flow
         
     def _calcPolyFromFlow(self, **kwargs):
         '''
@@ -468,38 +469,27 @@ class lexp(lieoperator):
             self._bruteforce_xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
             self._bruteforce_result = [c(*self._bruteforce_xietaf) for c in requested_components]
             self._bruteforce_flow = lambda *z: [self._bruteforce_result[k](*z) for k in range(len(self._bruteforce_result))]
-            self.flow = self._bruteforce_flow
         else:
             lieoperator._calcFlow_bruteforce(self, **kwargs)
             
-    def _calcFlow_channell(self, n_slices: int=1, **kwargs):
+    def _calcFlow_channell(self, **kwargs):
         '''
         Compute flow using the algorithm by P. Channell.
         
         This routine may need to use a slicing or splitting to improve its accuracy.
         '''
-        self._channell_scheme = kwargs.setdefault('scheme', [0.5, 1, 0.5])
-        _ = kwargs.setdefault('reverse', True)
-        hamiltonian_part = -self.argument*self._flow_parameters['t']/n_slices # N.B. minus sign here due to the way of how channell works... TODO: may need to unify this for other routines.
-        flow_func = channell(hamiltonian_part, **kwargs)
-        def cflow(*z):
-            for k in range(n_slices):
-                z = flow_func(*z)
-            return z
-        self._channell_flow = cflow
-        self.flow = cflow
+        self._channell_flow = channell(self.argument*self._flow_parameters['t'], **kwargs)
     
     def _calcFlow_2flow(self, **kwargs):
         '''
         Compute the flow in case self.argument is of order <= 2, by using
         an exact integration, see lieops.solver.get_2flow.
         '''
+        flow = get_2flow(self.argument*self._flow_parameters['t'], tol=kwargs.get('tol', 1e-12))
+        # flow is a function expecting lieops.core.lie.poly objects. Therefore:
         self._2flow_xieta = create_coords(self.argument.dim)
-        self._2flow = get_2flow(self.argument*self._flow_parameters['t'], tol=kwargs.get('tol', 1e-12))
-        # Apply self._2flow on the individual xi/eta-coordinates. They will be used
-        # later on, for each of the given components, using the pull-back property of the flow:
-        self._2flow_xietaf = [self._2flow(xieta) for xieta in self._2flow_xieta]
-        self.flow = lambda *z: [xe(*z) for xe in self._2flow_xietaf]
+        self._2flow_xietaf = [flow(xe) for xe in self._2flow_xieta]
+        self._2flow_flow = lambda *z: [xef(*z) for xef in self._2flow_xietaf]
         
     def _calcFlow_njet(self, n_slices: int=1, **kwargs):
         '''
@@ -566,7 +556,6 @@ class lexp(lieoperator):
                 z = op(*z)
             return z
         self._njet_flow = lo_concat
-        self.flow = self._njet_flow
     
     def _calcPolyFromFlow(self, **kwargs):
         '''

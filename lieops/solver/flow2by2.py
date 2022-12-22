@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import expm
+import warnings
 
 from lieops.linalg.matrix import adjoint, vecmat, matvec
 from lieops.core.tools import poly3ad, ad3poly
@@ -77,6 +78,7 @@ def get_2flow(ham, tol=1e-12):
             An optional parameter to control the flow (see above).
         '''
         if not isinstance(p, lieops.core.lie.poly):
+            warnings.warn('lieops.core.lie.poly input expected')
             return p
         
         assert poisson_factor == p._poisson_factor, 'Hamiltonian and given polynomial are instantiated with respect to different poisson structures.'

@@ -103,9 +103,9 @@ def get_monomial_flow(hamiltonian):
     
     monomial = hamiltonian*hamiltonian._poisson_factor
     powers = list(monomial.keys())[0] # The tuple representing the powers of the Hamiltonian.
-    value = monomial[powers] # The coefficient in front of the Hamiltonian.
+    value = -monomial[powers] # The coefficient in front of the Hamiltonian. Note the minus sign here, which comes from Channell's solution (alternatively we could modify the next equations with "-value").
     dim = monomial.dim
-    
+        
     def monomial_flow(*z):
         A = productExceptSelf([z[k]**powers[k]*z[k + dim]**powers[k + dim] for k in range(dim)])
         
@@ -145,7 +145,7 @@ def get_monomial_flow(hamiltonian):
     return monomial_flow
 
 
-def flow(hamiltonian, reverse=False, **kwargs):
+def flow(hamiltonian, reverse=False, n_slices: int=1, **kwargs):
     '''
     Compute the flow of a given Hamiltonian.
     
@@ -158,15 +158,20 @@ def flow(hamiltonian, reverse=False, **kwargs):
         A function to determine the splitting of the given Hamiltonian into monomials.
         
     reverse: boolean, optional
-        If true, propagate the resulting monomials in reverse order (default: False).
+        If true, propagate the resulting monomials in reverse order.
+        
+    n_slices: int, optional
+        Set an optional number of slices to improve results.
         
     Returns
     -------
-    fc: callable
+    callable
         A function taking 2n variables and returning 2n variables
     '''
     assert len(hamiltonian.keys()) > 0
+    hamiltonian = hamiltonian/n_slices
     if len(hamiltonian.keys()) > 1:
+        _ = kwargs.setdefault('scheme', [0.5, 1, 0.5])
         split_method = kwargs.get('split_method', iterative_commuting_split)
         if 'split_method' not in kwargs.keys():
             # need to ensure that the default splitting routine "iterative_commuting_split" returns individual monomials
@@ -175,6 +180,7 @@ def flow(hamiltonian, reverse=False, **kwargs):
         monomials = split_method(hamiltonian, **kwargs)
     else:
         monomials = [hamiltonian]
+    monomials = monomials*n_slices
     
     assert len(monomials) > 0
         
