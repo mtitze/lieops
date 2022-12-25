@@ -383,7 +383,7 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     
     L1 = lexp(H_accu_f, order=order, power=power, n_args=2)
     argflow = L1.argument.lexp(power=L1.power)
-    return argflow(*z) == L1(*z)
+    assert argflow(*z) == L1(*z)
 
 
 def test_stold_consistency(n=101, dim=6, tol=5e-15):

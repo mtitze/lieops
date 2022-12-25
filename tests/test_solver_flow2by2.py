@@ -43,7 +43,7 @@ def test_2flow(tol=1e-12, tol2=5e-8, tol3=5e-7): # tol=5e-12, tol2=1e-7, tol3=1e
     assert check1 < tol, f'{check1} >= {tol}' 
     
     # check linearity and multiplicity
-    check2 = get_max(Hflow(testpl1) - Hflow(f[10]) - f[11]*Hflow(xi1) - f[12]*Hflow(xi2) - f[13]*Hflow(eta1) - f[14]*Hflow(eta2) - \
+    check2 = get_max(Hflow(testpl1) - f[10] - f[11]*Hflow(xi1) - f[12]*Hflow(xi2) - f[13]*Hflow(eta1) - f[14]*Hflow(eta2) - \
               f[0]*Hflow(xi1)**2 - f[1]*Hflow(xi2)**2 - f[2]*Hflow(eta1)**2 - f[3]*Hflow(eta2)**2 - \
               f[4]*Hflow(xi1)*Hflow(xi2) - f[5]*Hflow(xi1)*Hflow(eta1) - f[6]*Hflow(xi1)*Hflow(eta2) - f[7]*Hflow(xi2)*Hflow(eta1) - \
               f[8]*Hflow(xi2)*Hflow(eta2) - f[9]*Hflow(eta1)*Hflow(eta2))
