@@ -211,6 +211,27 @@ def ad3poly(A, **kwargs):
         p2 += xieta[k + dim]*eta_k_coeff
     return p2
 
+def poly3vec(p, **kwargs):
+    '''
+    Map a Lie polynomial of degree <= 1 to its respective (2n + 1)-dimensional
+    vector. The last dimension is hereby dedicated to the constants. 
+    '''
+    assert p.maxdeg() <= 1
+    p0 = p.homogeneous_part(0)
+    p1 = p.homogeneous_part(1)
+    vec1 = poly2vec(p1, **kwargs)
+    return np.append(vec1, p0.get((0,)*p.dim*2, 0))
+
+def vec3poly(vec, **kwargs):
+    '''
+    The inverse of the poly3vec routine.
+    '''
+    assert len(vec)%2 == 1
+    n2 = len(vec) - 1
+    p1 = vec2poly(vec[:-1], **kwargs)
+    p1[(0,)*n2] = vec[-1]
+    return p1
+
 def const2poly(*const, poisson_factor=-1j):
     '''
     Let c_1, ..., c_{2n} be constants. Then compute a first-order polynomial g_1

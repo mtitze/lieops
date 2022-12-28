@@ -140,7 +140,7 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
     
 def vecmat(mat):
     '''
-    Map a given NxN-matrix to a vector
+    Map a given NxN-matrix to a vector, by concatenating its rows.
     '''
     return np.concatenate([mat[k, :] for k in range(mat.shape[0])])
 
