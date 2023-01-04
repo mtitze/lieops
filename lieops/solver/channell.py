@@ -145,54 +145,73 @@ def get_monomial_flow(hamiltonian):
     return monomial_flow
 
 
-def flow(hamiltonian, reverse=False, n_slices: int=1, **kwargs):
-    '''
-    Compute the flow of a given Hamiltonian.
+class channell:
     
-    Parameters
-    ----------
-    hamiltonian: poly
-        A poly object, representing a Hamiltonian on 2n-dimensional phase space.
+    def __init__(self, hamiltonian, n_slices: int=1, **kwargs):
+        '''
+        Class to manage and compute the Flow of a given Hamiltonian, based
+        on Channell's method [1].
         
-    split_method: callable, optional
-        A function to determine the splitting of the given Hamiltonian into monomials.
+        Parameters
+        ----------
+        hamiltonian: poly
+            A poly object, representing a Hamiltonian on 2n-dimensional phase space.
+
+        split_method: callable, optional
+            A function to determine the splitting of the given Hamiltonian into monomials.
+
+        n_slices: int, optional
+            Set an optional number of slices to improve results.
+            
+        References
+        ----------
+        [1] P. J. Channell: "A brief introduction to symplectic 
+            integrators and recent results", Report LA-UR-94-0063,
+            Los Alamos National Lab. 1993.
+        '''
         
-    reverse: boolean, optional
-        If true, propagate the resulting monomials in reverse order.
+        assert len(hamiltonian.keys()) > 0
+        hamiltonian = hamiltonian/n_slices
+        if len(hamiltonian.keys()) > 1:
+            _ = kwargs.setdefault('scheme', [0.5, 1, 0.5])
+            split_method = kwargs.get('split_method', iterative_commuting_split)
+            if 'split_method' not in kwargs.keys():
+                # need to ensure that the default splitting routine "iterative_commuting_split" returns individual monomials, so that we can apply Channell's algorithm.
+                kwargs['combine'] = False
+            _ = kwargs.pop('split_method', None)
+            monomials = split_method(hamiltonian, **kwargs)
+            self.split_method = split_method
+            self.split_method_inp = kwargs.copy()
+        else:
+            monomials = [hamiltonian]
+        monomials = monomials*n_slices
+        assert len(monomials) > 0
+        self.monomials = monomials
+        self.hamiltonian = hamiltonian
+        self.n_slices = n_slices
         
-    n_slices: int, optional
-        Set an optional number of slices to improve results.
+    def calcFlows(self, reverse=False, **kwargs):
+        '''
+        Compute the flow of the current Hamiltonian.
         
-    Returns
-    -------
-    callable
-        A function taking 2n variables and returning 2n variables
-    '''
-    assert len(hamiltonian.keys()) > 0
-    hamiltonian = hamiltonian/n_slices
-    if len(hamiltonian.keys()) > 1:
-        _ = kwargs.setdefault('scheme', [0.5, 1, 0.5])
-        split_method = kwargs.get('split_method', iterative_commuting_split)
-        if 'split_method' not in kwargs.keys():
-            # need to ensure that the default splitting routine "iterative_commuting_split" returns individual monomials
-            kwargs['combine'] = False
-        _ = kwargs.pop('split_method', None)
-        monomials = split_method(hamiltonian, **kwargs)
-    else:
-        monomials = [hamiltonian]
-    monomials = monomials*n_slices
-    
-    assert len(monomials) > 0
-        
-    # initialize & compute the individual flow functions
-    flows = [get_monomial_flow(h) for h in monomials]
-    if reverse:
-        flows = flows[::-1]
-    
-    # define the flow function of the composition
-    def fc(*z):
-        for fl in flows:
-            z = fl(*z)
+        Parameters
+        ----------
+        reverse: boolean, optional
+            If true, propagate the resulting monomials in reverse order.
+            
+        Returns
+        -------
+        callable
+            A function taking 2n variables and returning 2n variables
+        '''
+        # initialize & compute the individual flow functions
+        flows = [get_monomial_flow(h) for h in self.monomials]
+        if reverse:
+            flows = flows[::-1]
+        self.flows = flows
+
+    def __call__(self, *z, **kwargs):
+        for fl in self.flows:
+            z = fl(*z, **kwargs)
         return z
-    
-    return fc
+            

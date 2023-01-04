@@ -342,10 +342,10 @@ class lieoperator:
             The number of derivatives we want to take into account.
         '''
         assert hasattr(self, 'flow'), 'Flow has to be computed first.'
-        if self.argument.maxdeg() <= 2:
-            order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term, so order 1 is sufficient here.
-        elif 'order' in kwargs.keys():
+        if 'order' in kwargs.keys():
             order = kwargs['order']
+        elif self.argument.maxdeg() <= 2:
+            order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term, so order 1 is sufficient here.
         else:
             assert self.argument.max_power < np.inf, f'No order set. In this case max_power of {self.__class__.__name__}.argument can not be infinite.'
             order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.core.poly._poly concerning max_power
@@ -479,6 +479,7 @@ class lexp(lieoperator):
         This routine may need to use a slicing or splitting to improve its accuracy.
         '''
         self._channell_flow = channell(self.argument*self._flow_parameters['t'], **kwargs)
+        self._channell_flow.calcFlows(**kwargs)
     
     def _calcFlow_2flow(self, **kwargs):
         '''
