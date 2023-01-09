@@ -504,6 +504,8 @@ class lexp(lieoperator):
         
         This routine may need to use a slicing or splitting to improve its accuracy.
         '''
+        kwargs.update(self._flow_parameters['channell']) # ensure that other parameters are properly passed to the channell flow class
+        _ = kwargs.pop('t')
         flow = channell(self.argument*self._flow_parameters['channell']['t'], **kwargs)
         flow.calcFlows(**kwargs)
         self._flow['channell'] = {'flow': flow}
@@ -595,12 +597,16 @@ class lexp(lieoperator):
     
     def _calcPolyFromFlow(self, **kwargs):
         '''
-        If self.flow has been computed, compute (or return) the resulting polynomial g(:x:):y:, 
-        for every y in self.components.
+        If self.flow has been computed, compute (or return) the resulting polynomial exp(:x:):y:, 
+        for every y in self.components. This will be done by pulling back the polynomial :y:, using the
+        values exp(:x:)z_j, where z_j are the xi/eta coordinates.
         '''
         method = self._flow_method
         flow_out = self._flow[method]
         if not 'poly' in flow_out.keys():
+            parameters = self._flow_parameters[method]
+            assert 'components' in parameters.keys()
+            
             if 'xietaf' in flow_out.keys():
                 xietaf = flow_out['xietaf']
             elif 'flow' in flow_out.keys():
@@ -611,7 +617,7 @@ class lexp(lieoperator):
                 self._flow[method].update(flow_out)
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
-            flow_poly = [c(*xietaf) for c in self._flow_parameters[method]['components']] # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
+            flow_poly = [c(*xietaf) for c in parameters['components']] # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
             self._flow['poly'] = flow_poly
             return flow_poly
         else:

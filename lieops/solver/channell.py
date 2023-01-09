@@ -169,7 +169,6 @@ class channell:
             integrators and recent results", Report LA-UR-94-0063,
             Los Alamos National Lab. 1993.
         '''
-        
         assert len(hamiltonian.keys()) > 0
         hamiltonian = hamiltonian/n_slices
         if len(hamiltonian.keys()) > 1:
