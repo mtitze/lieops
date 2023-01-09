@@ -434,7 +434,7 @@ def test_hadamard(mu0=0.206, lo_power=30, max_power=10, tol=5e-16):
     assert max(np.abs(hadamard2(xi_insert) - hadamard1(xi_insert))) < tol
     
     
-def test_flows(n_slices=100, tol=1e-4):
+def test_flows(power=10, n_slices=100, tol=1e-4):
     '''
     Test three different methods to calculate the flow against each other.
     The Hamiltonian for this test is some 2nd-order Hamiltonian (to be able to
@@ -446,15 +446,19 @@ def test_flows(n_slices=100, tol=1e-4):
     op1 = lexp(ham)
     op2 = lexp(ham)
     op3 = lexp(ham)
+    op4 = lexp(ham)
     
     op1.calcFlow(method='channell', n_slices=n_slices)
     op2.calcFlow(method='2flow')
-    op3.calcFlow(power=10)
+    op3.calcFlow(power=power)
+    op4.calcFlow(method='njet', flow_method='channell', n_slices=n_slices)
     
     r1 = op1(xi, eta)
     r2 = op2(xi, eta)
     r3 = op3(xi, eta)
+    r4 = op4(xi, eta)
     
     for k in range(2):
         assert (r1[k] - r2[k]).above(tol) == 0
         assert (r2[k] - r3[k]).above(tol) == 0
+        assert (r2[k] - r4[k]).above(tol) == 0

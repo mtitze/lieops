@@ -159,9 +159,10 @@ class lieoperator:
     '''
     def __init__(self, argument, **kwargs):
         self._default_flow_parameters = {'t': 1} # default parameters for flow calculations.
-        self._flow = {} # store the output of the flow calculations, for each method (methods strings will be the dict keys)
+        self._flow = {} # dictionary to store the output of the flow calculations, for each method (methods strings will be the dict keys)
 
-        self._flow_method = 'bruteforce' # current method to calculate the flow
+        # we shall set the 'bruteforce' as initial default method to calculate the flow. This can be changed by the user in the 'calcFlow' routine, if he sets a different 'method'.
+        self._flow_method = 'bruteforce' 
         self._flow_parameters = {'bruteforce': self._default_flow_parameters.copy()}
     
         self.set_argument(argument, **kwargs)
@@ -196,7 +197,7 @@ class lieoperator:
         Return the flow parameters for the current flow method.
         '''
         return self._flow_parameters.get(self._flow_method, self._default_flow_parameters.copy())
-        
+    
     def set_generator(self, generator, **kwargs):
         '''
         Define the generating series for the function g.
@@ -247,8 +248,8 @@ class lieoperator:
         if update:
             current_parameters.update(kwargs)
             self._flow_parameters[self._flow_method] = current_parameters
-            # also clean up the output for the method in this case (TODO: may include an option to keep the old input & output and return to it later)
             if self._flow_method in self._flow.keys():
+                # also clean up any output for the chosen method (TODO: may include an option to keep the old input & output and return to it later)
                 _ = self._flow.pop(self._flow_method, None)
         return update
      
@@ -559,6 +560,8 @@ class lexp(lieoperator):
         **kwargs
             Optional keyworded arguments passed to the flow_method routine.
         '''
+        kwargs.update(self._flow_parameters['njet']) # (++)
+        
         # Step 1: Handle user input; determine method to calculate the flow of the individual parts.
         flow_method = kwargs.get('flow_method', 'bruteforce')
         assert flow_method != 'njet', "Argument 'flow_method' can not be 'njet' itself."
@@ -570,19 +573,19 @@ class lexp(lieoperator):
 
         # Step 2: Split hamiltonian into parts and compute their flows according to the requested parameters
         xieta = create_coords(dim=kwargs.get('dim', self.argument.dim), max_power=kwargs.get('max_power', self.argument.max_power))
+        self.set_components(components=xieta)
         _ = kwargs.pop('method', None)
-        _ = kwargs.pop('components', self.components) # We remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
+        _ = kwargs.pop('components', None) # We remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
         if 'split_method' in kwargs.keys():
             # use a user-defined custom splitting method (see lieops.solver.splitting
             hamiltonians = kwargs['split_method'](self.argument/n_slices, **kwargs)
         else:
             hamiltonians = [self.argument/n_slices]
         # N.B. We do not multiply self.argument with self._flow_parameters['t'] for the hamiltonians here,
-        # because below at (++) we update the flow parameters in the operators, thereby the t-parameter
+        # because at (++) we updated the flow parameters in the operators, thereby the t-parameter
         # will be recognized.
         _ = kwargs.pop('tpsa', False) # ensure that we do not use tpsa at (+), as we do that later.
         operators = [self.__class__(h) for h in hamiltonians]
-        kwargs.update(self._flow_parameters['njet']) # (++)
         for op in operators:
             op.calcFlow(method=flow_method, components=xieta, **kwargs) # (+)
         result = {}
