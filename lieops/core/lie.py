@@ -158,10 +158,16 @@ class lieoperator:
         Optional arguments may be passed to self.set_generator and (possible) self.calcFlow.
     '''
     def __init__(self, argument, **kwargs):
-        self._flow_parameters = {'t': 1, 'method': 'bruteforce'} # default parameters for flow calculations.
-        self.init_kwargs = kwargs
-        self.set_argument(argument, **kwargs)        
-        self.set_components(**kwargs)
+        self._default_flow_parameters = {'t': 1} # default parameters for flow calculations.
+        self._flow = {} # store the output of the flow calculations, for each method (methods strings will be the dict keys)
+
+        self._flow_method = 'bruteforce' # current method to calculate the flow
+        self._flow_parameters2 = {'bruteforce': self._default_flow_parameters.copy()}
+        
+        #self._flow_parameters = {'t': 1, 'method': 'bruteforce'}
+    
+        self.set_argument(argument, **kwargs)
+        #self.set_components(**kwargs)
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
             
@@ -169,14 +175,29 @@ class lieoperator:
         assert isinstance(argument, poly)
         self.argument = argument
         self.n_args = 2*self.argument.dim
+        
+    def get_components(self):
+        '''
+        Return the components which has been set in the current flow method.
+        '''
+        return self._flow_parameters2[self._flow_method].get('components', None)
 
     def set_components(self, **kwargs):
+        '''
+        Set given components to the current flow method.
+        '''
         if 'components' in kwargs.keys():
-            self.components = kwargs['components']
+            self._flow_parameters2[self._flow_method]['components'] = kwargs['components']
         else:
             _ = kwargs.setdefault('dim', self.argument.dim)
             _ = kwargs.setdefault('max_power', self.argument.max_power)
-            self.components = create_coords(**kwargs)
+            self._flow_parameters2[self._flow_method]['components'] = create_coords(**kwargs)
+            
+    def get_flow_parameters(self):
+        '''
+        Return the flow parameters for the current flow method.
+        '''
+        return self._flow_parameters2.get(self._flow_method, self._default_flow_parameters.copy())
         
     def set_generator(self, generator, **kwargs):
         '''
@@ -210,17 +231,27 @@ class lieoperator:
         This internal routine is indended to help in determining when to re-calculate
         the flow and thus speeding up flow calculations.
         '''
-        update = update or not kwargs.items() <= self._flow_parameters.items()
+        current_parameters = self.get_flow_parameters()
+        update = update or not kwargs.items() <= current_parameters.items()
         if 'components' in kwargs.keys():
             components = kwargs['components']
-            # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
-            n = max([len(components), len(self.components)])
-            if any([next(iter(self.components[k:]), None) != next(iter(components[k:]), None) for k in range(n)]):
-                self.components = components
+            if not 'components' in current_parameters.keys():
+                current_parameters['components'] = components
                 update = True
+            else:
+                current_components = current_parameters['components']
+                # next(iter(list[1:]), default) trick see https://stackoverflow.com/questions/2492087/how-to-get-the-nth-element-of-a-python-list-or-a-default-if-not-available
+                n = max([len(components), len(current_components)])
+                if any([next(iter(current_components[k:]), None) != next(iter(components[k:]), None) for k in range(n)]):
+                    current_parameters['components'] = components
+                    update = True
 
         if update:
-            self._flow_parameters.update(kwargs)
+            current_parameters.update(kwargs)
+            self._flow_parameters2[self._flow_method] = current_parameters
+            # also clean up the output for the method in this case (TODO: may include an option to keep the old input & output and return to it later)
+            if self._flow_method in self._flow.keys():
+                _ = self._flow.pop(self._flow_method, None)
         return update
      
     def calcFlow(self, **kwargs):
@@ -239,43 +270,40 @@ class lieoperator:
         **kwargs
             Optional arguments passed to flow subroutines.
         '''
+        self._flow_method = kwargs.get('method', self._flow_method)
         update = self._update_flow_parameters(**kwargs)
-        method = self._flow_parameters['method']
-        if update or not hasattr(self, 'flow'):
-            # remove the current output for this method, because the flow parameters have been updated.
-            if hasattr(self, f'_{method}_flow'):
-                delattr(self, f'_{method}_flow')
-            if hasattr(self, f'_{method}_result'):
-                delattr(self, f'_{method}_result')
-            if hasattr(self, f'_{method}_xietaf'):
-                delattr(self, f'_{method}_xietaf')
-            _ = kwargs.pop('method', None) # the method has now been stored in self._flow_parameters
+        if update or not self._flow_method in self._flow.keys():
             self._calcFlowFromParameters(**kwargs)
         # set the current flow function to the requested method.
-        self.flow = getattr(self, f'_{method}_flow') 
+        self.flow = self._flow[self._flow_method]['flow'] 
         
     def _calcFlowFromParameters(self, **kwargs):
-        method = self._flow_parameters['method']
-        if method == 'bruteforce':
+        if self._flow_method == 'bruteforce':
+            flow_parameters = self.get_flow_parameters()
+            if not 'components' in flow_parameters.keys():
+                self.set_components(**kwargs)
             self._calcFlow_bruteforce(**kwargs)
         else:
-            raise NotImplementedError(f"method '{method}' not recognized.")
+            raise NotImplementedError(f"method '{self._flow_method}' not recognized.")
             
     def _calcFlow_bruteforce(self, **kwargs):
         # For a general Lie operator g(:f:), we apply g(:f:) to the given operand directly
-        self._bruteforce_result = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-        self._bruteforce_flow = lambda *z: [self._bruteforce_result[k](*z) for k in range(len(self._bruteforce_result))]
+        result = {}
+        flow_poly = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'. In any case it also has been updated in self._flow_parameters
+        result['flow'] = lambda *z: [flow_poly[k](*z) for k in range(len(flow_poly))]
+        result['poly'] = flow_poly
+        self._flow['bruteforce'] = result
         
     def _calcPolyFromFlow(self, **kwargs):
         '''
         If self.flow has been computed, compute (or return) the resulting polynomial g(:x:):y:, 
         for every y in self.components.
         '''
-        method = self._flow_parameters['method']
-        if hasattr(self, f'_{method}_result'):
-            return getattr(self, f'_{method}_result')
+        result = self._flow.get(self._flow_method, {})
+        if 'poly' in result.keys():
+            return result['poly']
         else:
-            raise RuntimeError(f"No result(s) field present for method '{method}'.")
+            raise RuntimeError(f"Polynomial approximation of method '{self._flow_method}' can not be found in output dict 'self._flow'.")
         
     def __call__(self, *z, **kwargs):
         '''
@@ -446,12 +474,11 @@ class lexp(lieoperator):
         return lieoperator._update_flow_parameters(self, update=update, **kwargs)
     
     def _calcFlowFromParameters(self, **kwargs):
-        method = self._flow_parameters['method']
-        if method == '2flow':
+        if self._flow_method == '2flow':
             self._calcFlow_2flow(**kwargs)
-        elif method == 'channell':
+        elif self._flow_method == 'channell':
             self._calcFlow_channell(**kwargs)
-        elif method == 'njet':
+        elif self._flow_method == 'njet':
             self._calcFlow_njet(**kwargs)
         else:
             lieoperator._calcFlowFromParameters(self, **kwargs)
@@ -464,11 +491,12 @@ class lexp(lieoperator):
             # exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:)xi_1, ..., exp(:f:)eta_n)
             # The resulting set of Lie operators (for a given set of Q-polynomials) is stored
             # in self._bruteforce_result below.
-            requested_components = kwargs.pop('components', self.components)
+            requested_components = kwargs.pop('components', self._flow_parameters2['components'])
             xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
-            self._bruteforce_xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-            self._bruteforce_result = [c(*self._bruteforce_xietaf) for c in requested_components]
-            self._bruteforce_flow = lambda *z: [self._bruteforce_result[k](*z) for k in range(len(self._bruteforce_result))]
+            xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
+            flow_poly = [c(*xietaf) for c in requested_components]
+            flow = lambda *z: [flow_poly[k](*z) for k in range(len(flow_poly))]
+            self._flow['bruteforce'] = {'xietaf': xietaf, 'poly': flow_poly, 'flow': flow}
         else:
             lieoperator._calcFlow_bruteforce(self, **kwargs)
             
@@ -478,19 +506,26 @@ class lexp(lieoperator):
         
         This routine may need to use a slicing or splitting to improve its accuracy.
         '''
-        self._channell_flow = channell(self.argument*self._flow_parameters['t'], **kwargs)
-        self._channell_flow.calcFlows(**kwargs)
+        flow = channell(self.argument*self._flow_parameters2['channell']['t'], **kwargs)
+        flow.calcFlows(**kwargs)
+        self._flow['channell'] = {'flow': flow}
     
     def _calcFlow_2flow(self, **kwargs):
         '''
         Compute the flow in case self.argument is of order <= 2, by using
         an exact integration, see lieops.solver.get_2flow.
+        
+        Parameters
+        ----------
+        tol: float, optional
+            A default tolerance used for the lieops.solver.flow2by2.get_2flow routine.
         '''
-        flow = get_2flow(self.argument*self._flow_parameters['t'], tol=kwargs.get('tol', 1e-12))
+        flow = get_2flow(self.argument*self._flow_parameters2['2flow']['t'], tol=kwargs.get('tol', 1e-12))
         # flow is a function expecting lieops.core.lie.poly objects. Therefore:
-        self._2flow_xieta = create_coords(self.argument.dim)
-        self._2flow_xietaf = [flow(xe) for xe in self._2flow_xieta]
-        self._2flow_flow = lambda *z: [xef(*z) for xef in self._2flow_xietaf]
+        xieta = create_coords(self.argument.dim)
+        xietaf = [flow(xe) for xe in xieta]
+        flow = lambda *z: [xef(*z) for xef in xietaf]
+        self._flow['2flow'] = {'xieta': xieta, 'xietaf': xietaf, 'flow': flow}
         
     def _calcFlow_njet(self, n_slices: int=1, **kwargs):
         '''
@@ -534,7 +569,7 @@ class lexp(lieoperator):
                 raise RuntimeError("Default flow_method: bruteforce requires 'power' argument to be set.")
 
         # Step 2: Split hamiltonian into parts and compute their flows according to the requested parameters
-        self._njet_xieta = create_coords(self.argument.dim)
+        xieta = create_coords(dim=kwargs.get('dim', self.argument.dim), max_power=kwargs.get('max_power', self.argument.max_power))
         _ = kwargs.pop('method', None)
         _ = kwargs.pop('components', self.components) # We remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
         if 'split_method' in kwargs.keys():
@@ -547,38 +582,40 @@ class lexp(lieoperator):
         # will be recognized.
         _ = kwargs.pop('tpsa', False) # ensure that we do not use tpsa at (+), as we do that later.
         operators = [self.__class__(h) for h in hamiltonians]
+        kwargs.update(self._flow_parameters2['njet']) # (++)
         for op in operators:
-            op._flow_parameters.update(self._flow_parameters) # (++)
-            op.calcFlow(method=flow_method, components=self._njet_xieta, **kwargs) # (+)
+            op.calcFlow(method=flow_method, components=xieta, **kwargs) # (+)
+        result = {}
+        result['unique_operators'] = operators
         operators = operators*n_slices
-        self._njet_operators = operators
         def lo_concat(*z):
             for op in operators:
                 z = op(*z)
             return z
-        self._njet_flow = lo_concat
+        result.update({'flow': lo_concat, 'xieta': xieta, 'operators': operators, 'n_slices': n_slices, 'flow_method': flow_method})
+        self._flow['njet'] = result
     
     def _calcPolyFromFlow(self, **kwargs):
         '''
         If self.flow has been computed, compute (or return) the resulting polynomial g(:x:):y:, 
         for every y in self.components.
         '''
-        method = self._flow_parameters['method']
-        result_str = f'_{method}_result'
-        xietaf_str = f'_{method}_xietaf'
-        if not hasattr(self, result_str):
-            if hasattr(self, xietaf_str):
-                xietaf = getattr(self, xietaf_str)
-            elif hasattr(self, f'_{method}_flow'):
+        method = self._flow_method
+        flow_out = self._flow[method]
+        if not 'poly' in flow_out.keys():
+            if 'xietaf' in flow_out.keys():
+                xietaf = flow_out['xietaf']
+            elif 'flow' in flow_out.keys():
                 # compute the final xi/eta-coordinates from the bare flow function, using TPSA
                 xietaf, dflow = self.tpsa(**kwargs)
-                setattr(self, xietaf_str, xietaf)
-                setattr(self, f'_{method}_dflow', dflow)
+                flow_out['xietaf'] = xietaf
+                flow_out['dflow'] = dflow
+                self._flow[method].update(flow_out)
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
-            result = [c(*xietaf) for c in self.components] # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
-            setattr(self, result_str, result)
-            return result
+            flow_poly = [c(*xietaf) for c in self._flow_parameters2[method]['components']] # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
+            self._flow['poly'] = flow_poly
+            return flow_poly
         else:
             return lieoperator._calcPolyFromFlow(self, **kwargs)
     

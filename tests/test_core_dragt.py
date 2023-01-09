@@ -60,7 +60,7 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5,
     # Check if the approximation is sufficiently close to the original values:
     run = [offset1, offset2]
     for f in fk: # N.B. Although the order of Lie operators is reversed, applied on the coordinates it is again the same.
-        run = lexp(f)(*run, **op._flow_parameters)
+        run = lexp(f)(*run, **op.get_flow_parameters())
         
     assert all([abs(run[k] - reference[k]) < tol3 for k in range(2)])
 
