@@ -464,9 +464,9 @@ def test_flows(power=10, n_slices=100, tol=1e-4):
         assert (r2[k] - r4[k]).above(tol) == 0
         
         
-def test_flows_2d(n_slices=10000, tol=7e-3):
+def test_flows_single_op(n_slices=10000, tol=7e-3):
     '''
-    Test the outcome of applying a Lie operator of a 2D Hamiltonian.
+    Test various flow methods for a single Lie operator.
     '''
     xi0, eta0 = 0.888 + 0.625*1j, 0.125 - 124*1j
     q, p = create_coords(1, real=True)
