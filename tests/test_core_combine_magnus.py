@@ -52,8 +52,8 @@ def bch_symmetry_c(x, y, order, tol=1e-10):
     [1] B. Mielnik and J. Plebanski: Combinatorial approach to Baker-Campbell-Hausdorff exponents.
         Annales de l’I. H. P., section A, tome 12, no 3 (1970), p. 215-254
     '''
-    z1, ham1, _ = magnus(x, y, power=order, time=False)
-    z2, ham2, _ = magnus(-y, -x, power=order, time=False)
+    z1, ham1, _ = magnus(x, y, order=order, time=False)
+    z2, ham2, _ = magnus(-y, -x, order=order, time=False)
     assert z1.keys() == z2.keys()
     
     for key in z1.keys():
@@ -326,13 +326,13 @@ def test_associativity_vs_bch(max_power=10, tol=5e-10):
 
     a, b, c, d = H0, Hs1, H1*1j, Hs0
     
-    power = 6
+    order = 6
     bch_order = 7
     
-    ab, _, _ = magnus(a, b, power=power, time=False)
-    abc_1, _, _ = magnus(sum(ab.values()), c, power=power, time=False)
-    bc, _, _ = magnus(b, c, power=power, time=False)
-    abc_2, _, _ = magnus(a, sum(bc.values()), power=power, time=False)
+    ab, _, _ = magnus(a, b, order=order, time=False)
+    abc_1, _, _ = magnus(sum(ab.values()), c, order=order, time=False)
+    bc, _, _ = magnus(b, c, order=order, time=False)
+    abc_2, _, _ = magnus(a, sum(bc.values()), order=order, time=False)
     diff = sum(abc_1.values()) - sum(abc_2.values())
     
     ref_ab = sum(bch(a, b, order=bch_order).values())

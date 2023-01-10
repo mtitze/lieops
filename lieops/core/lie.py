@@ -395,7 +395,7 @@ class lexp(lieoperator):
 
         In contrast to a general Lie operator, we now have the additional possibility to combine several of these operators using the lieops.core.combine.magnus routine.
         '''
-        self._bch_power_default = 6 # the default power when composing two Lie-operators (used in self.bch)
+        self._bch_order_default = 6 # the default order when composing two Lie-operators (used in self.bch)
         if 'power' in kwargs.keys():
             self.set_generator(kwargs['power'])
         lieoperator.__init__(self, argument=argument, *args, **kwargs)
@@ -427,9 +427,9 @@ class lexp(lieoperator):
         z: lieoperators
             The Lie operators z = exp(:y:) to be composed with the current Lie operator from the right.
             
-        power: int, optional
-            The power in the integration variable, to control the degree of accuracy of the result.
-            See also lie.core.combine.magnus routine. If nothing specified, self._bch_power_default will be used.
+        order: int, optional
+            The order in the integration variable, to control the degree of accuracy of the result.
+            See also lie.core.combine.magnus routine. If nothing specified, self._bch_order_default will be used.
             
         **kwargs
             Additional parameters sent to lie.core.combine.magnus routine.
@@ -440,7 +440,7 @@ class lexp(lieoperator):
             The resulting Lie operator of the composition.
         '''
         assert isinstance(self, type(z[0]))
-        _ = kwargs.setdefault('power', self._bch_power_default)
+        _ = kwargs.setdefault('order', self._bch_order_default)
         _ = kwargs.setdefault('disable_tqdm', True)
         comb, _, _ = magnus(self.argument*bch_sign, *[other.argument*bch_sign for other in z], **kwargs)
         if len(comb) > 0:

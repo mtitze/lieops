@@ -909,14 +909,14 @@ def norsett_iserles(order: int, hamiltonian, time=True, **kwargs):
     return result, forest_oi
 
 
-def combine(*args, power: int, mode='default', **kwargs):
+def combine(*args, order: int, mode='default', **kwargs):
     r'''
     Compute the Lie polynomials of the Magnus expansion, up to a given order.
     
     Parameters
     ----------
-    power: int
-        The power in s (s: the variable of integration) up to which we consider the Magnus expansion.
+    order: int
+        The order in s (s: the variable of integration) up to which we consider the Magnus expansion.
         
     *args
         A series of poly objects p_j, j = 0, 1, ..., k which to be combined. They may represent 
@@ -936,9 +936,9 @@ def combine(*args, power: int, mode='default', **kwargs):
     Returns
     -------
     dict
-        The resulting Lie-polynomials z_j, j \in \{0, 1, ..., r\}, r := power, so that 
+        The resulting Lie-polynomials z_j, j \in \{0, 1, ..., r\}, r := order, so that 
         z := z_0 + z_1 + ... z_r satisfies exp((L0 + ... + Lk):z:) = exp(L0:p_0:) exp(L1:p_1:) ... exp(Lk:p_k:),
-        accurately up to the requested power r. Hereby it holds: lengths = [L0, L1, ..., Lk].
+        accurately up to the requested order r. Hereby it holds: lengths = [L0, L1, ..., Lk].
         Every z_j belongs to Norsett & Iserles approach to the Magnus series.
         
     hard_edge_chain
@@ -952,7 +952,7 @@ def combine(*args, power: int, mode='default', **kwargs):
 
     # some consistency checks
     assert n_operators > 0
-    assert type(power) == int and power >= 0
+    assert type(order) == int and order >= 0
     dim = args[0].dim
     assert all([op.dim == dim for op in args]), 'The number of variables of the individual Lie-operators are different.'
     
@@ -979,11 +979,11 @@ def combine(*args, power: int, mode='default', **kwargs):
         hamiltonian_values = {k: hard_edge_chain(values=[hard_edge([args1[m].get(k, 0)], lengths={1: lengths1[m]}) for m in range(n_operators)]) for k in all_powers}
     if mode == 'default':
         # use fast hard-edge element class which is optimized to work with numpy arrays.
-        hamiltonian_values = {k: fast_hard_edge_chain(values=[args1[m].get(k, 0) for m in range(n_operators)], lengths=lengths1, blocksize=kwargs.get('blocksize', power + 2)) for k in all_powers}
+        hamiltonian_values = {k: fast_hard_edge_chain(values=[args1[m].get(k, 0) for m in range(n_operators)], lengths=lengths1, blocksize=kwargs.get('blocksize', order + 2)) for k in all_powers}
     hamiltonian = lieops.core.lie.poly(values=hamiltonian_values, **kwargs)
     
-    # Now perform the integration up to the requested power.
-    z_series, forest = norsett_iserles(order=power, hamiltonian=hamiltonian, **kwargs)
+    # Now perform the integration up to the requested order.
+    z_series, forest = norsett_iserles(order=order, hamiltonian=hamiltonian, **kwargs)
     out = {}
     for order, trees in z_series.items():
         lp_order = 0 # the poly object for the specific order, further polynoms will be added to this value
