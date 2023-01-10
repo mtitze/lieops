@@ -462,3 +462,27 @@ def test_flows(power=10, n_slices=100, tol=1e-4):
         assert (r1[k] - r2[k]).above(tol) == 0
         assert (r2[k] - r3[k]).above(tol) == 0
         assert (r2[k] - r4[k]).above(tol) == 0
+        
+        
+def test_flows_2d(n_slices=10000, tol=7e-3):
+    '''
+    Test the outcome of applying a Lie operator of a 2D Hamiltonian.
+    '''
+    xi0, eta0 = 0.888 + 0.625*1j, 0.125 - 124*1j
+    q, p = create_coords(1, real=True)
+    
+    ham = 0.423*q*p + 0.24*q + (0.032 - 0.64*1j)*q**2 - 5.002*p**2
+    op = lexp(ham)
+    
+    reference1 = op(xi0, eta0, power=40)
+    reference2 = op(xi0, eta0, power=40, t=-1)
+    reference3 = op(xi0, eta0, method='2flow')
+    reference4 = op(xi0, eta0, method='2flow', t=-1)
+    
+    ch1 = op(xi0, eta0, method='channell', n_slices=n_slices)
+    ch2 = op(xi0, eta0, method='channell', n_slices=n_slices, t=-1)
+
+    assert all([abs(reference1[k] - ch1[k]) < tol for k in range(2)])
+    assert all([abs(reference2[k] - ch2[k]) < tol for k in range(2)])
+    assert all([abs(reference3[k] - ch1[k]) < tol for k in range(2)])
+    assert all([abs(reference4[k] - ch2[k]) < tol for k in range(2)])
