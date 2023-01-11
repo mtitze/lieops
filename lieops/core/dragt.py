@@ -177,15 +177,14 @@ def dragtfinn(*p, offset=[], tol=0, order=0, flinp={}, **kwargs):
         assert np.linalg.norm(R.transpose()@J@R - J) < tol, f'Map not symplectic within a tolerance of {tol}.'
         # check if symlogs gives correct results
         assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol
-        xieta = create_coords(dim) # for checks at (+) below
+        xieta = create_coords(dim) # for the two checks at (+) below
         # Further idea: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
     
     # invert the effect of the linear map R, see Ref. [1], Eq. (7.6.17):
     p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
     p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     
-    f_all = [SA, SB] # R = exp(A) o exp(B)
-    f_nl = []
+    f_all = [SB, SA] # R = exp(A) o exp(B); the first element of f_all should be executed first
     for k in tqdm(range(2, order), disable=kwargs.get('disable_tqdm', False)):
         gk = [e.homogeneous_part(k) for e in p_new]
 
@@ -203,10 +202,10 @@ def dragtfinn(*p, offset=[], tol=0, order=0, flinp={}, **kwargs):
             # further idea: check if fk is the potential of the gk's
             for i in range(dim2):
                 remainder = (p_new[i] - xieta[i]).above(tol)
-                assert remainder.mindeg() >= k + 1, f'Lie operators do not properly cancel the Taylor-map terms of order {k + 1} (tol: {tol}):\n{remainder}'
+                assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
 
         f_all.append(fk)
-        
+
     if any([e != 0 for e in start]):
         f_all.insert(0, -const2poly(*start, poisson_factor=pf))
     if any([e != 0 for e in final]):
