@@ -54,7 +54,7 @@ def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5,
     assert all([abs(reference[k] - reference2[k]) < tol1 for k in range(2)])
     
     # Compute the f_k's which will provide a Dragt-Finn factorization
-    fk = dragtfinn(*xietaf, offset=[offset1, offset2], tol=tol2, order=order, flinp={'power': 10})
+    fk = dragtfinn(*xietaf, offset=[offset1, offset2], tol_checks=tol2, order=order, power=10)
     # flinp=op._flow_parameters works as well, but takes a very long time
     
     # Check if the approximation is sufficiently close to the original values:
