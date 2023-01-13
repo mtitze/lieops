@@ -132,7 +132,6 @@ def dragtfinn(*p, offset=[], tol=1e-14, tol_checks=0, order='auto', disable_tqdm
         warnings.warn(f"Requested order {order} adjusted to {max_power} (maximal degree of given Taylor map).")
         order = max_power
     assert order < np.inf, 'Requested order of the Dragt-Finn series infinite.'
-    print (order, max_power)
     if len(kwargs) == 0:
         warnings.warn("No flow parameters set.")
     
@@ -148,11 +147,9 @@ def dragtfinn(*p, offset=[], tol=1e-14, tol_checks=0, order='auto', disable_tqdm
     if order == 0: # return a first-order polynomial providing the translation:
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
-    
-    h1 = const2poly(*start, poisson_factor=pf) # E.g.: lexp(h1)(xi) = xi + start[0] and lexp(h1)(eta) = eta + start[1] etc.
-    
+        
     # determine the linear map
-    R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
+    R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])    
     A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++).
     SA, SB = ad2poly(A, poisson_factor=pf, tol=tol_checks), ad2poly(B, poisson_factor=pf, tol=tol_checks)
     # (++) 
@@ -183,7 +180,7 @@ def dragtfinn(*p, offset=[], tol=1e-14, tol_checks=0, order='auto', disable_tqdm
     # See also Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book [1]. In that
     # section, the transposition can be found as well.
     Ri = np.linalg.inv(R)
-    
+        
     if tol_checks > 0: # Perform some consistency checks
         # symplecticity check:
         J = create_J(dim) 
@@ -191,18 +188,38 @@ def dragtfinn(*p, offset=[], tol=1e-14, tol_checks=0, order='auto', disable_tqdm
         # check if symlogs gives correct results
         assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol_checks
         xieta = create_coords(dim, poisson_factor=pf) # for the two checks at (+) below
-        # Further idea: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
-    
+        # Now it holds with
+        # op_result := lexp(SA)(*lexp(SB)(*xieta, power=30), power=30)
+        # 1) p[k] == op_result[k]
+        # 2) with
+        # op_matrix = np.array([poly2vec(op) for op in op_result])
+        # R == op_matrix
+        #
+        # Attention!
+        # ---------
+        # let xieta0 be a set of start coordinates (complex numbers). Then one may be tempting to consider:
+        # lexp(SA)(*lexp(SB)(*xieta0))   (1)
+        # However, this will NOT agree with the outcome (2) of the original map p:
+        # [e(*xieta0) for e in p]        (2)
+        # Instead, due to the pull-back property of the lexp-operators, the correct way to obtain
+        # the result (2) would be:
+        # lexp(SB)(*lexp(SA)(*xieta0))   (3)
+        # Note the difference of the order: Now SB and SA in Eq. (3) are reversed in comparison to Eq. (1).
+        #
+        #
+        # Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
+
     # invert the effect of the linear map R, see Ref. [1], Eq. (7.6.17):
     p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
     p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
-    
+        
     f_all = []
     if SB != 0:
         f_all.append(SB)
     if SA != 0:
         f_all.append(SA)
-    # now f_all = [SB, SA]; R = exp(A) o exp(B); the first element of f_all should be executed first
+    # now f_all = [SA, SB] according to Eq. (3) above; R = exp(A) o exp(B);
+    f_rev = []
     for k in tqdm(range(2, order + 1), disable=disable_tqdm):
         gk = [e.homogeneous_part(k) for e in p_new]
 
@@ -220,15 +237,24 @@ def dragtfinn(*p, offset=[], tol=1e-14, tol_checks=0, order='auto', disable_tqdm
             # further idea: check if fk is the potential of the gk's
             for i in range(dim2):
                 remainder = (p_new[i] - xieta[i]).above(tol_checks)
-                assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
+                if remainder != 0:
+                    assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
 
-        f_all.append(fk)
-                
+        f_rev.append(fk)
+        
+        
+    f_all = f_all + f_rev[::-1]
+    print (f'start {start}')
+    print (f'final {final}')
+
     if any([e != 0 for e in start]):
-        f_all.insert(0, -h1)
+        h1 = const2poly(*start, poisson_factor=pf) # E.g.: lexp(h1)(xi) = xi + start[0] and lexp(h1)(eta) = eta + start[1] etc.
+        #f_all.insert(0, -h1)
+        f_all.append(-h1)
     if any([e != 0 for e in final]):
         g1 = const2poly(*final, poisson_factor=pf)
-        f_all.append(g1)
+        #f_all.append(g1)
+        f_all.insert(0, g1)
         
     if tol > 0:
         f_all = [fk.above(tol) for fk in f_all if fk.above(tol) != 0]

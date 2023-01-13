@@ -114,7 +114,7 @@ def simuldiag(*A, tol: float=1e-14, max_sweeps: int=100):
     DD, Q = schur(AA, output='complex')
     Q = Q.transpose().conj() # to be in line with the code inside the loop below
     A = [Q@Ak@Q.transpose().conj() for Ak in A]
-    
+            
     # Now apply the actual algorithm.
     lower_bound = tol*sum([np.linalg.norm(Ak) for Ak in A]) # The bound in Algorithm 1 in Ref. [2]; it is invariant under unitary transformations, so that we can safely compute this quantity outside of the while loop
     n_sweeps = 1
@@ -131,4 +131,5 @@ def simuldiag(*A, tol: float=1e-14, max_sweeps: int=100):
         if n_sweeps > max_sweeps:
             warnings.warn(f'Simultaneous diagonalization does not converge within {max_sweeps} sweeps, using a tolerance of {tol}.')
             break
+            
     return Q, A, abs(off(*A) - lower_bound), n_sweeps

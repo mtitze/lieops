@@ -60,7 +60,7 @@ def thm10(u, tol=0):
         P[k, k + dim] = Ppart[0, 1]
         P[k + dim, k] = Ppart[1, 0]
         P[k + dim, k + dim] = Ppart[1, 1]
-    
+            
     w_full = P@v # N.B. w_full is real: If v[k, k + dim] has norm != 0, then, by construction of lemma9 routine, the scaling
     # factors induced by P on the e_k-vectors are real. If v[k, k + dim] has norm 0, then both its components are zero and
     # therefore also the result. In any case w_full is real.
@@ -88,6 +88,7 @@ def thm10(u, tol=0):
     zeros = np.zeros(HH.shape)
     V = np.block([[HH, zeros], [zeros, HH.conj()]]) # N.B. V is real by the above considerations
     # now it holds V@P@v = V@w_full = HH@w = e_1 and V@P is unitary and symplectic.
+    
     return (V@P).transpose().conj()
 
 
@@ -127,16 +128,16 @@ def cor29(A, **kwargs):
     
     # get one eigenvalue and corresponding eigenvector of the given matrix
     if dim2 > 2:
-        eigenvalues, eigenvectors = eigs(A, k=1)
+        eigenvalues, eigenvectors = eigs(A, k=1, v0=np.ones(dim2)) # v0: start vector for iteration; we set it to some fixed value in order to prevent the outcome to fluctuate at repeated iterations with the same input.
     else: # scipy.sparse.linalg.eigs will throw a RuntimeWarning in the case k=1, dim2 = 2. 
           # To prevent these warnings, we compute an eigenvalue and eigenvector of the 2x2 matrix A with scipy.linalg.eig here.
-        eigenvalues, eigenvectors = eig(A)        
+        eigenvalues, eigenvectors = eig(A)
     eigenvector = eigenvectors[:, 0]
     v = eigenvector/np.linalg.norm(eigenvector)
     U = thm10(v, **kwargs) # So that U(e_1) = v holds.
     U_inv = U.transpose().conj()
     B = U_inv@A@U
-    
+        
     if dim >= 2:
         # obtain submatrix from B; TODO: May use masked array, if code is stable
         B11 = B[1:dim, 1:dim]
@@ -209,8 +210,8 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     
     Returns
     -------
-    T: ndarray
-        A complex unitary and symplectic matrix as described above.
+    ndarray
+        A complex unitary and symplectic matrix U as described above.
     
     References
     ----------
@@ -239,7 +240,7 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
     diag = D.diagonal()
     pairs = identifyPairs(diag, condition=lambda a, b: abs(a + b) < tol1 and abs(a) > tol1)
     PMPi = P@M@Pi
-    
+        
     # Construct unitary and symplectic matrix T:
     T = np.zeros([dim2, dim2], dtype=np.complex128)
 
@@ -250,7 +251,7 @@ def thm31(M, tol1=1e-14, tol2=0, **kwargs):
                 
         # Simultaneously diagonalize M1 and M2.transpose() by a unitary transformation X
         X, D1D2, err, n_sweeps = simuldiag(M1, M2.transpose(), tol=kwargs.get('sdn_tol', 1e-14))
-
+    
         # Construct unitary and symplectic matrix Q diagonalizting M1 oplus M2:
         zerob = np.zeros(X.shape, dtype=np.complex128)
         Q = np.block([[X, zerob], [zerob, X.conj()]])

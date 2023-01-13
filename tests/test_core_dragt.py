@@ -10,11 +10,11 @@ y1 = yoshida()
 yoshida_scheme = y1.build(1)
 
 @pytest.mark.parametrize("q0, p0, offset1, offset2", [(0, 0, 0.027, -0.018), (0.02, 0.007, 0.027, -0.018)])
-def test_dragtfinn_2d(q0, p0, offset1, offset2, order=5,
+def test_dragtfinn_1d(q0, p0, offset1, offset2, order=5,
                       tol1=1e-8, tol2=1e-10, tol3=1e-8, **kwargs):
     '''
     Test if the Dragt-Finn factorization gives the same numerical values as if passing
-    values through the flow function of a given 2D-Hamiltonian directly.
+    values through the flow function of a given 1D-Hamiltonian directly.
     
     Parameters
     ----------
