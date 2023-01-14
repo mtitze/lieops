@@ -122,7 +122,7 @@ def ad2poly(A, tol=0, poisson_factor=-1j):
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
             values[tuple(hom_key_eta)] = A[i + dim, j]/ff*-1/poisson_factor
-    return lieops.core.lie.poly(values=values, poisson_factor=poisson_factor)
+    return lieops.core.lie.poly(values=values, dim=dim, poisson_factor=poisson_factor)
 
 def poly2vec(p):
     '''
