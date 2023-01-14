@@ -122,13 +122,13 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
     pf = p[0]._poisson_factor
     assert all([e._poisson_factor == pf for e in p])
     assert len(p) == dim2, f'Polynomials received: {len(p)} Expected: {dim2}'
-    max_power = max([e.maxdeg() for e in p])
+    max_order = max([e.maxdeg() for e in p])
     if order == 'auto':
-        order = max_power
-    if order > max_power:
-        # n.b. a higher order than max_power would result in additional zeros in the algorithm below
-        warnings.warn(f"Requested order {order} adjusted to {max_power} (maximal degree of given Taylor map).")
-        order = max_power
+        order = max_order
+    if order > max_order:
+        # n.b. a higher order than max_order would result in additional zeros in the algorithm below
+        warnings.warn(f"Requested order {order} adjusted to {max_order} (maximal degree of given Taylor map).")
+        order = max_order
     assert order < np.inf, 'Requested order of the Dragt-Finn series infinite.'
     if len(kwargs) == 0:
         warnings.warn("No flow parameters set.")
@@ -142,14 +142,16 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
         start = offset
         final = [e(*offset) for e in p]
 
-    if order == 0: # return a first-order polynomial providing the translation:
+    if order == 0: # return a first-order polynomial, which will provide the translation:
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
         
-    # determine the linear map
+    # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++).
-    SA, SB = ad2poly(A, poisson_factor=pf, tol=tol_checks), ad2poly(B, poisson_factor=pf, tol=tol_checks)
+    max_power = max([e.max_power for e in p]) # We take the max_power of the input for SA and SB, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
+    SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power)
+    SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power)
     # (++) 
     # Let us assume that we would have taken "symlogs(R) = A, B" (i.e. exp(A) o exp(B) = R) and consider a 1-dim case.
     # In the following the '~' symbol means that we identify the (1, 0)-key with xi and the (0, 1)-key with eta.
@@ -172,8 +174,8 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
     # Therefore we have to construct SA and SB by R.transpose(), so we get for the corresponding SA' and SB':
     # lexp(SA')(lexp(SB')(xi))(xi0, eta0) = R[0, 0]*xi0 + R[0, 1]*eta0 = [R@[xi0, eta0]]_0  (notice that now we have an equality, not '~' as above)
     #
-    # In general we thus have, by construction for the coordinates xi/eta:
-    # lexp(SA')(*lexp(SB')(*xieta)) = R
+    # In general we thus have, by construction for the lie-polynomials xi/eta:
+    # lexp(SA')(*lexp(SB')(*xieta)) = R        (1)
     # This is the reason why we had to use .transpose() in the construction of SA and SB above.
     # See also Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book [1]. In that
     # section, the transposition can be found as well.
@@ -187,44 +189,48 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
         xieta = create_coords(dim, poisson_factor=pf) # for the two checks at (+) below
         # Now it holds with
         # op_result := lexp(SA)(*lexp(SB)(*xieta, power=30), power=30)
-        # 1) p[k] == op_result[k]
+        # 1) p[k] == op_result[k]    (2)
         # 2) with
         # op_matrix = np.array([poly2vec(op) for op in op_result])
         # R == op_matrix
         #
         # Attention
         # ---------
-        # let xieta0 be a set of start coordinates (complex numbers). Then one may be tempting to consider:
+        # let xieta0 be a set of start coordinates (the 0 should indicate that we consider complex numbers).
+        # Then one may be tempting to consider Eq. (1) (see previous comment):
         # lexp(SA)(*lexp(SB)(*xieta0))   (1)
-        # However, this will NOT agree with the outcome (2) of the original map p:
-        # [e(*xieta0) for e in p]        (2)
+        # However, for *numbers* this will NOT agree with the outcome (3) of the original map p:
+        # [e(*xieta0) for e in p]        (3)
         # Instead, due to the pull-back property of the lexp-operators, the correct way to obtain
-        # the result (2) would be:
-        # lexp(SB)(*lexp(SA)(*xieta0))   (3)
-        # Note the difference of the order: Now SB and SA in Eq. (3) are reversed in comparison to Eq. (1).
+        # the result (3) would be:
+        # lexp(SB)(*lexp(SA)(*xieta0))   (4)
+        # Note the difference of the order: Now SB and SA in Eq. (4) are reversed in comparison to Eq. (1).
         #
         #
         # Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
-
-    # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
-    p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
-    if pos2 == 'left':
-        p_new = lexp(-SB)(*(lexp(-SA)(*p1, **kwargs)), **kwargs) # inversion of Eq. (1) above. (.....TODO)
-    else:
-        Ri = -J@R.transpose()@J
-        p_new = [sum([p1[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
         
-    # not dropping small values may result in a slow-down of the code.
-    p_new = [e.above(tol) for e in p_new]
+    # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
+    if pos2 == 'right':
+        #p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
+        Ri = -J@R.transpose()@J
+        p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
+    else:
+        #p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
+        p_new = lexp(-SB)(*(lexp(-SA)(*p, **kwargs)), **kwargs)
+        p_new = [e.extract(key_cond=lambda k: sum(k) <= max_order) for e in p_new] # drop higher order terms again
+    if tol > 0:
+        # not dropping small values may result in a slow-down of the code. Therefore:
+        p_new = [e.above(tol) for e in p_new]
     
-    # Construct & collect the chain of operators of the Dragt/Finn factorization. We want that
-    # with respect to their effect on points, the first operator in f_all is exectued first. Therefore:
+    # Construct & collect the chain of operators of the Dragt/Finn factorization.
+    # We shall collect these operators in a list 'f_all' so that the first operator 
+    # in f_all is exectued first, if applied to *numbers* (see the 'Attention' section above). Hence:
     f_all = []
     if SA != 0:
         f_all.append(SA)
     if SB != 0:
         f_all.append(SB)
-    # now f_all = [SA, SB] according to Eq. (3) above; R = exp(A) o exp(B);
+    # now f_all = [SA, SB] according to Eq. (4) above; R = exp(A) o exp(B);
     f_rev = []
     for k in tqdm(range(2, order + 2), disable=disable_tqdm):
         gk = [e.homogeneous_part(k) for e in p_new]
@@ -233,7 +239,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
             for i in range(dim2):
                 for j in range(i):
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
-                    #assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}):\n{zero}'
+                    assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}):\n{zero}'
         
         fk = sympoincare(*gk)
         lk = lexp(-fk)
@@ -242,27 +248,29 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
         if tol_checks > 0: # (+) check if the Lie operators cancel the Taylor-map up to the current order
             # further idea: check if fk is the potential of the gk's
             for i in range(dim2):
-                remainder = (p_new[i] - xieta[i]).above(tol_checks)
+                remainder = (p_new[i] - xieta[i]).above(tol_checks).extract(key_cond=lambda key: sum(key) >= 1)
                 if remainder != 0:
                     assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
                     
         f_rev.append(fk)
         
-    # Now by construction we have (up to order k + 1)
+    # Now by construction we have (up to order k + 1) for the xi/eta Lie-polynomials xieta:
     # xieta + O(k + 1) = lexp(-f_k)(*lexp(-f_{k - 1})(...*lexp(-f_3)(*p_new)) ...)
     # or conversely:
     # lexp(f_3)(*lexp(f_4)( ...*lexp(f_k)(*xieta) ...)) = p_new.    
         
-    if pos2 == 'left':
-        # Here p_new = lexp(-SA) o lexp(-SB) (p) according to p_new above, therefore
+    if pos2 == 'right':
+        # Here p_new = Ri@p and so -- by linearity of the lexp-operators -- it follows:
+        # lexp(f_3) o lexp(f_4) o ... o lexp(f_k)(R@xieta) = p,
+        # hence (see Eq. (1) above: R = lexp(SA) o lexp(SB)):
+        # lexp(f_3) o lexp(f_4) o ... o lexp(f_k) o lexp(SA) o lexp(SB) = p     (5)
+        f_all = f_rev + f_all
+        # note that on coordinates, f_3 needs to be executed first. So this definition is in 
+        # line with (5) and our overall definition of 'f_all'.
+    else:
+        # Here p_new = [lexp(-SB) o lexp(-SA)](p) according to its construction, therefore
         # p = lexp(SA) o lexp(SB) o lexp(f_3) o ... o lexp(f_k)
         f_all = f_all + f_rev
-    else:
-        # Here p_new = Ri@p, and by linearity of lexp therefore
-        # lexp(f_3) o lexp(f_4) o ... o lexp(f_k)("R@xieta") = p,
-        # hence
-        # lexp(f_3) o lexp(f_4) o ... o lexp(f_k) o lexp(SA) o lexp(SB) (.......TODO)
-        f_all = f_rev + f_all
         
     print (f'start {start}')
     print (f'final {final}')

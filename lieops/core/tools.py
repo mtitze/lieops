@@ -58,7 +58,7 @@ def poly2ad(pin):
             A[i + dim, j] = pin.get(tuple(hom_key_eta), 0)*-poisson_factor*ff
     return A
 
-def ad2poly(A, tol=0, poisson_factor=-1j):
+def ad2poly(A, tol=0, poisson_factor=-1j, **kwargs):
     '''
     Transform a complex (2n)x(2n)-matrix representation of a polynomial back to 
     its polynomial xi/eta-representation. This is the inverse of the 'poly2ad' routine.
@@ -79,6 +79,9 @@ def ad2poly(A, tol=0, poisson_factor=-1j):
     poisson_factor: complex, optional
         A factor defining the poisson structure of the sought polynomial. By default this factor
         is -1j, corresponding to the poisson structure of the complex xi/eta coordinates.
+        
+    **kwargs
+        Optional keyworded arguments passed to lieops.core.lie.poly routine.
         
     Returns
     -------
@@ -122,7 +125,7 @@ def ad2poly(A, tol=0, poisson_factor=-1j):
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
             values[tuple(hom_key_eta)] = A[i + dim, j]/ff*-1/poisson_factor
-    return lieops.core.lie.poly(values=values, dim=dim, poisson_factor=poisson_factor)
+    return lieops.core.lie.poly(values=values, dim=dim, poisson_factor=poisson_factor, **kwargs)
 
 def poly2vec(p):
     '''
