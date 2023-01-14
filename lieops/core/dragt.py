@@ -114,8 +114,13 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
     ----------
     [1] A. Dragt: "Lie Methods for Nonlinear Dynamics with Applications to Accelerator Physics", University of Maryland, 2020,
         http://www.physics.umd.edu/dsat/
-    '''    
-    # check input consistency
+    '''
+    # TODO:
+    # - May add an option to return the operators used in the process
+    # - May change this large function into a class, to split its various parts into more managable sections
+    #   and avoid possible errors.
+    
+    # check & update input
     dim = p[0].dim
     dim2 = dim*2
     assert all([e.dim == dim for e in p])
@@ -142,14 +147,14 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
         start = offset
         final = [e(*offset) for e in p]
 
-    if order == 0: # return a first-order polynomial, which will provide the translation:
+    if order == 0: # In this case we can immediately return a first-order polynomial, which will provide the translation:
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
         
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++).
-    max_power = max([e.max_power for e in p]) # We take the max_power of the input for SA and SB, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
+    max_power = max([e.max_power for e in p]) # We take the max_power of the input for ad2poly, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
     SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power)
     SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power)
     # (++) 
@@ -211,17 +216,16 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
         
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
     if pos2 == 'right':
-        #p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
         Ri = -J@R.transpose()@J
         p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     else:
-        #p1 = [e.extract(key_cond=lambda k: sum(k) >= 1) for e in p]
-        p_new = lexp(-SB)(*(lexp(-SA)(*p, **kwargs)), **kwargs)
-        p_new = [e.extract(key_cond=lambda k: sum(k) <= max_order) for e in p_new] # drop higher order terms again
+        p_new = lexp(-SB)(*(lexp(-SA)(*p, method='2flow')), method='2flow') # the order of SA and SB here is given by the inverse of Eq. (1), since we consider Lie-polynomials here (and not points/floats). It is also very important at this step that a symplectic integration routine is used, otherwise the checks below may stop the algorithm. Fortunately there exist a straigthforward symplectic integrator for those 2nd-order Hamiltonians SA and SB.
+        assert max([e.maxdeg() for e in p_new]) <= max_order
+        
     if tol > 0:
         # not dropping small values may result in a slow-down of the code. Therefore:
         p_new = [e.above(tol) for e in p_new]
-    
+        
     # Construct & collect the chain of operators of the Dragt/Finn factorization.
     # We shall collect these operators in a list 'f_all' so that the first operator 
     # in f_all is exectued first, if applied to *numbers* (see the 'Attention' section above). Hence:
