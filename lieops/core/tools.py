@@ -235,7 +235,7 @@ def vec3poly(vec, **kwargs):
     p1[(0,)*n2] = vec[-1]
     return p1
 
-def const2poly(*const, poisson_factor=-1j):
+def const2poly(*const, poisson_factor=-1j, **kwargs):
     '''
     Let c_1, ..., c_{2n} be constants. Then compute a first-order polynomial g_1
     so that {g_1, z_j} = z_j + c_j holds.
@@ -244,7 +244,7 @@ def const2poly(*const, poisson_factor=-1j):
     assert dim2%2 == 0, 'Dimension must be even.'
     dim = dim2//2
     J = create_J(dim)
-    xieta = lieops.core.lie.create_coords(dim, poisson_factor=poisson_factor)
+    xieta = lieops.core.lie.create_coords(dim, poisson_factor=poisson_factor, **kwargs)
     return sum([xieta[k]*(J@const)[k] for k in range(dim2)])/poisson_factor
 
 def poly2const(p1):
@@ -252,7 +252,7 @@ def poly2const(p1):
     The inverse of the 'const2poly' routine.
     '''
     assert p1.mindeg() == 1 and p1.maxdeg() == 1
-    xieta = lieops.core.lie.create_coords(p1.dim, poisson_factor=p1._poisson_factor)
+    xieta = lieops.core.lie.create_coords(p1.dim, poisson_factor=p1._poisson_factor, max_power=p1.max_power)
     return [(p1@xe)[(0,)*p1.dim*2] for xe in xieta] # "p1@xe - xe" not necessary, we access the constant immediately
 
 def action_on_poly(*mu, C, func=lambda z: z):

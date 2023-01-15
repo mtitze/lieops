@@ -137,6 +137,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     assert order < np.inf, 'Requested order of the Dragt-Finn series infinite.'
     if len(kwargs) == 0:
         warnings.warn("No flow parameters set.")
+    max_power = max([e.max_power for e in p]) # Required for the input for ad2poly, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
     
     # determine the start and end points of the map
     if len(offset) == 0:
@@ -150,11 +151,15 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     if order == 0: # In this case we can immediately return a first-order polynomial, which will provide the translation:
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
+    
+    if any([e != 0 for e in start]):
+        # preparation step in case of translations, see Ref. [1], Eq. (7.7.17)
+        h1 = const2poly(*start, poisson_factor=pf, max_power=max_power) # E.g.: lexp(h1)(xi) = xi + start[0] 
+        p = lexp(h1)(*p, method='2flow') 
         
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++).
-    max_power = max([e.max_power for e in p]) # We take the max_power of the input for ad2poly, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
     SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power)
     SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power)
     # (++) 
@@ -213,10 +218,8 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         #
         #
         # Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
-        
+                
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
-    #p1 = [e.extract(key_cond=lambda key: sum(key) >= 1) for e in p]
-    #p1 = p    
     Ri = -J@R.transpose()@J
     p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     if tol > 0:
@@ -277,18 +280,11 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         f_hdm = lexp(-SB)(*lexp(-SA)(*f_rev, outl1=True, method='2flow'), outl1=True, method='2flow')
         f_all = f_all + [e for e in f_hdm if e != 0]
         
-    print (f'start {start}')
-    print (f'final {final}')
-
     if any([e != 0 for e in start]):
-        h1 = const2poly(*start, poisson_factor=pf) # E.g.: lexp(h1)(xi) = xi + start[0] and lexp(h1)(eta) = eta + start[1] etc.
         f_all.insert(0, -h1)
-        #f_all.append(-h1)
     if any([e != 0 for e in final]):
-        g1 = const2poly(*final, poisson_factor=pf)
+        g1 = const2poly(*final, poisson_factor=pf, max_power=max_power)
         f_all.append(g1)
-        #f_all.insert(0, g1)
-        
     if tol > 0:
         f_all = [fk.above(tol) for fk in f_all if fk.above(tol) != 0]
         
