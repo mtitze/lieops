@@ -166,7 +166,6 @@ class lieoperator:
         self._flow_parameters = {'bruteforce': self._default_flow_parameters.copy()}
     
         self.set_argument(argument, **kwargs)
-        #self.set_components(**kwargs)
         if 'generator' in kwargs.keys():
             self.set_generator(**kwargs)
             
@@ -304,7 +303,7 @@ class lieoperator:
         else:
             raise RuntimeError(f"Polynomial approximation of method '{self._flow_method}' can not be found in output dict 'self._flow'.")
         
-    def __call__(self, *z, **kwargs):
+    def __call__(self, *z, outl1=False, **kwargs):
         '''
         Compute the result of the current Lie operator g(:x:), applied to either 
         1) a specific point
@@ -313,6 +312,11 @@ class lieoperator:
         Parameters
         ----------
         z: subscriptable or poly or lieoperator
+            
+        outl1: boolean, optional
+            Determine the output format in case the output would be a single Lie polynomial.
+            The default behavior is to return a single element. If a list of length 1 should be returned
+            instead, change this parameter to True.
             
         **kwargs
             Optional arguments passed to self.calcFlow. Note that if an additional parameter t is passed, 
@@ -330,7 +334,7 @@ class lieoperator:
             assert all([p.dim == z[0].dim for p in z]), 'Arguments have different dimensions.'
             self.calcFlow(components=z, **kwargs)
             result = self._calcPolyFromFlow(**kwargs)
-            if len(result) == 1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
+            if len(result) == 1 and not outl1: # if the input was a single element, naturally return a single element as well (and not a list of length 1)
                 result = result[0]
             return result
         else:
@@ -523,7 +527,7 @@ class lexp(lieoperator):
         '''
         flow = get_2flow(self.argument*self._flow_parameters['2flow']['t'], tol=kwargs.get('tol', 1e-12))
         # flow is a function expecting lieops.core.lie.poly objects. Therefore:
-        xieta = create_coords(self.argument.dim)
+        xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
         xietaf = [flow(xe) for xe in xieta]
         flow = lambda *z: [xef(*z) for xef in xietaf]
         self._flow['2flow'] = {'xieta': xieta, 'xietaf': xietaf, 'flow': flow}
@@ -573,7 +577,6 @@ class lexp(lieoperator):
 
         # Step 2: Split hamiltonian into parts and compute their flows according to the requested parameters
         xieta = create_coords(dim=kwargs.get('dim', self.argument.dim), max_power=kwargs.get('max_power', self.argument.max_power))
-        self.set_components(components=xieta)
         _ = kwargs.pop('method', None)
         _ = kwargs.pop('components', None) # We remove 'components' from kwargs here, so that at (+) we can use the default coordinate components for the flow, while using the other entries in kwargs for user-specified input of the njet_flow_method.
         if 'split_method' in kwargs.keys():
@@ -621,6 +624,7 @@ class lexp(lieoperator):
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
             flow_poly = [c(*xietaf) for c in parameters['components']] # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
+            
             self._flow['poly'] = flow_poly
             return flow_poly
         else:

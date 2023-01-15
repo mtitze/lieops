@@ -23,6 +23,12 @@ def get_2flow(ham, tol=1e-12):
         admits an invertible matrix of eigenvalues according to np.linalg.eig. In this case, one can use
         fast matrix multiplication in the resulting flow. Otherwise we have to rely on scipy.linalg.expm.
     '''
+    if ham.maxdeg() == 0:
+        # return the identity map
+        def flow(p, t=1, **kwargs):
+            return p
+        return flow
+    
     assert ham.maxdeg() <= 2, 'Hamiltonian of degree <= 2 required.'
     poisson_factor = ham._poisson_factor
     

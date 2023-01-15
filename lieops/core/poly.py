@@ -220,7 +220,8 @@ class _poly:
         if len(z) == self.dim and self._poisson_factor == -1j:
             # for xi/eta-variables we conveniently conjugate the remaining components if they are not explicitly given
             z = [e for e in z] + [e.conjugate() for e in z]
-        assert len(z) == 2*self.dim, f'Number of input parameters: {len(z)}, expected: {2*self.dim} (or {self.dim})'
+        dim2 = self.dim*2
+        assert len(z) == dim2, f'Number of input parameters: {len(z)}, expected: {dim2} (or {self.dim})'
         
         # compute the occuring powers ahead of evaluation
         z_powers = {}
@@ -231,12 +232,18 @@ class _poly:
             j += 1
         
         # evaluate polynomial at requested point
-        result = 0
+        if isinstance(self, type(z[0])):
+            # ensure that the result is of the same type as the input in case self.items is empty
+            result = self.__class__(values={}, dim=self.dim, max_power=self.max_power)
+        else:
+            result = 0
+            
         for k, v in self.items():
             prod = 1
             for j in range(self.dim):
                 prod *= z_powers[j][k[j]]*z_powers[j + self.dim][k[j + self.dim]]
             result += prod*v # v needs to stay on the right-hand side here, because prod may be a jet class (if we compute the derivative(s) of the Lie polynomial)
+            
         return result
         
     def __add__(self, other):

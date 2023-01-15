@@ -70,7 +70,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0, disable_tqdm=False, **kwargs):
+def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0, disable_tqdm=False, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -215,13 +215,10 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
         # Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
         
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
-    if pos2 == 'right':
-        Ri = -J@R.transpose()@J
-        p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
-    else:
-        p_new = lexp(-SB)(*(lexp(-SA)(*p, method='2flow')), method='2flow') # the order of SA and SB here is given by the inverse of Eq. (1), since we consider Lie-polynomials here (and not points/floats). It is also very important at this step that a symplectic integration routine is used, otherwise the checks below may stop the algorithm. Fortunately there exist a straigthforward symplectic integrator for those 2nd-order Hamiltonians SA and SB.
-        assert max([e.maxdeg() for e in p_new]) <= max_order
-        
+    #p1 = [e.extract(key_cond=lambda key: sum(key) >= 1) for e in p]
+    #p1 = p    
+    Ri = -J@R.transpose()@J
+    p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     if tol > 0:
         # not dropping small values may result in a slow-down of the code. Therefore:
         p_new = [e.above(tol) for e in p_new]
@@ -261,20 +258,24 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
     # Now by construction we have (up to order k + 1) for the xi/eta Lie-polynomials xieta:
     # xieta + O(k + 1) = lexp(-f_k)(*lexp(-f_{k - 1})(...*lexp(-f_3)(*p_new)) ...)
     # or conversely:
-    # lexp(f_3)(*lexp(f_4)( ...*lexp(f_k)(*xieta) ...)) = p_new.    
-        
+    # lexp(f_3)(*lexp(f_4)( ...*lexp(f_k)(*xieta) ...)) = p_new.
     if pos2 == 'right':
         # Here p_new = Ri@p and so -- by linearity of the lexp-operators -- it follows:
         # lexp(f_3) o lexp(f_4) o ... o lexp(f_k)(R@xieta) = p,
         # hence (see Eq. (1) above: R = lexp(SA) o lexp(SB)):
         # lexp(f_3) o lexp(f_4) o ... o lexp(f_k) o lexp(SA) o lexp(SB) = p     (5)
-        f_all = f_rev + f_all
+        f_all = [e for e in f_rev if e != 0] + f_all
         # note that on coordinates, f_3 needs to be executed first. So this definition is in 
         # line with (5) and our overall definition of 'f_all'.
     else:
-        # Here p_new = [lexp(-SB) o lexp(-SA)](p) according to its construction, therefore
-        # p = lexp(SA) o lexp(SB) o lexp(f_3) o ... o lexp(f_k)
-        f_all = f_all + f_rev
+        # We shall consider Eq. (5) and apply the Hadamard-Lemma on the non-linear parts to move
+        # the SA and SB to the other side. The order of SA and SB is hereby given by the inverse of Eq. (1),
+        # since we consider Lie-polynomials at this step (and not points/floats). 
+        # It is also very important at this step that a symplectic integration routine is used. 
+        # Fortunately there exist a straigthforward symplectic integrator for those 2nd-order 
+        # Hamiltonians SA and SB.
+        f_hdm = lexp(-SB)(*lexp(-SA)(*f_rev, outl1=True, method='2flow'), outl1=True, method='2flow')
+        f_all = f_all + [e for e in f_hdm if e != 0]
         
     print (f'start {start}')
     print (f'final {final}')
@@ -290,4 +291,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='left', tol=1e-14, tol_checks=0,
         
     if tol > 0:
         f_all = [fk.above(tol) for fk in f_all if fk.above(tol) != 0]
+        
+    # combine first-order terms, if they are adjacent
+    # (TODO)
     return f_all
