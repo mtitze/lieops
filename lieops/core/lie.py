@@ -382,7 +382,7 @@ class lieoperator:
             order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.core.poly._poly concerning max_power
         n_args = self.argument.dim*2
         dflow = derive(self.flow, n_args=n_args, order=order)
-        if len(position) == 0:
+        if len(position) == 0: 
             position = (0,)*n_args
         expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
         xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
@@ -623,9 +623,9 @@ class lexp(lieoperator):
                 self._flow[method].update(flow_out)
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
-            flow_poly = [c(*xietaf) for c in parameters['components']] # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
-            
-            self._flow['poly'] = flow_poly
+            # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
+            flow_poly = [c(*xietaf) for c in parameters['components']]
+            self._flow[method]['poly'] = flow_poly
             return flow_poly
         else:
             return lieoperator._calcPolyFromFlow(self, **kwargs)

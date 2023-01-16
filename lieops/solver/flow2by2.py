@@ -45,7 +45,7 @@ def get_2flow(ham, tol=1e-12):
         Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = Hmat holds.
         # compute the exponential exp(t*Hmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
         expH = M@np.diag(np.exp(evals))@Mi
-    
+
     def flow(p, t=1, **kwargs):
         '''
         Compute the solution z so that

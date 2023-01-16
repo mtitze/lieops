@@ -100,10 +100,13 @@ def ad2poly(A, tol=0, poisson_factor=-1j, **kwargs):
             if tol > 0:
                 # Check if the given matrix is an element of sp(2n; C). If this check fails,
                 # no valid polynomial representation can be obtained.
-                error_msg = f'The given matrix does not appear to be an adjoint representation of a polynomial, using a check with tolerance {tol}.'
-                assert abs(A[i, j] + A[j + dim, i + dim]) < tol, error_msg
-                assert abs(A[i, j + dim] - A[j, i + dim]) < tol, error_msg
-                assert abs(A[i + dim, j] - A[j + dim, i]) < tol, error_msg
+                error_msg = f'{A}\nThe given matrix does not appear to be an adjoint representation of a polynomial, using a check with tolerance {tol} '
+                c1 = abs(A[i, j] + A[j + dim, i + dim])
+                c2 = abs(A[i, j + dim] - A[j, i + dim])
+                c3 = abs(A[i + dim, j] - A[j + dim, i])
+                assert c1 < tol, error_msg + f'({c1}).'
+                assert c2 < tol, error_msg + f'({c2}).'
+                assert c3 < tol, error_msg + f'({c3}).'
             
             mixed_key = [0]*dim2 # key belonging to a coefficient of mixed xi/eta variables.
             mixed_key[i] += 1

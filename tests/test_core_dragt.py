@@ -9,9 +9,10 @@ from lieops.core.lie import create_coords, lexp
 y1 = yoshida()
 yoshida_scheme = y1.build(1)
 
-@pytest.mark.parametrize("q0, p0, offset1, offset2", [(0, 0, 0.027, -0.018), (0.02, 0.007, 0.027, -0.018)])
-def test_dragtfinn_1d(q0, p0, offset1, offset2, order=5,
-                      tol1=1e-8, tol2=1e-10, tol3=1e-8, **kwargs):
+@pytest.mark.parametrize("q0, p0, offset1, offset2, tol1, tol2, tol3, order", 
+                         [(0.002, 0.007, 0.0, 0.0, 1e-10, 1e-12, 3e-14, 5),
+                          (0.002, 0.007, 0.0027, -0.0018, 1e-10, 1e-4, 1e-9, 5)])
+def test_dragtfinn_1d(q0, p0, offset1, offset2, tol1, tol2, tol3, order, **kwargs):
     '''
     Test if the Dragt-Finn factorization gives the same numerical values as if passing
     values through the flow function of a given 1D-Hamiltonian directly.
@@ -19,11 +20,11 @@ def test_dragtfinn_1d(q0, p0, offset1, offset2, order=5,
     Parameters
     ----------
     q0, p0: floats, optional
-        The points at which we want to consider the flow of the Hamiltonian.
-        These points will thus define the local symplectic approximation of the Dragt-Finn factorization.
+        Positions at which we want to compare the numerical values, relative to q0 and p0.
         
     offset1, offset2: floats, optional
-        Positions at which we want to compare the numerical values, relative to q0 and p0.
+        The points at which we want to consider the flow of the Hamiltonian.
+        These points will thus define the local symplectic approximation of the Dragt-Finn factorization.
         
     order: int, optional
         The order of the n-jets which will be passed through the flow function, therefore controlling
@@ -37,28 +38,28 @@ def test_dragtfinn_1d(q0, p0, offset1, offset2, order=5,
     # 3rd order perturbation here:
     xi0 = (q0 + p0*1j)/float(np.sqrt(2))
     eta0 = xi0.conjugate()
-    q, p = create_coords(1, real=True, max_power=10)
+    q, p = create_coords(1, real=True, max_power=kwargs.get('max_power', 10))
     mu = 1.236
     th = 0.5*mu*(q**2 + p**2) - q**3
     
     op = lexp(th)
-    _ = kwargs.setdefault('n_slices', 2)
+    _ = kwargs.setdefault('n_slices', 6)
     op.calcFlow(method='channell', scheme=yoshida_scheme, **kwargs)
-    reference = op(xi0 + offset1, eta0 + offset2)
+    reference = op(xi0, eta0)
     
-    xietaf, dtest = op.tpsa(xi0, eta0, order=order)
-    reference2 = [xe(offset1, offset2) for xe in xietaf]
+    xietaf, dtest = op.tpsa(offset1, offset2, order=order) # order + 1, because due to feed down at lieops.core.lexp._calcPolyFromFlow
+    reference2 = [xe(xi0 - offset1, eta0 - offset2) for xe in xietaf]
     
     # Confirm that the determined Taylor expansion gives the same results at the requested
     # offset point than the flow function:
     assert all([abs(reference[k] - reference2[k]) < tol1 for k in range(2)])
     
     # Compute the f_k's which will provide a Dragt-Finn factorization
-    fk = dragtfinn(*xietaf, offset=[offset1, offset2], tol_checks=tol2, order=order, power=10)
+    fk = dragtfinn(*xietaf, offset=[offset1, offset2], tol_checks=tol2, order=order, power=20, warn=False)
     # flinp=op._flow_parameters works as well, but takes a very long time
     
     # Check if the approximation is sufficiently close to the original values:
-    run = [offset1, offset2]
+    run = [xi0 - offset1, eta0 - offset2]
     for f in fk: # N.B. Although the order of Lie operators is reversed, applied on the coordinates it is again the same.
         run = lexp(f)(*run, **op.get_flow_parameters())
         

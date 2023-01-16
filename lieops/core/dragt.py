@@ -39,6 +39,7 @@ def sympoincare(*g):
     potential H (Hamiltonian) so that
     g_j = {H, z_j}     (2)
     holds. This is the 'symplectic' variant of the Poincare Lemma.
+    Obviously, the degree of H is then given by max([deg(g_j) for j in 1, ..., n]) + 1.
     
     We shall follow the steps outlined in Ref. [1], Lemma 6.2 in Section 7 (Factorization Theorem).
     
@@ -70,7 +71,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0, disable_tqdm=False, **kwargs):
+def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -101,6 +102,13 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     disable_tqdm: boolean, optional
         If true, disable the tqdm status bar printout.
         
+    force_order: boolean, optional
+        If true, do not change the order by -1 in case 1) an offset is detected and 2) order >= degree of the Taylor map.
+        Default: (false)
+        
+    warn: boolean, optional
+        Supress or show warnings.
+        
     **kwargs
         Further input parameters passed to lieops.core.lie.lexp flow calculation.
     
@@ -127,17 +135,15 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     pf = p[0]._poisson_factor
     assert all([e._poisson_factor == pf for e in p])
     assert len(p) == dim2, f'Polynomials received: {len(p)} Expected: {dim2}'
-    max_order = max([e.maxdeg() for e in p])
-    if order == 'auto':
-        order = max_order
-    if order > max_order:
-        # n.b. a higher order than max_order would result in additional zeros in the algorithm below
-        warnings.warn(f"Requested order {order} adjusted to {max_order} (maximal degree of given Taylor map).")
-        order = max_order
-    assert order < np.inf, 'Requested order of the Dragt-Finn series infinite.'
-    if len(kwargs) == 0:
-        warnings.warn("No flow parameters set.")
     max_power = max([e.max_power for e in p]) # Required for the input for ad2poly, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
+    max_deg = max([e.maxdeg() for e in p]) # The degree of the input Taylor map.
+    if order == 'auto':
+        order = max_power # see also (+++) below
+    assert order < max_power + 1 and order < np.inf, f'Requested order of the Dragt-Finn series can not be >= {max_power + 1}.'
+    if order > max_deg and warn:
+        warnings.warn(f'Requested order {order} > {max_deg} (maximal degree of Taylor map).')
+    if len(kwargs) == 0 and warn:
+        warnings.warn("No flow parameters set.")
     
     # determine the start and end points of the map
     if len(offset) == 0:
@@ -151,11 +157,18 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     if order == 0: # In this case we can immediately return a first-order polynomial, which will provide the translation:
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
-    
+
     if any([e != 0 for e in start]):
         # preparation step in case of translations, see Ref. [1], Eq. (7.7.17)
         h1 = const2poly(*start, poisson_factor=pf, max_power=max_power) # E.g.: lexp(h1)(xi) = xi + start[0] 
-        p = lexp(h1)(*p, method='2flow') 
+        p = lexp(h1)(*p, method='2flow')
+        # the application of exp(:h1:), where h1 is a first-order polynomial, has produced a new Taylor map of max_deg - 1.
+        # Therefore we should reduce the requested order by one if the order is larger or equal max_deg, to avoid an error with the final step: 
+        # Due to truncation at the original map may not admit a symplectomorphism at the its final requested order.
+        if order >= max_deg and not force_order:
+            if warn:
+                warnings.warn(f"Requested order {order} >= {max_deg} (maximal degree of Taylor map) & non-zero offset detected. Order reduced by 1. This behavior can be switched off with 'force_order = True'.")
+            order = order - 1
         
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
@@ -196,7 +209,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         assert np.linalg.norm(R.transpose()@J@R - J) < tol_checks, f'Map not symplectic within a tolerance of {tol_checks}.'
         # check if symlogs gives correct results
         assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol_checks
-        xieta = create_coords(dim, poisson_factor=pf) # for the two checks at (+) below
+        xieta = create_coords(dim, poisson_factor=pf, max_power=max_power) # for the two checks at (+) below
         # Now it holds with
         # op_result := lexp(SA)(*lexp(SB)(*xieta, power=30), power=30)
         # 1) p[k] == op_result[k]    (2)
@@ -218,7 +231,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         #
         #
         # (Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders)
-                
+        
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
     Ri = -J@R.transpose()@J
     p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
@@ -236,8 +249,11 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         f_all.append(SB)
     # now f_all = [SA, SB] according to Eq. (4) above; R = exp(A) o exp(B);
     f_nl = []
-    for k in tqdm(range(2, order + 2), disable=disable_tqdm):
+    for k in tqdm(range(2, order + 1), disable=disable_tqdm):
         gk = [e.homogeneous_part(k) for e in p_new]
+        
+        if len(gk) == 0:
+            continue
         
         if tol_checks > 0: # (+) check if prerequisits for application of the Poincare Lemma are satisfied
             for i in range(dim2):
@@ -245,9 +261,9 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
                     assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}):\n{zero}'
         
-        fk = sympoincare(*gk)
+        fk = sympoincare(*gk) # deg(fk) = k + 1
         lk = lexp(-fk)
-        p_new = lk(*p_new, **kwargs)
+        p_new = lk(*p_new, **kwargs) # N.B.: order(:fk:p_new) = k + order(p_new) - 1, since deg(fk) = k + 1. The maximal order of p_new can theoretically be infinite, but technically it is limited by max_power. (+++)
         
         if tol_checks > 0: # (+) check if the Lie operators cancel the Taylor-map up to the current order
             # further idea: check if fk is the potential of the gk's
