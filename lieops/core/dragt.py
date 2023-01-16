@@ -217,7 +217,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         # Note the difference of the order: Now SB and SA in Eq. (4) are reversed in comparison to Eq. (1).
         #
         #
-        # Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders
+        # (Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders)
                 
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
     Ri = -J@R.transpose()@J
@@ -235,7 +235,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     if SB != 0:
         f_all.append(SB)
     # now f_all = [SA, SB] according to Eq. (4) above; R = exp(A) o exp(B);
-    f_rev = []
+    f_nl = []
     for k in tqdm(range(2, order + 2), disable=disable_tqdm):
         gk = [e.homogeneous_part(k) for e in p_new]
         
@@ -256,7 +256,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
                 if remainder != 0:
                     assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
                     
-        f_rev.append(fk)
+        f_nl.append(fk)
         
     # Now by construction we have (up to order k + 1) for the xi/eta Lie-polynomials xieta:
     # xieta + O(k + 1) = lexp(-f_k)(*lexp(-f_{k - 1})(...*lexp(-f_3)(*p_new)) ...)
@@ -267,7 +267,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         # lexp(f_3) o lexp(f_4) o ... o lexp(f_k)(R@xieta) = p,
         # hence (see Eq. (1) above: R = lexp(SA) o lexp(SB)):
         # lexp(f_3) o lexp(f_4) o ... o lexp(f_k) o lexp(SA) o lexp(SB) = p     (5)
-        f_all = [e for e in f_rev if e != 0] + f_all
+        f_all = [e for e in f_nl if e != 0] + f_all
         # note that on coordinates, f_3 needs to be executed first. So this definition is in 
         # line with (5) and our overall definition of 'f_all'.
     else:
@@ -276,8 +276,8 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         # since we consider Lie-polynomials at this step (and not points/floats). 
         # It is also very important at this step that a symplectic integration routine is used. 
         # Fortunately there exist a straigthforward symplectic integrator for those 2nd-order 
-        # Hamiltonians SA and SB.
-        f_hdm = lexp(-SB)(*lexp(-SA)(*f_rev, outl1=True, method='2flow'), outl1=True, method='2flow')
+        # Hamiltonians SA and SB:
+        f_hdm = lexp(-SB)(*lexp(-SA)(*f_nl, outl1=True, method='2flow'), outl1=True, method='2flow') # the outl1 parameters are True here to cope with special cases that SA or its input is zero. In this case the Lie-operators would return a Lie-polynomial. That would cause a problem with the use of '*' here and f_hdm may also not be a list ...
         f_all = f_all + [e for e in f_hdm if e != 0]
         
     if any([e != 0 for e in start]):
