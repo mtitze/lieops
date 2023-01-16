@@ -167,7 +167,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         # Due to truncation at the original map may not admit a symplectomorphism at the its final requested order.
         if order >= max_deg and not force_order:
             if warn:
-                warnings.warn(f"Requested order {order} >= {max_deg} (maximal degree of Taylor map) & non-zero offset detected. Order reduced by 1. This behavior can be switched off with 'force_order = True'.")
+                warnings.warn(f"Requested order {order} >= {max_deg} (maximal degree of Taylor map) & non-zero offset detected. Order reduced by 1.")
             order = order - 1
         
     # determine the linear part of the map
