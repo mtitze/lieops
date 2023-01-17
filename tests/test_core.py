@@ -162,7 +162,7 @@ def stf_with_zeros(tol1=1e-18, tol2=1e-10, code='numpy', dps=32):
 #########
 
 def test_version():
-    assert __version__ == '0.1.9'
+    assert __version__ == '0.2.0'
     
 def test_jacobi():
     # Test the Jacobi-identity for the poly class

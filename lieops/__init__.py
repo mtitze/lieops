@@ -1,6 +1,6 @@
 '''    
     lieops: Lie Operator tools
-    Copyright (C) 2021, 2022  Malte Titze
+    Copyright (C) 2021, 2022, 2023 by Malte Titze
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
-__version__ = '0.1.9'
+__version__ = '0.2.0'
 
 from lieops.core import *
 from lieops.linalg import *
