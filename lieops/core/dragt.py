@@ -301,7 +301,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         f_hdm = []
         if len(f_nl) > 0:
             f_hdm = lexp(-SB)(*lexp(-SA)(*f_nl, outl1=True, method='2flow'), outl1=True, method='2flow') # the outl1 parameters are True here to cope with special cases that SA or its input is zero. In this case the Lie-operators would return a Lie-polynomial. That would cause a problem with the use of '*' here and f_hdm may also not be a list ...
-        f_all = f_all + f_hdm # n.b. every entry in f_nl is non-zero by construction. Since the lexp(-SB) and lexp(-SA) operators are invertible, the elements in f_hdm are therefore also non-zero.
+        f_all = f_all + [f.above(tol) for f in f_hdm if f.above(tol) != 0] # Every entry in f_nl is non-zero (wrt. tol) by construction. Since the lexp(-SB) and lexp(-SA) operators are invertible, the elements in f_hdm are therefore also non-zero. However, the lexp-operators may still generate many small terms which should be removed here.
         
     if start_is_nonzero:
         f_all.insert(0, -h1)
@@ -310,12 +310,9 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     if final_is_nonzero:
         g1 = const2poly(*final, poisson_factor=pf, max_power=max_power)
         if start_is_nonzero and len(f_all) == 1:
-            # in this case only a single term (-h1) of order 1 is contained in f_all thus far. We shall combine this term with g1
+            # in this case only a single term (-h1) of order 1 is contained in f_all thus far. We shall combine this term with g1 (such a case may happen for a first-order polynomial + offset as input)
             f_all[0] += g1
         else:
             f_all.append(g1)
             
-    if tol > 0:
-        f_all = [fk.above(tol) for fk in f_all if fk.above(tol) != 0]
-
     return f_all
