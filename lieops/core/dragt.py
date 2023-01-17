@@ -142,8 +142,6 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
     if order == 'auto':
         order = max_power # see also (+++) below
     assert order < max_power + 1 and order < np.inf, f'Requested order of the Dragt-Finn series can not be >= {max_power + 1}.'
-    if order > max_deg and warn:
-        warnings.warn(f'Requested order {order} > {max_deg} (maximal degree of Taylor map).')
     if len(kwargs) == 0 and warn:
         warnings.warn("No flow parameters set.")
     
@@ -172,6 +170,9 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
             if warn:
                 warnings.warn(f"Requested order {order} >= {max_deg} (maximal degree of Taylor map) & non-zero offset detected. Order reduced by 1.")
             order = order - 1
+
+    if order > max_deg and warn:
+        warnings.warn(f'Requested order {order} > {max_deg} (maximal degree of Taylor map).')
         
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
