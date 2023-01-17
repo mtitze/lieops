@@ -154,11 +154,12 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         start = offset
         final = [e(*offset) for e in p]
 
-    if order == 0: # In this case we can immediately return a first-order polynomial, which will provide the translation:
+    if order == 0:# or max_deg == 1: # In this case we can immediately return a first-order polynomial, which will provide the translation:
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
 
-    if any([e != 0 for e in start]):
+    start_is_nonzero = any([e != 0 for e in start])
+    if start_is_nonzero:
         # preparation step in case of translations, see Ref. [1], Eq. (7.7.17)
         h1 = const2poly(*start, poisson_factor=pf, max_power=max_power) # E.g.: lexp(h1)(xi) = xi + start[0] 
         p = lexp(h1)(*p, method='2flow')
@@ -173,8 +174,8 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++).
-    SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power)
-    SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power)
+    SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
+    SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
     # (++) 
     # Let us assume that we would have taken "symlogs(R) = A, B" (i.e. exp(A) o exp(B) = R) and consider a 1-dim case.
     # In the following the '~' symbol means that we identify the (1, 0)-key with xi and the (0, 1)-key with eta.
@@ -261,7 +262,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
                     assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}):\n{zero}'
         
-        fk = sympoincare(*gk) # deg(fk) = k + 1
+        fk = sympoincare(*gk).above(tol) # deg(fk) = k + 1
         lk = lexp(-fk)
         p_new = lk(*p_new, **kwargs) # N.B.: order(:fk:p_new) = k + order(p_new) - 1, since deg(fk) = k + 1. The maximal order of p_new can theoretically be infinite, but technically it is limited by max_power. (+++)
         
@@ -272,7 +273,8 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
                 if remainder != 0:
                     assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
                     
-        f_nl.append(fk)
+        if fk != 0:
+            f_nl.append(fk)
         
     # Now by construction we have (up to order k + 1) for the xi/eta Lie-polynomials xieta:
     # xieta + O(k + 1) = lexp(-f_k)(*lexp(-f_{k - 1})(...*lexp(-f_3)(*p_new)) ...)
@@ -283,7 +285,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         # lexp(f_3) o lexp(f_4) o ... o lexp(f_k)(R@xieta) = p,
         # hence (see Eq. (1) above: R = lexp(SA) o lexp(SB)):
         # lexp(f_3) o lexp(f_4) o ... o lexp(f_k) o lexp(SA) o lexp(SB) = p     (5)
-        f_all = [e for e in f_nl if e != 0] + f_all
+        f_all = f_nl + f_all
         # note that on coordinates, f_3 needs to be executed first. So this definition is in 
         # line with (5) and our overall definition of 'f_all'.
     else:
@@ -293,17 +295,24 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
         # It is also very important at this step that a symplectic integration routine is used. 
         # Fortunately there exist a straigthforward symplectic integrator for those 2nd-order 
         # Hamiltonians SA and SB:
-        f_hdm = lexp(-SB)(*lexp(-SA)(*f_nl, outl1=True, method='2flow'), outl1=True, method='2flow') # the outl1 parameters are True here to cope with special cases that SA or its input is zero. In this case the Lie-operators would return a Lie-polynomial. That would cause a problem with the use of '*' here and f_hdm may also not be a list ...
-        f_all = f_all + [e for e in f_hdm if e != 0]
+        f_hdm = []
+        if len(f_nl) > 0:
+            f_hdm = lexp(-SB)(*lexp(-SA)(*f_nl, outl1=True, method='2flow'), outl1=True, method='2flow') # the outl1 parameters are True here to cope with special cases that SA or its input is zero. In this case the Lie-operators would return a Lie-polynomial. That would cause a problem with the use of '*' here and f_hdm may also not be a list ...
+        f_all = f_all + f_hdm # n.b. every entry in f_nl is non-zero by construction. Since the lexp(-SB) and lexp(-SA) operators are invertible, the elements in f_hdm are therefore also non-zero.
         
-    if any([e != 0 for e in start]):
+    if start_is_nonzero:
         f_all.insert(0, -h1)
-    if any([e != 0 for e in final]):
+            
+    final_is_nonzero = any([e != 0 for e in final])
+    if final_is_nonzero:
         g1 = const2poly(*final, poisson_factor=pf, max_power=max_power)
+        #if start_is_nonzero and len(f_all) == 1:
+            # in this case only a single term (-h1) of order 1 is contained in f_all thus far. We shall combine this term with g1
+        #    f_all[0] += g1
+        #else:
         f_all.append(g1)
+            
     if tol > 0:
         f_all = [fk.above(tol) for fk in f_all if fk.above(tol) != 0]
-        
-    # combine first-order terms, if they are adjacent
-    # (TODO)
+
     return f_all
