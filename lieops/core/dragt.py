@@ -306,8 +306,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
     if start_is_nonzero:
         f_all.insert(0, -h1)
             
-    final_is_nonzero = any([e != 0 for e in final])
-    if final_is_nonzero:
+    if any([e != 0 for e in final]):
         g1 = const2poly(*final, poisson_factor=pf, max_power=max_power)
         if start_is_nonzero and len(f_all) == 1:
             # in this case only a single term (-h1) of order 1 is contained in f_all thus far. We shall combine this term with g1 (such a case may happen for a first-order polynomial + offset as input)
