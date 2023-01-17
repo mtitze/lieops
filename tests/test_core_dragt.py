@@ -87,7 +87,7 @@ ham4 = 0.32*xi1*eta1 + (3.21 - 0.934*1j)*eta2**3 + (1j*0.21 + 0.5234)*xi2*eta1**
                           (ham3, xieta0, offset0, 1e-14, 1e-14, 1e-14),
                           (ham3, xieta0, offset1, 1e-14, 5e-14, 6e-12),
                           (ham4, xieta0, offset0, 2e-13, 1e-11, 1e-10),
-                          (ham4, xieta0, offset1, 2e-13, 3e-8, 2e-4)])
+                          (ham4, xieta0, offset1, 2e-13, 3e-8, 1e-6)])
 def test_dragtfinn_2d(hamiltonian, xieta0, offset, tol1, tol_right, tol_left, order=7,**kwargs):
     '''
     Test the Dragt/Finn factorization for a 2D-Hamiltonian (similar to test_dragtfinn_1d).

@@ -71,7 +71,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
+def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
