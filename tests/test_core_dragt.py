@@ -71,11 +71,11 @@ offset0 = [0, 0, 0, 0]
 offset1 = [0.1, 0.05, -0.8 + 0.02*1j, 0.4 + 0.09*1j]
 
 xi1, xi2, eta1, eta2 = create_coords(2, max_power=10)
-ham0 = - 8.81*xi1 # tol1=1e-14, tol_right=1e-14, tol_left=1e-14 || ==
-ham1 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**2 + (1j*0.21 + 0.5234)*xi2*eta1 # tol1=1e-14, tol_right=1e-14, tol_left=1e-14 || ==
-ham2 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**2 + (1j*0.21 + 0.5234)*xi2*eta1 - 8.81*xi1 # tol1=1e-14, tol_right=1e-14, tol_left=1e-14 || ==
-ham3 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**3 + (1j*0.21 + 0.5234)*xi2*eta1**2 + 0.42*xi2*eta2 # with offset: tol1=1e-14, tol_right=2e-14, tol_left=6e-12 || 1e-14, 1e-14, 1e-14
-ham4 = 0.32*xi1*eta1 + (3.21 - 0.934*1j)*eta2**3 + (1j*0.21 + 0.5234)*xi2*eta1**2 + 0.42*xi2*eta2 - 8.81*xi1 # with offset: tol1=2e-13, tol_right=3e-8, tol_left=2e-4 || tol1=2e-13, tol_right=1e-11, tol_left=1e-10
+ham0 = - 8.81*xi1
+ham1 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**2 + (1j*0.21 + 0.5234)*xi2*eta1
+ham2 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**2 + (1j*0.21 + 0.5234)*xi2*eta1 - 8.81*xi1
+ham3 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**3 + (1j*0.21 + 0.5234)*xi2*eta1**2 + 0.42*xi2*eta2
+ham4 = 0.32*xi1*eta1 + (3.21 - 0.934*1j)*eta2**3 + (1j*0.21 + 0.5234)*xi2*eta1**2 + 0.42*xi2*eta2 - 8.81*xi1
 
 @pytest.mark.parametrize("hamiltonian, xieta0, offset, tol1, tol_right, tol_left", 
                          [(ham0, xieta0, offset0, 1e-14, 1e-14, 1e-14),

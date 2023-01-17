@@ -64,7 +64,7 @@ def sympoincare(*g):
     assert len(g) == dim2
     pf = g[0]._poisson_factor
     # assert all([e._poisson_factor == pf for e in g])
-    Jinv = -create_J(dim)
+    Jinv = create_J(dim).transpose()
     # Remarks to the next line:
     # 1) multiply from right to prevent operator overloading from numpy.
     # 2) The poisson factor pf is required, because we have to invert the poisson bracket using J and pf.
@@ -76,21 +76,16 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
         
-    Then this routine will find polynomials f_1, f2_a, f2_b, f3, f4, f5, ...,
+    Then this routine will find polynomials f_1, g_1, f2_a, f2_b, f3, f4, f5, ...,
     where f_k is a homogeneous polynomial of degree k, so that
-    M ~ exp(:f2_a:) o exp(:f2_b:) o exp(:f3:) o exp(:f4:) o ... o exp(:fn:) o exp(:f1:)
-    holds.
+    M ~ exp(:f1:) o exp(:f2_a:) o exp(:f2_b:) o exp(:f3:) o exp(:f4:) o ... o exp(:fn:) o exp(:g1:)
+    holds. The position of the chain of 2nd order polynomials can hereby be chosen,
+    by providing a 'pos2'-parameter.
     
     Parameters
     ----------
     p: poly
         Polynomials representing the components of the symplectic map M.
-        
-    tol: float, optional
-        Identify small fk and drop them if all their values are below this threshold.
-        
-    tol_checks: float, optional
-        If > 0, perform certain consistency checks during the calculation.
         
     order: int, optional
         The maximal degree of the approximated map (= maximal degree of the polynomials fk above - 1).
@@ -99,6 +94,19 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
         An optional point of reference around which the map should be represented.
         By default, this point is zero.
         
+    pos2: str, optional
+        Either 'left' or 'right' (default). The outcome will determine the representation of M:
+        pos2 == 'right':
+        M ~ exp(:f1:) o exp(:f3:) o exp(:f4:) o ... o exp(:fn:) o exp(:f2_a:) o exp(:f2_b:) o exp(:g1:)
+        pos2 == 'left':
+        M ~ exp(:f1:) o exp(:f2_a:) o exp(:f2_b:) o exp(:f3:) o exp(:f4:) o ... o exp(:fn:) o exp(:g1:)
+
+    tol: float, optional
+        Identify small fk and drop them if all their values are below this threshold.
+        
+    tol_checks: float, optional
+        If > 0, perform certain consistency checks during the calculation.
+                        
     disable_tqdm: boolean, optional
         If true, disable the tqdm status bar printout.
         
@@ -115,19 +123,13 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
     Returns
     -------
     list
-        A list of poly objects [f1, f2_a, f2_b, f3, f4, ...] as described above.
-        Note that the rightmost Lie polynomial needs to be applied first.
+        A list of poly objects [f1, f2_a, f2_b, f3, f4, ...] in the order described above.
         
     References
     ----------
     [1] A. Dragt: "Lie Methods for Nonlinear Dynamics with Applications to Accelerator Physics", University of Maryland, 2020,
         http://www.physics.umd.edu/dsat/
     '''
-    # TODO:
-    # - May add an option to return the operators used in the process
-    # - May change this large function into a class, to split its various parts into more managable sections
-    #   and avoid possible errors.
-    
     # check & update input
     dim = p[0].dim
     dim2 = dim*2
