@@ -287,9 +287,9 @@ class lieoperator:
     def _calcFlow_bruteforce(self, **kwargs):
         # For a general Lie operator g(:f:), we apply g(:f:) to the given operand directly
         result = {}
-        flow_poly = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'. In any case it also has been updated in self._flow_parameters
-        result['flow'] = lambda *z: [flow_poly[k](*z) for k in range(len(flow_poly))]
-        result['poly'] = flow_poly
+        final_components = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'. In any case it also has been updated in self._flow_parameters
+        result['flow'] = lambda *z: [final_components[k](*z) for k in range(len(final_components))]
+        result['taylor_map'] = final_components
         self._flow['bruteforce'] = result
         
     def _calcPolyFromFlow(self, **kwargs):
@@ -298,8 +298,8 @@ class lieoperator:
         for every y in self.components.
         '''
         result = self._flow.get(self._flow_method, {})
-        if 'poly' in result.keys():
-            return result['poly']
+        if 'taylor_map' in result.keys():
+            return result['taylor_map']
         else:
             raise RuntimeError(f"Polynomial approximation of method '{self._flow_method}' can not be found in output dict 'self._flow'.")
         
@@ -497,9 +497,9 @@ class lexp(lieoperator):
             requested_components = kwargs.pop('components', self._flow_parameters['components'])
             xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
             xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-            flow_poly = [c(*xietaf) for c in requested_components]
-            flow = lambda *z: [flow_poly[k](*z) for k in range(len(flow_poly))]
-            self._flow['bruteforce'] = {'xietaf': xietaf, 'poly': flow_poly, 'flow': flow}
+            final_components = [c(*xietaf) for c in requested_components]
+            flow = lambda *z: [final_components[k](*z) for k in range(len(final_components))]
+            self._flow['bruteforce'] = {'xietaf': xietaf, 'taylor_map': final_components, 'flow': flow}
         else:
             lieoperator._calcFlow_bruteforce(self, **kwargs)
             
@@ -609,7 +609,7 @@ class lexp(lieoperator):
         '''
         method = self._flow_method
         flow_out = self._flow[method]
-        if not 'poly' in flow_out.keys():
+        if not 'taylor_map' in flow_out.keys():
             parameters = self._flow_parameters[method]
             assert 'components' in parameters.keys()
             
@@ -624,9 +624,9 @@ class lexp(lieoperator):
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
             # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
-            flow_poly = [c(*xietaf) for c in parameters['components']]
-            self._flow[method]['poly'] = flow_poly
-            return flow_poly
+            final_components = [c(*xietaf) for c in parameters['components']]
+            self._flow[method]['taylor_map'] = final_components
+            return final_components
         else:
             return lieoperator._calcPolyFromFlow(self, **kwargs)
     
