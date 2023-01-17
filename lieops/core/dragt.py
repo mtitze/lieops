@@ -253,16 +253,20 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     for k in tqdm(range(2, order + 1), disable=disable_tqdm):
         gk = [e.homogeneous_part(k) for e in p_new]
         
-        if len(gk) == 0:
+        if len(gk) == 0 or len([ek for ek in gk if ek == 0]) == len(p_new):
+            # skip this case if there is no homogeneous part of order k
             continue
-        
+                    
         if tol_checks > 0: # (+) check if prerequisits for application of the Poincare Lemma are satisfied
             for i in range(dim2):
                 for j in range(i):
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i]
                     assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}):\n{zero}'
-        
+                            
         fk = sympoincare(*gk).above(tol) # deg(fk) = k + 1
+        if fk == 0:
+            # continue with the next k if the potential is zero within the given tolerance
+            continue
         lk = lexp(-fk)
         p_new = lk(*p_new, **kwargs) # N.B.: order(:fk:p_new) = k + order(p_new) - 1, since deg(fk) = k + 1. The maximal order of p_new can theoretically be infinite, but technically it is limited by max_power. (+++)
         
@@ -273,8 +277,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
                 if remainder != 0:
                     assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
                     
-        if fk != 0:
-            f_nl.append(fk)
+        f_nl.append(fk)
         
     # Now by construction we have (up to order k + 1) for the xi/eta Lie-polynomials xieta:
     # xieta + O(k + 1) = lexp(-f_k)(*lexp(-f_{k - 1})(...*lexp(-f_3)(*p_new)) ...)
@@ -306,11 +309,11 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-8, tol_checks=0,
     final_is_nonzero = any([e != 0 for e in final])
     if final_is_nonzero:
         g1 = const2poly(*final, poisson_factor=pf, max_power=max_power)
-        #if start_is_nonzero and len(f_all) == 1:
+        if start_is_nonzero and len(f_all) == 1:
             # in this case only a single term (-h1) of order 1 is contained in f_all thus far. We shall combine this term with g1
-        #    f_all[0] += g1
-        #else:
-        f_all.append(g1)
+            f_all[0] += g1
+        else:
+            f_all.append(g1)
             
     if tol > 0:
         f_all = [fk.above(tol) for fk in f_all if fk.above(tol) != 0]
