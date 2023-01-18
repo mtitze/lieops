@@ -7,7 +7,7 @@ from .generators import genexp
 from .combine import magnus
 from .poly import _poly
 
-from lieops.solver import heyoka, get_2flow, channell
+from lieops.solver import get_2flow, channell
 from lieops.solver.splitting import recursive_monomial_split
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
@@ -229,6 +229,7 @@ class lieoperator:
         This internal routine is indended to help in determining when to re-calculate
         the flow and thus speeding up flow calculations.
         '''
+        self._flow_method = kwargs.get('method', self._flow_method)
         current_parameters = self.get_flow_parameters()
         update = update or not kwargs.items() <= current_parameters.items()
         if 'components' in kwargs.keys():
