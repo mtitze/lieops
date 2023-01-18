@@ -420,7 +420,7 @@ class lexp(lieoperator):
     def set_generator(self, power, **kwargs):
         lieoperator.set_generator(self, generator=genexp(power), **kwargs)
                 
-    def bch(self, *z, bch_sign=1, **kwargs):
+    def bch(self, *z, **kwargs):
         '''
         Compute the composition of the current Lie operator exp(:x:) with other ones exp(:y_1:),
         ..., exp(:y_N:)
@@ -447,9 +447,9 @@ class lexp(lieoperator):
         assert isinstance(self, type(z[0]))
         _ = kwargs.setdefault('order', self._bch_order_default)
         _ = kwargs.setdefault('disable_tqdm', True)
-        comb, _, _ = magnus(self.argument*bch_sign, *[other.argument*bch_sign for other in z], **kwargs)
+        comb, _, _ = magnus(self.argument, *[other.argument for other in z], **kwargs)
         if len(comb) > 0:
-            outp = sum(comb.values())*bch_sign
+            outp = sum(comb.values())
         else: # return zero poly
             outp = poly()
             
