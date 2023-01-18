@@ -420,7 +420,7 @@ class lexp(lieoperator):
     def set_generator(self, power, **kwargs):
         lieoperator.set_generator(self, generator=genexp(power), **kwargs)
                 
-    def bch(self, *z, bch_sign=-1, **kwargs):
+    def bch(self, *z, bch_sign=1, **kwargs):
         '''
         Compute the composition of the current Lie operator exp(:x:) with other ones exp(:y_1:),
         ..., exp(:y_N:)
