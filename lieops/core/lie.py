@@ -7,7 +7,7 @@ from .generators import genexp
 from .combine import magnus
 from .poly import _poly
 
-from lieops.solver import get_2flow, channell
+from lieops.solver import get_2flow, channell, heyoka
 from lieops.solver.splitting import recursive_monomial_split
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
@@ -484,6 +484,9 @@ class lexp(lieoperator):
             self._calcFlow_channell(**kwargs)
         elif self._flow_method == 'njet':
             self._calcFlow_njet(**kwargs)
+        elif self._flow_method == 'heyoka':
+            # Attention: This method supports only points (in particular: no Lie-polynomials) as arguments.
+            self._calcFlow_heyoka(**kwargs)
         else:
             lieoperator._calcFlowFromParameters(self, **kwargs)
             
@@ -497,6 +500,7 @@ class lexp(lieoperator):
             # in self._bruteforce_result below.
             requested_components = kwargs.pop('components', self._flow_parameters['components'])
             xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
+            _ = kwargs.setdefault('t', self._flow_parameters['bruteforce']['t'])
             xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
             final_components = [c(*xietaf) for c in requested_components]
             flow = lambda *z: [final_components[k](*z) for k in range(len(final_components))]
@@ -601,6 +605,9 @@ class lexp(lieoperator):
             return z
         result.update({'flow': lo_concat, 'xieta': xieta, 'operators': operators, 'n_slices': n_slices, 'flow_method': flow_method})
         self._flow['njet'] = result
+        
+    def _calcFlow_heyoka(self, **kwargs):
+        self._flow['heyoka'] = {'flow': heyoka(self.argument*self._flow_parameters['heyoka']['t'], **kwargs)}
     
     def _calcPolyFromFlow(self, **kwargs):
         '''
