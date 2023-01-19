@@ -77,6 +77,8 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         A list of polynomials representing the operators
         h0, h0#h2#h3, h0#h2#h3#h5, ...
     '''
+    max_power = kwargs.get('max_power', max([h.max_power for h in hamiltonians]))
+    
     g1_operators = []
     new_hamiltonians = []
     for hamiltonian in tqdm(hamiltonians, disable=kwargs.get('disable_tqdm', False)):
@@ -99,11 +101,11 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
             if not 'current_g1_operator' in locals():
                 new_hamiltonians.append(hamiltonian)
             else:
-                op = lexp(ad2poly(current_g1_operator), **kwargs)
+                op = lexp(ad2poly(current_g1_operator, max_power=max_power), **kwargs)
                 new_hamiltonians.append(op(hamiltonian, **kwargs))
     if len(current_g1_operator) == 0 or len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
-    return new_hamiltonians, [ad2poly(current_g1_operator)], [ad2poly(op) for op in g1_operators]
+    return new_hamiltonians, [ad2poly(current_g1_operator, max_power=max_power)], [ad2poly(op, max_power=max_power) for op in g1_operators]
 
 def chain(*hamiltonians, condition: lambda h: False, **kwargs):
     '''
