@@ -77,18 +77,18 @@ ham2 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**2 + (1j*0.21 + 0.5234)*xi2*eta1 -
 ham3 = 0.32*xi1*eta1 + (1.21 - 0.934*1j)*eta2**3 + (1j*0.21 + 0.5234)*xi2*eta1**2 + 0.42*xi2*eta2
 ham4 = 0.32*xi1*eta1 + (3.21 - 0.934*1j)*eta2**3 + (1j*0.21 + 0.5234)*xi2*eta1**2 + 0.42*xi2*eta2 - 8.81*xi1
 
-@pytest.mark.parametrize("hamiltonian, xieta0, offset, tol1, tol_right, tol_left", 
-                         [(ham0, xieta0, offset0, 1e-14, 1e-14, 1e-14),
-                          (ham0, xieta0, offset1, 1e-14, 1e-14, 1e-14),
-                          (ham1, xieta0, offset0, 1e-14, 1e-14, 1e-14),
-                          (ham1, xieta0, offset1, 1e-14, 1e-14, 1e-14),
-                          (ham2, xieta0, offset0, 1e-14, 1e-14, 1e-14),
-                          (ham2, xieta0, offset1, 1e-14, 1e-14, 1e-14),
-                          (ham3, xieta0, offset0, 1e-14, 1e-14, 1e-14),
-                          (ham3, xieta0, offset1, 1e-14, 5e-14, 6e-12),
-                          (ham4, xieta0, offset0, 2e-13, 1e-11, 1e-10),
-                          (ham4, xieta0, offset1, 2e-13, 3e-8, 1e-6)])
-def test_dragtfinn_2d(hamiltonian, xieta0, offset, tol1, tol_right, tol_left, order=7,**kwargs):
+@pytest.mark.parametrize("hamiltonian, xieta0, offset, tol1, tol_right, tol_left, tol_checks", 
+                         [(ham0, xieta0, offset0, 1e-14, 1e-14, 1e-14, 1e-14),
+                          (ham0, xieta0, offset1, 1e-14, 1e-14, 1e-14, 1e-14),
+                          (ham1, xieta0, offset0, 1e-14, 1e-14, 1e-14, 1e-14),
+                          (ham1, xieta0, offset1, 1e-14, 1e-14, 1e-14, 1e-14),
+                          (ham2, xieta0, offset0, 1e-14, 1e-14, 1e-14, 1e-14),
+                          (ham2, xieta0, offset1, 1e-14, 1e-14, 1e-14, 1e-14),
+                          (ham3, xieta0, offset0, 1e-14, 1e-14, 1e-14, 1e-14),
+                          (ham3, xieta0, offset1, 1e-14, 5e-14, 6e-12, 1e-13),
+                          (ham4, xieta0, offset0, 2e-13, 1e-11, 1e-10, 1e-11),
+                          (ham4, xieta0, offset1, 2e-13, 3e-8, 1e-6, 1e-11)])
+def test_dragtfinn_2d(hamiltonian, xieta0, offset, tol1, tol_right, tol_left, tol_checks, order=7,**kwargs):
     '''
     Test the Dragt/Finn factorization for a 2D-Hamiltonian (similar to test_dragtfinn_1d).
     
@@ -117,8 +117,8 @@ def test_dragtfinn_2d(hamiltonian, xieta0, offset, tol1, tol_right, tol_left, or
 
     assert all([abs(ref1[k] - ref2[k]) < tol1 for k in range(dim2)]) # consistency check that the Taylor map and the Hamiltonian flow agree
     
-    df_right = dragtfinn(*xietahf, power=kwargs.get('power', 40), offset=offset, pos2='right', warn=False) 
-    df_left = dragtfinn(*xietahf, power=kwargs.get('power', 40), offset=offset, pos2='left', warn=False)
+    df_right = dragtfinn(*xietahf, power=kwargs.get('power', 40), offset=offset, pos2='right', warn=False, tol_checks=tol_checks) 
+    df_left = dragtfinn(*xietahf, power=kwargs.get('power', 40), offset=offset, pos2='left', warn=False, tol_checks=tol_checks)
         
     point_right = [xieta0[k] - offset[k] for k in range(dim2)]
     for op in df_right:
