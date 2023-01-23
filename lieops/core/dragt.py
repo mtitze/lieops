@@ -178,12 +178,12 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     try:
         A = logm(R.transpose()) # Explanation why we have to use transpose will follow at (++)
-        SA = ad2poly(AB, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
+        SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
         SB = SA*0
         B = A*0
     except:
         if warn:
-            warnings.warn(f"Map requires two 2nd-order polynomials (tol: {tol}).")
+            warnings.warn(f"Map appears to require two 2nd-order polynomials (tol: {tol}).")
         A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
         SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
         SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
