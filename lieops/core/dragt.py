@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import expm
+from scipy.linalg import expm, logm
 from tqdm import tqdm
 import warnings
 
@@ -176,9 +176,16 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
         
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
-    A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++).
-    SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
-    SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
+    try:
+        AB = logm(R.transpose()) # Explanation why we have to use transpose will follow at (++)
+        SA = ad2poly(AB, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
+        SB = SA*0
+    except:
+        if warn:
+            warnings.warn(f"Map requires two 2nd-order polynomials (tol: {tol}).")
+        A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
+        SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
+        SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
     # (++) 
     # Let us assume that we would have taken "symlogs(R) = A, B" (i.e. exp(A) o exp(B) = R) and consider a 1-dim case.
     # In the following the '~' symbol means that we identify the (1, 0)-key with xi and the (0, 1)-key with eta.

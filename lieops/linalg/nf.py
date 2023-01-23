@@ -24,7 +24,7 @@ def symlogs(X, **kwargs):
     
     Then this routine will determine two matrices A and B so that
     X = exp(A)@exp(B),
-    where A is an element in sp(n), the Lie-algebra of Sp(n) \subset Sp(2n; C) \cap U(2n),
+    where A is an element in sp(n), the Lie-algebra of Sp(n) = Sp(2n; C) \cap U(2n),
     and B is an element of sp(2n; C), the Lie-algebra of Sp(2n; C).
     
     Parameters
