@@ -71,7 +71,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
+def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -100,6 +100,13 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
         M ~ exp(:f1:) o exp(:f3:) o exp(:f4:) o ... o exp(:fn:) o exp(:f2_a:) o exp(:f2_b:) o exp(:g1:)
         pos2 == 'left':
         M ~ exp(:f1:) o exp(:f2_a:) o exp(:f2_b:) o exp(:f3:) o exp(:f4:) o ... o exp(:fn:) o exp(:g1:)
+        
+    comb2: boolean, optional
+        If true, then try to find a single 2nd-order polynomial, by applying scipy.linalg.logm.
+        If this fails (which is the case if the matrix logarithm has no representation in terms of a Lie-polynomial), 
+        then we will fall back to the "comb2=False"-case and a warning will be issued.
+        If false, then lieops.linalg.symlogs will be used (which may produce two Lie-polynomials even
+        in certain cases in which there would already exist a single one doing the job).
 
     tol: float, optional
         Identify small fk and drop them if all their values are below this threshold.
@@ -176,17 +183,21 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', tol=1e-6, tol_checks=0,
         
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
-    try:
-        A = logm(R.transpose()) # Explanation why we have to use transpose will follow at (++)
-        SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
-        SB = SA*0
-        B = A*0
-    except:
-        if warn:
-            warnings.warn(f"Map appears to require two 2nd-order polynomials (tol: {tol}).")
+    if comb2:
+        try:
+            A = logm(R.transpose()) # Explanation why we have to use transpose will follow at (++)
+            SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
+            SB = SA*0
+            B = A*0
+        except:
+            if warn:
+                warnings.warn(f"Map appears to require two 2nd-order polynomials (tol: {tol}).")
+            comb2 = False
+    if not comb2:
         A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
         SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
         SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
+        
     # (++) 
     # Let us assume that we would have taken "symlogs(R) = A, B" (i.e. exp(A) o exp(B) = R) and consider a 1-dim case.
     # In the following the '~' symbol means that we identify the (1, 0)-key with xi and the (0, 1)-key with eta.
