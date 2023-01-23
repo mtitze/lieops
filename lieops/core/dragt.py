@@ -183,6 +183,11 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         
     # determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
+    J = create_J(dim)
+    if tol_checks > 0:
+        # symplecticity check of the map; it is crucial to check symplecticity this point *before* applying logm or symlogs etc.
+        assert np.linalg.norm(R.transpose()@J@R - J) < tol_checks, f'Map not symplectic within a tolerance of {tol_checks}.'
+    
     if comb2:
         try:
             A = logm(R.transpose()) # Explanation why we have to use transpose will follow at (++)
@@ -226,10 +231,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     # See also Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book [1]. In that
     # section, the transposition can be found as well.
     
-    J = create_J(dim)    
-    if tol_checks > 0: # Perform some consistency checks
-        # symplecticity check:
-        assert np.linalg.norm(R.transpose()@J@R - J) < tol_checks, f'Map not symplectic within a tolerance of {tol_checks}.'
+    if tol_checks > 0:
         # check if symlogs gives correct results
         assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol_checks
         xieta = create_coords(dim, poisson_factor=pf, max_power=max_power) # for the two checks at (+) below

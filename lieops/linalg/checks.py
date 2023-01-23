@@ -2,8 +2,10 @@
 
 import numpy as np
 import mpmath as mp
+import warnings
 
 from njet.functions import get_package_name
+from lieops.linalg.matrix import create_J
 
 def _check_linear_independence(a, b, tol=1e-14):
     '''
@@ -96,6 +98,20 @@ def relative_eq(a, b, tol=1e-14, **kwargs):
         return True
     else:
         return abs(a - b)/max([abs(a), abs(b)]) < tol
+    
+def symplecticity(A, tol=1e-14, warn=True):
+    dim2 = len(A)
+    assert dim2%2 == 0, 'Matrix dimension not even.'
+    dim = dim2//2
+    J = create_J(dim)
+    check = np.linalg.norm(A.transpose()@J@A - J) < tol
+    if check:
+        message = f'Matrix symplectic within a tolerance of {tol}.'
+    else:
+        message = f'Matrix not symplectic within a tolerance of {tol}.'
+    if not check and warn:
+        warnings.warn(message)
+    return check, message
     
 def williamson_check(A, S, J, tol=1e-14):
     '''

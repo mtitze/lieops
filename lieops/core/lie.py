@@ -6,6 +6,9 @@ from lieops.linalg.nf import first_order_nf_expansion
 from .generators import genexp
 from .combine import magnus
 from .poly import _poly
+from .tools import poly2vec
+
+from lieops.linalg.checks import symplecticity
 
 from lieops.solver import get_2flow, channell, heyoka
 from lieops.solver.splitting import recursive_monomial_split
@@ -369,7 +372,7 @@ class lieoperator:
         ----------
         *position: float or array, optional
             An optional point of reference. By default the position will be the origin.
-        
+                    
         order: int, optional
             The number of derivatives we want to take into account.
         '''
@@ -386,8 +389,8 @@ class lieoperator:
         if len(position) == 0: 
             position = (0,)*n_args
         expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
-        xietaf = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
-        return xietaf, dflow
+        taylor_map = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
+        return taylor_map, dflow
 
     
 class lexp(lieoperator):
@@ -643,4 +646,21 @@ class lexp(lieoperator):
             return self.bch(*z, **kwargs) # Baker-Campbell-Hausdorff (using Magnus/combine routine)
         else:
             return lieoperator.__call__(self, *z, **kwargs)
+        
+    def tpsa(self, *args, **kwargs):
+        '''
+        See lieops.core.lie.lieoperator.tpsa for a description.
+        
+        Parameters
+        ----------        
+        tol: float, optional
+            If > 0, perform a check on symplecticity of the map.
+        '''
+        tol = kwargs.get('tol', 0)
+        taylor_map, dflow = lieoperator.tpsa(self, *args, **kwargs)
+        if tol > 0: # check if map is symplectic
+            R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in taylor_map])
+            check, message = symplecticity(R, tol=tol)
+        return taylor_map, dflow
+
 
