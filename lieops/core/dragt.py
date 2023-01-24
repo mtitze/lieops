@@ -147,6 +147,8 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     max_power = max([e.max_power for e in p]) # Required for the input for ad2poly, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
     max_deg = max([e.maxdeg() for e in p]) # The degree of the input Taylor map.
     if order == 'auto':
+        if warn:
+            warnings.warn(f"order == 'auto': Setting order to {max_power} (max_power in poly objects).")
         order = max_power # see also (+++) below
     assert order < max_power + 1 and order < np.inf, f'Requested order of the Dragt-Finn series can not be >= {max_power + 1}.'
     if len(kwargs) == 0 and warn:
