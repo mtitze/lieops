@@ -137,7 +137,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     [1] A. Dragt: "Lie Methods for Nonlinear Dynamics with Applications to Accelerator Physics", University of Maryland, 2020,
         http://www.physics.umd.edu/dsat/
     '''
-    # check & update input
+    # Check & update input
     dim = p[0].dim
     dim2 = dim*2
     assert all([e.dim == dim for e in p])
@@ -148,13 +148,13 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     max_deg = max([e.maxdeg() for e in p]) # The degree of the input Taylor map.
     if order == 'auto':
         if warn:
-            warnings.warn(f"order == 'auto': Setting order to {max_power} (max_power in poly objects).")
-        order = max_power # see also (+++) below
+            warnings.warn(f"order == '{order}': Setting order to {max_power} (max_power in poly objects).")
+        order = max_power # see also the discussion at (+++) below
     assert order < max_power + 1 and order < np.inf, f'Requested order of the Dragt-Finn series can not be >= {max_power + 1}.'
     if len(kwargs) == 0 and warn:
         warnings.warn("No flow parameters set.")
     
-    # determine the start and end points of the map
+    # Determine the start and end points of the map
     if len(offset) == 0:
         start = [0]*dim2
         final = [e.get((0,)*dim2, 0) for e in p]
@@ -163,7 +163,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         start = offset
         final = [e(*offset) for e in p]
 
-    if order == 0:# or max_deg == 1: # In this case we can immediately return a first-order polynomial, which will provide the translation:
+    if order == 0: # In this case we can immediately return a first-order polynomial, which will provide the translation:
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
 
@@ -183,13 +183,14 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     if order > max_deg and warn:
         warnings.warn(f'Requested order {order} > {max_deg} (maximal degree of Taylor map).')
         
-    # determine the linear part of the map
+    # Determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     J = create_J(dim)
     if tol_checks > 0:
-        # symplecticity check of the map; it is crucial to check symplecticity this point *before* applying logm or symlogs etc.
+        # Symplecticity check of the map; it is crucial to check symplecticity this point *before* applying logm or symlogs etc. to avoid subtle errors produced from 'almost symplectic' maps
         assert np.linalg.norm(R.transpose()@J@R - J) < tol_checks, f'Map not symplectic within a tolerance of {tol_checks}.'
     
+    # Compute the 2nd-order polynomial(s) of the Dragt/Finn factorization
     if comb2:
         try:
             A = logm(R.transpose()) # Explanation why we have to use transpose will follow at (++)

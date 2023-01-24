@@ -7,7 +7,6 @@ from lieops.core.combine import bch
 from lieops.linalg.bch import bch_2x2
 from lieops.core.dragt import dragtfinn
 
-
 twopi = float(np.pi*2)
 
 def _rot_kernel(fk, mu):
@@ -24,7 +23,6 @@ def _rot_kernel(fk, mu):
         if z.real != 0 or (z.real == 0 and (z.imag/twopi)%1 != 0): # I.e. exp(z) != 1
             a[powers] = value/(1 - np.exp(z))
     return poly(values=a, dim=dim, max_power=fk.max_power)
-
 
 def fnf(*p, bch_order=6, **kwargs):
     '''
@@ -72,18 +70,18 @@ def fnf(*p, bch_order=6, **kwargs):
     tol = kwargs.get('tol', 0)
     order = kwargs.setdefault('order', 1)
     
-    # 1) Compute the Dragt/Finn factorization up to a specific order
+    # I) Compute the Dragt/Finn factorization up to a specific order
     kwargs['pos2'] = 'left'
     kwargs['comb2'] = True
     df = dragtfinn(*p, **kwargs)
 
-    # 2) First-order normalization (if applicable)
+    # II) First-order normalization (if applicable)
     nterms_1 = [f for f in df if f.maxdeg() > 1]
     df_orders = [f.maxdeg() for f in nterms_1]
     if 2 in df_orders:
-        # 2) Find the parts in the factorization which belong to 2nd and higher-order; try to combine
-        #    the two 2nd order polynomials using the BCH equation.
-        #    TODO (later): Do not rely on the BCH Theorem, but instead determine the kernel of R - 1 (Eq. (4.34) in Ref. [1]).
+        # Find the parts in the factorization which belong to 2nd and higher-order; try to combine
+        # the two 2nd order polynomials using the BCH equation.
+        # TODO (later): Do not rely on the BCH Theorem, but instead determine the kernel of R - 1 (Eq. (4.34) in Ref. [1]).
         i1 = df_orders.index(2)
         i2 = len(df_orders) - 1 - df_orders[::-1].index(2)
         if i1 < i2:
@@ -120,38 +118,44 @@ def fnf(*p, bch_order=6, **kwargs):
                 ek[k] = 1
                 assert abs(nterms_1[0][tuple(ek*2)] - tunes[k]) < tol
                 
-    # nterms_1 has been determined.
-                
+    # nterms_1 has been determined.  
     
     if 2 not in df_orders: # tunes required below
         raise NotImplementedError('No 2nd order terms found. Case currently not implemented.')
     
-    # 3) Perform higher-order normalization
+    # III) Perform higher-order normalization
+    #
+    # Compute the Taylor map 'nmap' of the first-order normalized map. 
+    # Instead of calling TPSA again for the new map M' = lexp(chi0) o M o lexp(-chi0), 
+    # we modify the original Taylor map,
+    # using the fact that the lexp-operators act on the coordinates by pullback. This will save calculation
+    # time. Note that we might have two 2nd-order polynomials chi0s[0] and chi0s[1] in this first step. Thus:
     xieta = create_coords(dim=len(tunes), **kwargs)
-    
     xietaf, xietaf2 = xieta, xieta
     for chi0 in chi0s:
         xietaf = lexp(chi0)(*xietaf, method='2flow')
     for chi0 in chi0s[::-1]:
         xietaf2 = lexp(-chi0)(*xietaf2, method='2flow')
-        
-    nmap = [ww(*[coord(*xietaf) for coord in p]) for ww in xietaf2] # the Taylor-map of the first-order normalized map 
+    nmap = [ww(*[coord(*xietaf) for coord in p]) for ww in xietaf2]
+    
+    # Loop over the requested order
     all_nterms = [nterms_1] # to collect the successive Dragt/Finn polynomials at each iteration step
     chi = chi0s # to collect the maps to normal form
     nterms_k = nterms_1 # Running D/F-factorization
     assert order == len(nterms_1)
     for k in range(1, order):
         fk = nterms_k[k]
-        ak = _rot_kernel(fk, tunes)
-        nterms_k = [lexp(-ak)(h.copy(), **kwargs) for h in nterms_k]
+        ak = _rot_kernel(fk, tunes)        
         chi.append(-ak)
+
+        nterms_k = [lexp(-ak)(h, **kwargs) for h in nterms_k]
+        all_nterms.append(nterms_k)
 
         xietaf = lexp(-ak)(*xieta, **kwargs)
         xietaf2 = lexp(ak)(*xieta, **kwargs)
         nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]
-        
-        nterms_k = dragtfinn(*[-h for h in nmap], **kwargs)
-        all_nterms.append(nterms_k)
+
+        nterms_k = dragtfinn(*nmap, **kwargs)
             
     out = {}
     out['dragtfinn'] = df
