@@ -21,7 +21,7 @@ def _rot_kernel(fk, mu):
         m2 = powers[dim:]
         z = sum([(m1[k] - m2[k])*mu[k] for k in range(dim)])*1j
         if z.real != 0 or (z.real == 0 and (z.imag/twopi)%1 != 0): # I.e. exp(z) != 1
-            a[powers] = value/(1 - np.exp(z))
+            a[powers] = value/(1 - np.exp(-z)) # for the -1 sign in front of z see my notes regarding Normal form (Lie_techniques.pdf)
     return poly(values=a, dim=dim, max_power=fk.max_power)
 
 def fnf(*p, bch_order=6, **kwargs):
@@ -118,7 +118,7 @@ def fnf(*p, bch_order=6, **kwargs):
                 ek[k] = 1
                 assert abs(nterms_1[0][tuple(ek*2)] - tunes[k]) < tol
                 
-    # nterms_1 has been determined.  
+    # nterms_1 has been determined.
     
     if 2 not in df_orders: # tunes required below
         raise NotImplementedError('No 2nd order terms found. Case currently not implemented.')
@@ -139,29 +139,54 @@ def fnf(*p, bch_order=6, **kwargs):
     nmap = [ww(*[coord(*xietaf) for coord in p]) for ww in xietaf2]
     
     # Loop over the requested order
+    all_nmaps = [nmap]
     all_nterms = [nterms_1] # to collect the successive Dragt/Finn polynomials at each iteration step
-    chi = chi0s # to collect the maps to normal form
-    nterms_k = nterms_1 # Running D/F-factorization
+    chi = [w.copy() for w in chi0s] # to collect the maps to normal form
+    nterms_k = nterms_1 # 'Running' D/F-factorization
     assert order == len(nterms_1)
-    for k in range(1, order):
+    for k in range(1, order + 1):
+        print (len(nterms_k))
+        for ee in nterms_k:
+            print (ee)
+            print ()
+        print ('--')
         fk = nterms_k[k]
-        ak = _rot_kernel(fk, tunes)        
-        chi.append(-ak)
+        ak = _rot_kernel(fk, tunes)
+        chi.append(ak)
 
-        nterms_k = [lexp(-ak)(h, **kwargs) for h in nterms_k]
+        # TMP
+        original_map = nterms_k
+        start = nmap
+
+        
+        nterms_k = [lexp(ak)(h, **kwargs) for h in nterms_k]
+
         all_nterms.append(nterms_k)
 
-        xietaf = lexp(-ak)(*xieta, **kwargs)
-        xietaf2 = lexp(ak)(*xieta, **kwargs)
+        xietaf = lexp(ak)(*xieta, **kwargs)
+        xietaf2 = lexp(-ak)(*xieta, **kwargs)
         nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]
+        
+        all_nmaps.append(nmap)
+        
+        # TMP
+        new_map = nterms_k
 
         nterms_k = dragtfinn(*nmap, **kwargs)
-            
+
+        #return original_map, new_map, nmap, nterms_k, ak, start
+        
+        #break
+
+        #nterms_k = [-h for h in nterms_k] # tmp
+
+        
     out = {}
     out['dragtfinn'] = df
     out['bnfdict'] = nfdict
     out['nterms'] = all_nterms
     out['chi'] = chi
+    out['nmaps'] = all_nmaps
     return out
         
     
