@@ -144,13 +144,18 @@ def fnf(*p, bch_order=6, **kwargs):
     chi = [w.copy() for w in chi0s] # to collect the maps to normal form
     nterms_k = nterms_1 # 'Running' D/F-factorization
     assert order == len(nterms_1)
-    for k in range(1, order + 1):
+    print (order)
+    for k in range(3, order + 1):
         print (len(nterms_k))
         for ee in nterms_k:
             print (ee)
             print ()
         print ('--')
-        fk = nterms_k[k]
+        
+        orders_k = [f.maxdeg() for f in nterms_k]
+        fk = nterms_k[orders_k.index(k)]
+        
+        #fk = nterms_k[k]
         ak = _rot_kernel(fk, tunes)
         chi.append(ak)
 
