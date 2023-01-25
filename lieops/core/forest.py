@@ -118,8 +118,8 @@ def fnf(*p, bch_order=6, **kwargs):
                 ek[k] = 1
                 assert abs(nterms_1[0][tuple(ek*2)] - tunes[k]) < tol
                 
-    # nterms_1 has been determined.
-    
+    # nterms_1 has been determined. It is a list consisting of a normalized
+    # first-order element + some higher-order non-normalized elements; no degree 1 terms at the moment:    
     if 2 not in df_orders: # tunes required below
         raise NotImplementedError('No 2nd order terms found. Case currently not implemented.')
     
@@ -143,48 +143,26 @@ def fnf(*p, bch_order=6, **kwargs):
     all_nterms = [nterms_1] # to collect the successive Dragt/Finn polynomials at each iteration step
     chi = [w.copy() for w in chi0s] # to collect the maps to normal form
     nterms_k = nterms_1 # 'Running' D/F-factorization
-    assert order == len(nterms_1)
-    print (order)
-    for k in range(3, order + 1):
-        print (len(nterms_k))
-        for ee in nterms_k:
-            print (ee)
-            print ()
-        print ('--')
+    for k in range(3, order + 2):
         
+        # find the term of order k in the current Dragt/Finn factorization
         orders_k = [f.maxdeg() for f in nterms_k]
-        fk = nterms_k[orders_k.index(k)]
+        if k in orders_k:
+            fk = nterms_k[orders_k.index(k)]
+        else:
+            # Then fk = 0, so ak = 0 as well and we just continue (lexp(ak) = 1).
+            continue
         
-        #fk = nterms_k[k]
         ak = _rot_kernel(fk, tunes)
         chi.append(ak)
 
-        # TMP
-        original_map = nterms_k
-        start = nmap
-
-        
-        nterms_k = [lexp(ak)(h, **kwargs) for h in nterms_k]
-
-        all_nterms.append(nterms_k)
-
         xietaf = lexp(ak)(*xieta, **kwargs)
         xietaf2 = lexp(-ak)(*xieta, **kwargs)
-        nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]
-        
+        nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]        
         all_nmaps.append(nmap)
-        
-        # TMP
-        new_map = nterms_k
 
         nterms_k = dragtfinn(*nmap, **kwargs)
-
-        #return original_map, new_map, nmap, nterms_k, ak, start
-        
-        #break
-
-        #nterms_k = [-h for h in nterms_k] # tmp
-
+        all_nterms.append(nterms_k)
         
     out = {}
     out['dragtfinn'] = df
