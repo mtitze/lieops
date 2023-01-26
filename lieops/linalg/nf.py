@@ -2,6 +2,7 @@
 # specific normal form -- or to decompose the matrix into a product of other matrices with various properties.
 
 import mpmath as mp
+import numpy as np
 import warnings
 from sympy import Matrix as sympy_matrix
 from scipy.linalg import polar, logm
@@ -86,6 +87,12 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
         
     check: boolean, optional
         Perform a consistency check whether H2@J is diagonalizable, using sympy.
+        
+    tol_logm: float, optional
+        A tolerance to determine whether one or two exponentials are required for the map to normal form.
+        Attention: A value of zero will result in two exponentials, which might not always be desired.
+        For this reason the tolerance is set to a small value by default and a warning will be issued if
+        two exponents have been found instead of one.
              
     Returns
     -------
@@ -113,7 +120,10 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
         S1, S2 : Elements of sp(2n; C) (the Lie-algebra of complex symplectic matrices) satisfying
                  A = exp(S1)@exp(S2). These matrices can be used to obtain respective polynomial representations
                  of the Lie-operator, mapping the given Hamiltonian H into its "first-order" normal form N (see
-                 also the commment above). *Currently only returned for numpy input*
+                 also the commment above). Note that if S1 or S2 does not exist, this means that the respective element is zero, so the element A can be repesented as a single exponential. The tolerance which
+                 determines this behavior can be controlled with the tol_logm parameter. So if that parameter
+                 is set to zero, there will always be returned two elements.
+                 *Currently only returned for numpy input*
     ''' 
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
@@ -209,12 +219,22 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
     
     # Furthermore, compute the map A transforming the Hamiltonian (given in (xi, eta)-coordinates), 
     # whose Hessian corresponds to H2 above, into its first-order normal form.
-    # For details see my notes (TODO: reference)
+    # For details see my notes (On_Sp2n.pdf)
     if code != 'mpmath':
         out['A'] = U@Sinv@Uinv
-        B1, B2 = symlogs(Sinv, tol2=kwargs.get('symlogs_tol2', 0))
+        tol_logm = kwargs.get('tol_logm', 1e-14)
+        try:
+            B1 = logm(Sinv) # exist always, since Sinv is invertible
+            # But: B1 must be in the Lie-algebra sp(2n; C). This is not always guaranteed, so we have to check it here:
+            zero = J@B1.transpose() + B1@J
+            assert (all([abs(zero[i, j]) < tol_logm for i in range(dim) for j in range(dim)]))
+        except:
+            # Sinv can only be represented by two exponentials
+            B1, B2 = symlogs(Sinv, tol2=kwargs.get('symlogs_tol2', 0))
+            warnings.warn(f'Matrix appears to require two exponentials for representation (tol_logm: {tol_logm})')
+            out['C2'] = U@B2@Uinv
         out['C1'] = U@B1@Uinv
-        out['C2'] = U@B2@Uinv # so that A = exp(C1)@exp(C2)
+        # so that A = exp(C1)@exp(C2)
         # Note that due to the nature of the matrix U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
     return out
 

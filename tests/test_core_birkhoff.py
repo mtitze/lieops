@@ -166,7 +166,7 @@ def test_bnf(dim, power, check, tol=1e-14, tol2=1e-4, symlogs_tol2=1e-12):
     r1 = create_random_poly(dim, power, max_power=10)
     H1 = r1.extract(key_cond=lambda k: sum(k) > 1) # drop constants and gradients
 
-    bnfdict1 = H1.bnf(order=power - 1, symlogs_tol2=symlogs_tol2, check=check)
+    bnfdict1 = H1.bnf(order=power - 1, symlogs_tol2=symlogs_tol2, check=check, tol_logm=0)
     A = bnfdict1['nfdict']['A']
     C1, C2 = bnfdict1['nfdict']['C1'], bnfdict1['nfdict']['C2']
     assert (np.abs(A - expm(C1)@expm(C2)) < tol).all()

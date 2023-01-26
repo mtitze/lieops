@@ -25,7 +25,7 @@ def _rot_kernel(fk, mu):
             a[powers] = value/(1 - np.exp(-z)) # for the -1 sign in front of z see my notes regarding Normal form (Lie_techniques.pdf)
     return poly(values=a, dim=dim, max_power=fk.max_power)
 
-def fnf(*p, bch_order=6, mode='quick', **kwargs):
+def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
     '''
     Obtain maps to Normal form for a given chain of Lie-operators. The concept
     is outlined in Sec. 4.4 in Ref. [1].
@@ -72,18 +72,17 @@ def fnf(*p, bch_order=6, mode='quick', **kwargs):
 
     Reference(s)
     ------------
-    [1] E. Forest: "Beam Dynamics - A New Attitude and Framework" (1998).
+    [1] E. Forest: "Beam Dynamics - A New Attitude and Framework", harwood academic publishers (1998).
     '''
     # 0) Progress user input
     tol = kwargs.get('tol', 0)
-    order = kwargs.setdefault('order', 1)
     disable_tqdm = kwargs.get('disable_tqdm', False) # show progress bar (if requested) in the loop below
     kwargs['disable_tqdm'] = True # never show progress bars within the loop(s) itself
     
     # I) Compute the Dragt/Finn factorization up to a specific order
     kwargs['pos2'] = 'left'
     kwargs['comb2'] = True
-    df = dragtfinn(*p, **kwargs)
+    df = dragtfinn(*p, order=order, **kwargs)
 
     # II) First-order normalization (if applicable)
     nterms_1 = [f for f in df if f.maxdeg() > 1]
@@ -112,7 +111,7 @@ def fnf(*p, bch_order=6, mode='quick', **kwargs):
         nl_part = nterms_1[i2 + 1:]
 
         # First-order step:
-        nfdict = C.bnf(order=1)
+        nfdict = C.bnf(order=1, **kwargs)
         tunes = nfdict['mu']
         chi0s = nfdict['chi0']
 
@@ -178,7 +177,7 @@ def fnf(*p, bch_order=6, mode='quick', **kwargs):
             
         all_nmaps.append(nmap)
 
-        nterms_k = dragtfinn(*nmap, **kwargs)
+        nterms_k = dragtfinn(*nmap, order=order, **kwargs)
         all_nterms.append(nterms_k)
         
     out = {}

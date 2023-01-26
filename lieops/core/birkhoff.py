@@ -202,10 +202,12 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     out['lo_power'] = lo_power
     out['max_power'] = max_power
     
-    if 'C1' in nfdict.keys() and 'C2' in nfdict.keys():
-        # In this case we can also compute the polynomials which provide the transformation to first-order normal form:
-        C1, C2 = nfdict['C1'], nfdict['C2']
-        Cp1, Cp2 = ad2poly(C1.transpose()), ad2poly(C2.transpose())
-        out['chi0'] = [Cp1, Cp2]
+    out['chi0'] = []
+    for clabel in ['C1', 'C2']:
+        if clabel in nfdict.keys():
+            # In this case we can also compute the polynomials which provide the transformation to first-order normal form:
+            C = nfdict[clabel]
+            Cp = ad2poly(C.transpose()) # transposition required (see e.g. Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book)
+            out['chi0'].append(Cp)
         
     return out
