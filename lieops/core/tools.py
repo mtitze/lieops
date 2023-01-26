@@ -1,6 +1,8 @@
 # collection of specialized tools operating on polynomials
 
 import numpy as np
+from njet import derive
+
 import lieops.core.lie
 from lieops.linalg.matrix import create_J
 
@@ -286,3 +288,47 @@ def action_on_poly(*mu, C, func=lambda z: z):
     assert len(mu) == C.dim
     return lieops.core.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
                 dim=C.dim, max_power=C.max_power)
+
+def tpsa(*ops, position=[], order: int, **kwargs):
+    '''
+    Pass n-jets through the flow functions of a chain of Lie-operators.
+
+    Parameters
+    ----------
+    *ops: lieoperator(s)
+        An operator or a list of operators which should be derived. In case a list
+        is given, the first element of the list will be called first.
+    
+    position: list
+        An optional point of reference. By default the position will be the origin.
+
+    order: int
+        The number of derivatives we want to take into account.
+
+    **kwargs
+        Optional keyworded arguments passed to njet.derive class (and therefore the underlying
+        operators of this beamline).
+    '''
+    assert len(ops) > 0, 'No operator provided.'
+    dim = ops[0].argument.dim
+    assert all([op.argument.dim == dim for op in ops]), 'Not all operator dimensions are equal.'
+    n_args = dim*2
+    
+    def chain(*z, **kwargs1):
+        for op in ops:
+            z = op(*z, **kwargs1)
+        return z
+    
+    dchain = derive(chain, n_args=n_args, order=order)
+    if len(position) == 0:
+        position = (0,)*n_args
+    expansion = dchain(*position, mult_prm=True, mult_drv=False, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
+    max_power = max([e.argument.max_power for e in ops])
+    taylor_map = [lieops.core.lie.poly(values=e, dim=dim, max_power=max_power) for e in expansion]
+        
+    out = {}
+    out['DA'] = dchain # chain = dchain.func
+    out['input'] = kwargs.copy()
+    out['position'] = position
+    out['taylor_map'] = taylor_map
+    return out

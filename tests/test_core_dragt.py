@@ -46,15 +46,16 @@ def test_dragtfinn_1d(q0, p0, offset1, offset2, tol1, tol2, tol3, order, **kwarg
     op.calcFlow(method='channell', scheme=yoshida_scheme, **kwargs) # it is imperative to use a symplectic integrator at this point, otherwise dragtfinn will cause errors in its checks.
     reference = op(xi0, eta0)
     
-    xietaf, dtest = op.tpsa(offset1, offset2, order=order)
-    reference2 = [xe(xi0 - offset1, eta0 - offset2) for xe in xietaf]
+    tpsa_op = op.tpsa(offset1, offset2, order=order)
+    taylor_map = tpsa_op['taylor_map']
+    reference2 = [xe(xi0 - offset1, eta0 - offset2) for xe in taylor_map]
     
     # Confirm that the determined Taylor expansion gives the same results at the requested
     # offset point than the flow function:
     assert all([abs(reference[k] - reference2[k]) < tol1 for k in range(2)])
     
     # Compute the f_k's which will provide a Dragt-Finn factorization
-    fk = dragtfinn(*xietaf, offset=[offset1, offset2], tol_checks=tol2, order=order, power=20, warn=False) # instead of 'power=20', op._flow_parameters would work as well, but may take longer
+    fk = dragtfinn(*taylor_map, offset=[offset1, offset2], tol_checks=tol2, order=order, power=20, warn=False) # instead of 'power=20', op._flow_parameters would work as well, but may take longer
     
     # Check if the approximation is sufficiently close to the original values:
     run = [xi0 - offset1, eta0 - offset2]
@@ -112,13 +113,14 @@ def test_dragtfinn_2d(hamiltonian, xieta0, offset, tol1, tol_right, tol_left, to
     dim2 = len(xieta0)
     hf = hamiltonian.calcFlow(method='channell', n_slices=kwargs.get('n_slices', 10)) # use a symplectic integrator at this step
     ref1 = hf(*xieta0)
-    xietahf, dhf = hf.tpsa(*offset, order=order)
-    ref2 = [xe(*[xieta0[k] - offset[k] for k in range(dim2)]) for xe in xietahf]
+    tpsa_hf = hf.tpsa(*offset, order=order)
+    taylor_map = tpsa_hf['taylor_map']
+    ref2 = [xe(*[xieta0[k] - offset[k] for k in range(dim2)]) for xe in taylor_map]
 
     assert all([abs(ref1[k] - ref2[k]) < tol1 for k in range(dim2)]) # consistency check that the Taylor map and the Hamiltonian flow agree
     
-    df_right = dragtfinn(*xietahf, power=kwargs.get('power', 40), offset=offset, pos2='right', warn=False, tol_checks=tol_checks) 
-    df_left = dragtfinn(*xietahf, power=kwargs.get('power', 40), offset=offset, pos2='left', warn=False, tol_checks=tol_checks)
+    df_right = dragtfinn(*taylor_map, power=kwargs.get('power', 40), offset=offset, pos2='right', warn=False, tol_checks=tol_checks) 
+    df_left = dragtfinn(*taylor_map, power=kwargs.get('power', 40), offset=offset, pos2='left', warn=False, tol_checks=tol_checks)
         
     point_right = [xieta0[k] - offset[k] for k in range(dim2)]
     for op in df_right:

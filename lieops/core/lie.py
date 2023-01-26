@@ -17,8 +17,6 @@ from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 import lieops.core.tools
 import lieops.core.birkhoff
 
-from njet import derive
-
 class poly(_poly):
     
     def lexp(self, *args, **kwargs):
@@ -377,6 +375,7 @@ class lieoperator:
             The number of derivatives we want to take into account.
         '''
         assert hasattr(self, 'flow'), 'Flow has to be computed first.'
+        # 1. Find the order
         if 'order' in kwargs.keys():
             order = kwargs['order']
         elif self.argument.maxdeg() <= 2:
@@ -384,13 +383,10 @@ class lieoperator:
         else:
             assert self.argument.max_power < np.inf, f'No order set. In this case max_power of {self.__class__.__name__}.argument can not be infinite.'
             order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.core.poly._poly concerning max_power
-        n_args = self.argument.dim*2
-        dflow = derive(self.flow, n_args=n_args, order=order)
-        if len(position) == 0: 
-            position = (0,)*n_args
-        expansion = dflow(*position, mult_prm=True, mult_drv=False) # N.B. the plain jet output is stored in dflow._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
-        taylor_map = [poly(values=e, dim=self.argument.dim, max_power=self.argument.max_power) for e in expansion]
-        return taylor_map, dflow
+        kwargs['order'] = order
+        
+        # 2. Run TPSA
+        return lieops.core.tools.tpsa(self, position=position, **kwargs)
 
     
 class lexp(lieoperator):
@@ -628,9 +624,10 @@ class lexp(lieoperator):
                 xietaf = flow_out['xietaf']
             elif 'flow' in flow_out.keys():
                 # compute the final xi/eta-coordinates from the bare flow function, using TPSA
-                xietaf, dflow = self.tpsa(**kwargs)
+                tpsa_out = self.tpsa(**kwargs)
+                xietaf = tpsa_out['taylor_map'] # TODO: check if components = xieta (otherwise xietaf is misleading description).
                 flow_out['xietaf'] = xietaf
-                flow_out['dflow'] = dflow
+                flow_out['dflow'] = tpsa_out['DA']
                 self._flow[method].update(flow_out)
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
@@ -649,7 +646,7 @@ class lexp(lieoperator):
         
     def tpsa(self, *args, **kwargs):
         '''
-        See lieops.core.lie.lieoperator.tpsa for a description.
+        See lieops.core.tools.tpsa for a description.
         
         Parameters
         ----------        
@@ -657,10 +654,10 @@ class lexp(lieoperator):
             If > 0, perform a check on symplecticity of the map.
         '''
         tol = kwargs.get('tol', 0)
-        taylor_map, dflow = lieoperator.tpsa(self, *args, **kwargs)
+        tpsa_out = lieoperator.tpsa(self, *args, **kwargs)
         if tol > 0: # check if map is symplectic
-            R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in taylor_map])
+            R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in tpsa_out['taylor_map']])
             check, message = symplecticity(R, tol=tol)
-        return taylor_map, dflow
+        return tpsa_out
 
 

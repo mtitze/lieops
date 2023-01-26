@@ -24,7 +24,7 @@ def _rot_kernel(fk, mu):
             a[powers] = value/(1 - np.exp(-z)) # for the -1 sign in front of z see my notes regarding Normal form (Lie_techniques.pdf)
     return poly(values=a, dim=dim, max_power=fk.max_power)
 
-def fnf(*p, bch_order=6, **kwargs):
+def fnf(*p, bch_order=6, mode='quick', **kwargs):
     '''
     Obtain maps to Normal form for a given chain of Lie-operators. The concept
     is outlined in Sec. 4.4 in Ref. [1].
@@ -51,12 +51,18 @@ def fnf(*p, bch_order=6, **kwargs):
         symplectic map (for example, the result of a TPSA calculation through a 
         chain of Lie-operators).
         
-    nf_order: int, optional
+    order: int, optional
         The order of the normalization proceduere.
         
     tol: float, optional
         A small number to identify polynomials which should be zero. Required in dragtfinn to
         identify if the two 2nd order polynomials can be combined.
+        
+    mode: str, optional
+        Control the way of how the successive Taylor maps are computed:
+        'quick': The Taylor map of the next step (for the map M' = exp(:ak:) M exp(-:ak:)) is computed
+                 from the previous Taylor map by pull-back using the maps exp(:ak:) and exp(-:ak:)
+        'tpsa': The Taylor map of the next step is computed by using TPSA on M'.
         
     bch_order: int, optional
         If the given Taylor map requires two non-trivial Lie-polynomials, then attempt
@@ -143,7 +149,7 @@ def fnf(*p, bch_order=6, **kwargs):
     all_nterms = [nterms_1] # to collect the successive Dragt/Finn polynomials at each iteration step
     chi = [w.copy() for w in chi0s] # to collect the maps to normal form
     nterms_k = nterms_1 # 'Running' D/F-factorization
-    for k in range(3, order + 2):
+    for k in range(3, order + 2): # k will run up and including order + 1, because 'dragtfinn' for a specific order refers to the order of the Taylor map, and therefore produces a chain of Hamiltonians up and including order + 1.
         
         # find the term of order k in the current Dragt/Finn factorization
         orders_k = [f.maxdeg() for f in nterms_k]
@@ -156,9 +162,14 @@ def fnf(*p, bch_order=6, **kwargs):
         ak = _rot_kernel(fk, tunes)
         chi.append(ak)
 
-        xietaf = lexp(ak)(*xieta, **kwargs)
-        xietaf2 = lexp(-ak)(*xieta, **kwargs)
-        nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]        
+        if mode == 'quick':
+            xietaf = lexp(ak)(*xieta, **kwargs)
+            xietaf2 = lexp(-ak)(*xieta, **kwargs)
+            nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]
+        elif mode == 'tpsa':
+            operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k]
+            
+            
         all_nmaps.append(nmap)
 
         nterms_k = dragtfinn(*nmap, **kwargs)
