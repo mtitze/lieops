@@ -44,7 +44,7 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
     will be normalized. The chain f1, ... fM, h1 will be returned as well, so the user
     may handle the first-order polynomials, which represent the initial offset and final position
     of the point around which the normal form is considered.
-
+    
     Parameters
     ----------
     p: list
@@ -62,7 +62,9 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
     mode: str, optional
         Control the way of how the successive Taylor maps are computed:
         'quick': The Taylor map of the next step (for the map M' = exp(:ak:) M exp(-:ak:)) is computed
-                 from the previous Taylor map by pull-back using the maps exp(:ak:) and exp(-:ak:)
+                 from the previous Taylor map by pull-back using the maps exp(:ak:) and exp(-:ak:).
+                 Note that if first-order elements in the Dragt/Finn factorization are detected,
+                 one TPSA calculation will be done for this interior part.
         'tpsa': The Taylor map of the next step is computed by using TPSA on M'.
         
     bch_order: int, optional
@@ -84,53 +86,65 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
     kwargs['comb2'] = True
     df = dragtfinn(*p, order=order, **kwargs)
 
-    # II) First-order normalization (if applicable)
     nterms_1 = [f for f in df if f.maxdeg() > 1]
     df_orders = [f.maxdeg() for f in nterms_1]
-    if 2 in df_orders:
-        # Find the parts in the factorization which belong to 2nd and higher-order; try to combine
-        # the two 2nd order polynomials using the BCH equation.
-        # TODO (later): Do not rely on the BCH Theorem, but instead determine the kernel of R - 1 (Eq. (4.34) in Ref. [1]).
-        i1 = df_orders.index(2)
-        i2 = len(df_orders) - 1 - df_orders[::-1].index(2)
-        if i1 < i2:
-            # then we shall apply the BCH theorem
-            A1 = nterms_1[i1]
-            A2 = nterms_1[i2]
-            assert A1.dim == A2.dim
-            dim = A1.dim
-            if dim == 1: # Here we can use an exact equation
-                C = ad2poly(bch_2x2(poly2ad(A1), poly2ad(A2), tol=tol), max_power=max([A1.max_power, A2.max_power]))
-            else: # No exact equation for dim > 1 known to my knowledge
-                warnings.warn(f"Two 2nd-order polynomials have been found and dim = {dim} (tol: {tol}). Attempting BCH with order {bch_order}.")            
-                bchd = bch(A1, A2, order=bch_order)
-                C = sum(bchd.values())
-        else:
-            C = nterms_1[i1]
-            
-        nl_part = nterms_1[i2 + 1:]
+    
+    # R^(-1) != 1, otherwise the normal form will be identical to the input
+    if 2 not in df_orders:
+        warnings.warn('No 2nd-order terms found => Normal form identical to input.')
+        return {'dragtfinn': df, 'nterms': [nterms_1], 'chi': [], 'nmaps': [p]}
+    
+    # If first-order elements in the Dragt/Finn factorization have been found, and the mode was 'quick',
+    # then we need to re-calculate the tpsa map p for this inner part (& raise a warning):
+    if len(nterms_1) < len(df):
+        warnings.warn('Non-zero kicks detected. Will normalize only the interior.')
+        if mode == 'quick':
+            warnings.warn("mode == 'quick' with non-zero kicks. Performing TPSA for the interior ...")
+            tpsa_out = tpsa(*[lexp(a) for a in nterms_1], order=order, **kwargs)
+            p = tpsa_out['taylor_map']
 
-        # First-order step:
-        nfdict = C.bnf(order=1, **kwargs)
-        tunes = nfdict['mu']
-        chi0s = nfdict['chi0']
+    # II) First-order normalization (if applicable)
+    # Find the parts in the factorization which belong to 2nd and higher-order; try to combine
+    # the two 2nd order polynomials using the BCH equation.
+    # TODO (later): Do not rely on the BCH Theorem, but instead determine the kernel of R - 1 (Eq. (4.34) in Ref. [1]).
+    i1 = df_orders.index(2)
+    i2 = len(df_orders) - 1 - df_orders[::-1].index(2)
+    if i1 < i2:
+        # then we shall apply the BCH theorem
+        A1 = nterms_1[i1]
+        A2 = nterms_1[i2]
+        assert A1.dim == A2.dim
+        dim = A1.dim
+        if dim == 1: # Here we can use an exact equation
+            C = ad2poly(bch_2x2(poly2ad(A1), poly2ad(A2), tol=tol), max_power=max([A1.max_power, A2.max_power]))
+        else: # No exact equation for dim > 1 known to my knowledge
+            warnings.warn(f"Two 2nd-order polynomials have been found and dim = {dim} (tol: {tol}). Attempting BCH with order {bch_order}.")            
+            bchd = bch(A1, A2, order=bch_order)
+            C = sum(bchd.values())
+    else:
+        C = nterms_1[i1]
 
-        nterms_1 = [C.copy()] + [f.copy() for f in nl_part]    
-        for chi0 in chi0s: # (chi0s may be of length 0, 1 or 2)
-            nterms_1 = [lexp(chi0)(h, method='2flow') for h in nterms_1]
+    nl_part = nterms_1[i2 + 1:]
 
-        if kwargs.get('tol_checks', 0) > 0:
-            dim = len(tunes)
-            dim2 = dim*2
-            for k in range(dim):
-                ek = [0]*dim
-                ek[k] = 1
-                assert abs(nterms_1[0][tuple(ek*2)] - tunes[k]) < tol
+    # First-order step:
+    nfdict = C.bnf(order=1, **kwargs)
+    tunes = nfdict['mu']
+    chi0s = nfdict['chi0']
+
+    nterms_1 = [C.copy()] + [f.copy() for f in nl_part]    
+    for chi0 in chi0s: # (chi0s may be of length 0, 1 or 2)
+        nterms_1 = [lexp(chi0)(h, method='2flow') for h in nterms_1]
+
+    if kwargs.get('tol_checks', 0) > 0:
+        dim = len(tunes)
+        dim2 = dim*2
+        for k in range(dim):
+            ek = [0]*dim
+            ek[k] = 1
+            assert abs(nterms_1[0][tuple(ek*2)] - tunes[k]) < tol
                 
     # nterms_1 has been determined. It is a list consisting of a normalized
-    # first-order element + some higher-order non-normalized elements; no degree 1 terms at the moment:    
-    if 2 not in df_orders: # tunes required below
-        raise NotImplementedError('No 2nd order terms found. Case currently not implemented.')
+    # first-order element + some higher-order non-normalized elements
     
     # III) Perform higher-order normalization
     #
@@ -172,7 +186,7 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
         elif mode == 'tpsa':
             # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
             operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors           
-            tpsa_out = tpsa(*operators, **kwargs)
+            tpsa_out = tpsa(*operators, order=order, **kwargs)
             nmap = tpsa_out['taylor_map']
             
         all_nmaps.append(nmap)

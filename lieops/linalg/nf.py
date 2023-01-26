@@ -2,7 +2,6 @@
 # specific normal form -- or to decompose the matrix into a product of other matrices with various properties.
 
 import mpmath as mp
-import numpy as np
 import warnings
 from sympy import Matrix as sympy_matrix
 from scipy.linalg import polar, logm
