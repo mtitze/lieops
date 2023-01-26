@@ -1,5 +1,6 @@
 import warnings
 import numpy as np
+from tqdm import tqdm
 
 from lieops.core import lexp, create_coords, poly
 from lieops.core.tools import ad2poly, poly2ad, tpsa
@@ -73,8 +74,11 @@ def fnf(*p, bch_order=6, mode='quick', **kwargs):
     ------------
     [1] E. Forest: "Beam Dynamics - A New Attitude and Framework" (1998).
     '''
+    # 0) Progress user input
     tol = kwargs.get('tol', 0)
     order = kwargs.setdefault('order', 1)
+    disable_tqdm = kwargs.get('disable_tqdm', False) # show progress bar (if requested) in the loop below
+    kwargs['disable_tqdm'] = True # never show progress bars within the loop(s) itself
     
     # I) Compute the Dragt/Finn factorization up to a specific order
     kwargs['pos2'] = 'left'
@@ -149,7 +153,7 @@ def fnf(*p, bch_order=6, mode='quick', **kwargs):
     all_nterms = [nterms_1] # to collect the successive Dragt/Finn polynomials at each iteration step
     chi = [w.copy() for w in chi0s] # to collect the maps to normal form
     nterms_k = nterms_1 # 'Running' D/F-factorization
-    for k in range(3, order + 2): # k will run up and including order + 1, because 'dragtfinn' for a specific order refers to the order of the Taylor map, and therefore produces a chain of Hamiltonians up and including order + 1.
+    for k in tqdm(range(3, order + 2), disable=disable_tqdm): # k will run up and including order + 1, because 'dragtfinn' for a specific order refers to the order of the Taylor map, and therefore produces a chain of Hamiltonians up and including order + 1.
         
         # find the term of order k in the current Dragt/Finn factorization
         orders_k = [f.maxdeg() for f in nterms_k]
