@@ -31,19 +31,18 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
     is outlined in Sec. 4.4 in Ref. [1].
     
     Attention:
-    Currently any first-order Lie-polynomials in the resulting Dragt/Finn expansion will be ignored.
+    First-order Lie-polynomials in the resulting Dragt/Finn expansion will be dropped.
     This means that if the given Taylor map represents an expansion of the symplectic map
     
     M = exp(:f1:) o exp(:f2:) o ... o exp(:fM:) o exp(:h1:) ,
     
-    then we will return a chain of polynomials gk so that the
-    part
+    then the routine will normalize the chain of Lie operators
     
     exp(:f2:) o ... o exp(:fM:)
     
-    will be normalized. The chain f1, ... fM, h1 will be returned as well, so the user
-    may handle the first-order polynomials, which represent the initial offset and final position
-    of the point around which the normal form is considered.
+    The chain f1, ... fM, h1 will be returned as well, so the user may handle the 
+    first-order polynomials externally. The interior represent a normalized version
+    with respect to the initial and final position.
     
     Parameters
     ----------
