@@ -8,7 +8,7 @@ from lieops.core.tools import poly2ad, ad2poly
 
 from lieops.core import create_coords
 
-def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
+def reshuffle2d(*hamiltonians, keys, exact=False, **kwargs):
     '''
     Rearrange the terms in a sequence of Hamiltonians according to Hadamard's theorem:
 
@@ -107,7 +107,7 @@ def hadamard2d(*hamiltonians, keys, exact=False, **kwargs):
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
     return new_hamiltonians, [ad2poly(current_g1_operator, max_power=max_power)], [ad2poly(op, max_power=max_power) for op in g1_operators]
 
-def chain(*hamiltonians, condition: lambda h: False, **kwargs):
+def reshuffle(*hamiltonians, condition: lambda h: False, **kwargs):
     '''
     Rearrange the terms in a sequence of Hamiltonians according to Hadamard's theorem:
 

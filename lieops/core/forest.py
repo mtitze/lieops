@@ -171,7 +171,8 @@ def fnf(*p, bch_order=6, mode='quick', **kwargs):
             xietaf2 = lexp(-ak)(*xieta, **kwargs)
             nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]
         elif mode == 'tpsa':
-            operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but some checks indicated that this may increase numerical errors
+            # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
+            operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors           
             tpsa_out = tpsa(*operators, **kwargs)
             nmap = tpsa_out['taylor_map']
             
