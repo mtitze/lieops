@@ -1,7 +1,7 @@
 # collection of specialized tools operating on polynomials
 
 import numpy as np
-from njet import derive
+from njet import derive, get_taylor_coefficients
 
 import lieops.core.lie
 from lieops.linalg.matrix import create_J
@@ -289,6 +289,26 @@ def action_on_poly(*mu, C, func=lambda z: z):
     return lieops.core.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
                 dim=C.dim, max_power=C.max_power)
 
+def get_taylor_map(*evaluation, **kwargs):
+    '''
+    Obtain the Taylor map from a given jet evaluation in terms of lieops.core.lie.poly objects.
+    
+    Parameters
+    ----------
+    dim: int, optional
+        The dimension of the domain of the evaluation. This is required
+        to construct the 0-tuples for the constants.
+        Attention: 
+        If this parameter is not provided, 'dim' will be estimated by the
+        number of input evaluations.
+        
+    **kwargs
+        Parameters passed to lieops.core.lie.poly.
+    '''
+    n_args = kwargs.get('dim', len(evaluation))*2
+    tc = get_taylor_coefficients(*evaluation, mult_prm=True, mult_drv=False, n_args=n_args)
+    return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
+
 def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators.
@@ -333,8 +353,6 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     
     if taylor_map:
         max_power = max([e.argument.max_power for e in ops])
-        tc = dchain.get_taylor_coefficients(mult_prm=True, mult_drv=False, **kwargs) 
-        taylor_map = [lieops.core.lie.poly(values=e, dim=dim, max_power=max_power) for e in tc]
-        out['taylor_map'] = taylor_map
+        out['taylor_map'] = get_taylor_map(*dchain._evaluation, dim=dim, max_power=max_power)
         
     return out
