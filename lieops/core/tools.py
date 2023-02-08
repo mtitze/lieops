@@ -102,7 +102,7 @@ def ad2poly(A, tol=0, poisson_factor=-1j, **kwargs):
             if tol > 0:
                 # Check if the given matrix is an element of sp(2n; C). If this check fails,
                 # no valid polynomial representation can be obtained.
-                error_msg = f'{A}\nThe given matrix does not appear to be an adjoint representation of a polynomial, using a check with tolerance {tol} '
+                error_msg = f'{A}\nMatrix not in sp(2n; C), the Lie-algebra of complex symplectic matrices (tol: {tol}).'
                 c1 = abs(A[i, j] + A[j + dim, i + dim])
                 c2 = abs(A[i, j + dim] - A[j, i + dim])
                 c3 = abs(A[i + dim, j] - A[j + dim, i])

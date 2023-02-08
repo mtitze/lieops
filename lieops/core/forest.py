@@ -4,8 +4,6 @@ from tqdm import tqdm
 
 from lieops.core import lexp, create_coords, poly
 from lieops.core.tools import ad2poly, poly2ad, tpsa
-from lieops.core.combine import bch
-from lieops.linalg.bch import bch_2x2
 from lieops.core.dragt import dragtfinn
 
 twopi = float(np.pi*2)
@@ -22,10 +20,11 @@ def _rot_kernel(fk, mu):
         m2 = powers[dim:]
         z = sum([(m1[k] - m2[k])*mu[k] for k in range(dim)])*1j
         if z.real != 0 or (z.real == 0 and (z.imag/twopi)%1 != 0): # I.e. exp(z) != 1
-            a[powers] = value/(1 - np.exp(-z)) # for the -1 sign in front of z see my notes regarding Normal form (Lie_techniques.pdf)
+            a[powers] = value/(1 - np.exp(-z)) # for the -1 sign in front of z see my notes regarding Normal form (Lie_techniques.pdf); this -1 is due to the fact that R^(-1) must be considered.
     return poly(values=a, dim=dim, max_power=fk.max_power)
 
-def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
+    
+def fnf(*p, order: int=1, mode='quick', **kwargs):
     '''
     Obtain maps to Normal form for a given chain of Lie-operators. The concept
     is outlined in Sec. 4.4 in Ref. [1].
@@ -66,21 +65,18 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
                  one TPSA calculation will be done for this interior part.
         'tpsa': The Taylor map of the next step is computed by using TPSA on M'.
         
-    bch_order: int, optional
-        If the given Taylor map requires two non-trivial Lie-polynomials, then attempt
-        to combine them together using the Baker-Campbell-Hausdorff equation up
-        to 'bch_order'. In this case a warning will be issued.
-
     Reference(s)
     ------------
     [1] E. Forest: "Beam Dynamics - A New Attitude and Framework", harwood academic publishers (1998).
     '''
-    # 0) Progress user input
+    #####################
+    # Progress user input
+    #####################
     tol = kwargs.get('tol', 0)
     disable_tqdm = kwargs.get('disable_tqdm', False) # show progress bar (if requested) in the loop below
     kwargs['disable_tqdm'] = True # never show progress bars within the loop(s) itself
     
-    # I) Compute the Dragt/Finn factorization up to a specific order
+    # Compute the Dragt/Finn factorization up to a specific order
     kwargs['pos2'] = 'left'
     kwargs['comb2'] = True
     df = dragtfinn(*p, order=order, **kwargs)
@@ -94,7 +90,7 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
         return {'dragtfinn': df, 'nterms': [nterms_1], 'chi': [], 'nmaps': [p]}
     
     # If first-order elements in the Dragt/Finn factorization have been found, and the mode was 'quick',
-    # then we need to re-calculate the tpsa map p for this inner part (& raise a warning):
+    # then we will re-calculate the tpsa map p for this inner part (& raise a warning):
     if len(nterms_1) < len(df):
         warnings.warn('Non-zero kicks detected. Will normalize only the interior.')
         if mode == 'quick':
@@ -102,51 +98,37 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
             tpsa_out = tpsa(*[lexp(a) for a in nterms_1], order=order, **kwargs)
             p = tpsa_out['taylor_map']
 
-    # II) First-order normalization (if applicable)
-    # Find the parts in the factorization which belong to 2nd and higher-order; try to combine
-    # the two 2nd order polynomials using the BCH equation.
-    # TODO (later): Do not rely on the BCH Theorem, but instead determine the kernel of R - 1 (Eq. (4.34) in Ref. [1]).
+    ###############################
+    # II) First-order normalization
+    ###############################
     i1 = df_orders.index(2)
     i2 = len(df_orders) - 1 - df_orders[::-1].index(2)
     if i1 < i2:
-        # then we shall apply the BCH theorem
-        A1 = nterms_1[i1]
-        A2 = nterms_1[i2]
-        assert A1.dim == A2.dim
-        dim = A1.dim
-        if dim == 1: # Here we can use an exact equation
-            C = ad2poly(bch_2x2(poly2ad(A1), poly2ad(A2), tol=tol), max_power=max([A1.max_power, A2.max_power]))
-        else: # No exact equation for dim > 1 known to my knowledge
-            warnings.warn(f"Two 2nd-order polynomials have been found and dim = {dim} (tol: {tol}). Attempting BCH with order {bch_order}.")            
-            bchd = bch(A1, A2, order=bch_order)
-            C = sum(bchd.values())
-    else:
-        C = nterms_1[i1]
-
-    nl_part = nterms_1[i2 + 1:]
-
-    # First-order step:
+        raise NotImplementedError(f"Two 2nd-order polynomials have been found.")
+    assert i1 == i2
+    nterms_1 = nterms_1[i1:]
+    
+    C = nterms_1[0]
     nfdict = C.bnf(order=1, **kwargs)
     tunes = nfdict['mu']
     chi0s = nfdict['chi0']
-
-    nterms_1 = [C.copy()] + [f.copy() for f in nl_part]    
     for chi0 in chi0s: # (chi0s may be of length 0, 1 or 2)
         nterms_1 = [lexp(chi0)(h, method='2flow') for h in nterms_1]
 
     if kwargs.get('tol_checks', 0) > 0:
+        # check if the first-order part has been properly normalized
         dim = len(tunes)
         dim2 = dim*2
         for k in range(dim):
             ek = [0]*dim
             ek[k] = 1
             assert abs(nterms_1[0][tuple(ek*2)] - tunes[k]) < tol
-                
     # nterms_1 has been determined. It is a list consisting of a normalized
     # first-order element + some higher-order non-normalized elements
     
-    # III) Perform higher-order normalization
-    #
+    #################################
+    # III) Higher-order normalization
+    #################################
     # Compute the Taylor map 'nmap' of the first-order normalized map. 
     # Instead of calling TPSA again for the new map M' = lexp(chi0) o M o lexp(-chi0), 
     # we modify the original Taylor map,
@@ -195,10 +177,8 @@ def fnf(*p, order: int=1, bch_order=6, mode='quick', **kwargs):
         
     out = {}
     out['dragtfinn'] = df
-    out['bnfdict'] = nfdict
-    out['nterms'] = all_nterms
+    out['bnfout'] = nfdict
+    out['normal'] = all_nterms
     out['chi'] = chi
-    out['nmaps'] = all_nmaps
+    out['taylor_maps'] = all_nmaps
     return out
-        
-    

@@ -44,7 +44,7 @@ def symlogs(X, **kwargs):
         An array representing the matrix B.
     '''
     U, P = polar(X) # X = U@P with symplectic U and P.
-    logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is in Sp(n). Therefore we can diagonalize U symplectically:
+    logP = logm(P) # logP.transpose()@J + J@logP = 0, i.e. logP is in sp(n). Therefore we can diagonalize U symplectically:
     V = thm31(U, **kwargs) # V@U@V.transpose().conj() = D will be diagonal
     Vi = V.transpose().conj()
     D = V@U@Vi
