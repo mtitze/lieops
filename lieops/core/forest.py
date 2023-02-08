@@ -30,6 +30,7 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     is outlined in Sec. 4.4 in Ref. [1].
     
     Attention:
+    I)
     First-order Lie-polynomials in the resulting Dragt/Finn expansion will be dropped.
     This means that if the given Taylor map represents an expansion of the symplectic map
     
@@ -42,6 +43,9 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     The chain f1, ... fM, h1 will be returned as well, so the user may handle the 
     first-order polynomials externally. The interior represent a normalized version
     with respect to the initial and final position.
+    
+    II)
+    Cases in which two 2nd-order terms are present have not been implemented yet.
     
     Parameters
     ----------
@@ -64,6 +68,7 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
                  Note that if first-order elements in the Dragt/Finn factorization are detected,
                  one TPSA calculation will be done for this interior part.
         'tpsa': The Taylor map of the next step is computed by using TPSA on M'.
+                
         
     Reference(s)
     ------------
@@ -140,7 +145,8 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
         xietaf = lexp(chi0)(*xietaf, method='2flow')
     for chi0 in chi0s[::-1]:
         xietaf2 = lexp(-chi0)(*xietaf2, method='2flow')
-    nmap = [ww(*[coord(*xietaf) for coord in p]) for ww in xietaf2]
+    final_coords = [coord(*xietaf) for coord in p]
+    nmap = [ww(*final_coords) for ww in xietaf2]
     
     # Loop over the requested order
     all_nmaps = [nmap]
@@ -163,7 +169,8 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
         if mode == 'quick':
             xietaf = lexp(ak)(*xieta, **kwargs)
             xietaf2 = lexp(-ak)(*xieta, **kwargs)
-            nmap = [ww(*[coord(*xietaf) for coord in nmap]) for ww in xietaf2]
+            final_coords = [coord(*xietaf) for coord in nmap]
+            nmap = [ww(*final_coords) for ww in xietaf2]
         elif mode == 'tpsa':
             # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
             operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors           
@@ -178,7 +185,9 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     out = {}
     out['dragtfinn'] = df
     out['bnfout'] = nfdict
-    out['normal'] = all_nterms
+    out['nf_all'] = all_nterms
+    out['normalform'] = all_nterms[-1]
     out['chi'] = chi
-    out['taylor_maps'] = all_nmaps
+    out['tm_all'] = all_nmaps
+    out['taylor_map'] = all_nmaps[-1]
     return out

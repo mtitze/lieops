@@ -374,7 +374,12 @@ class lieoperator:
         order: int, optional
             The number of derivatives we want to take into account.
         '''
-        assert hasattr(self, 'flow'), 'Flow has to be computed first.'
+        if not hasattr(self, 'flow'):
+            try:
+                self.calcFlow(**kwargs)
+            except:
+                raise RuntimeError('Flow has to be computed first.')
+                
         # 1. Find the order
         if 'order' in kwargs.keys():
             order = kwargs['order']
