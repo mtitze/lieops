@@ -289,7 +289,7 @@ def action_on_poly(*mu, C, func=lambda z: z):
     return lieops.core.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
                 dim=C.dim, max_power=C.max_power)
 
-def tpsa(*ops, position=[], order: int, **kwargs):
+def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators.
 
@@ -304,6 +304,9 @@ def tpsa(*ops, position=[], order: int, **kwargs):
 
     order: int
         The number of derivatives we want to take into account.
+        
+    taylor_map: boolean, optional
+        If true, also compute the taylor map.
 
     **kwargs
         Optional keyworded arguments passed to njet.derive class (and therefore the underlying
@@ -322,13 +325,16 @@ def tpsa(*ops, position=[], order: int, **kwargs):
     dchain = derive(chain, n_args=n_args, order=order)
     if len(position) == 0:
         position = (0,)*n_args
-    expansion = dchain(*position, mult_prm=True, mult_drv=False, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
-    max_power = max([e.argument.max_power for e in ops])
-    taylor_map = [lieops.core.lie.poly(values=e, dim=dim, max_power=max_power) for e in expansion]
-        
+    dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.    
     out = {}
     out['DA'] = dchain # chain = dchain.func
     out['input'] = kwargs.copy()
     out['position'] = position
-    out['taylor_map'] = taylor_map
+    
+    if taylor_map:
+        max_power = max([e.argument.max_power for e in ops])
+        tc = dchain.get_taylor_coefficients(mult_prm=True, mult_drv=False, **kwargs) 
+        taylor_map = [lieops.core.lie.poly(values=e, dim=dim, max_power=max_power) for e in tc]
+        out['taylor_map'] = taylor_map
+        
     return out

@@ -96,6 +96,7 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     
     # If first-order elements in the Dragt/Finn factorization have been found, and the mode was 'quick',
     # then we will re-calculate the tpsa map p for this inner part (& raise a warning):
+    kwargs['taylor_map'] = True
     if len(nterms_1) < len(df):
         warnings.warn('Non-zero kicks detected. Will normalize only the interior.')
         if mode == 'quick':
