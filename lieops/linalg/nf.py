@@ -279,7 +279,9 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
         The output of lieops.linalg.nf.normal_form routine, providing the linear map information at the requested point.
     '''
     assert power >= 2
-    dim = getNargs(H, n_args=n_args)
+    dim = n_args
+    if n_args == 0:
+        dim = getNargs(H)
     assert dim%2 == 0, 'Dimension must be even; try passing n_args argument.'
     
     # Step 1 (optional): Construct H locally around z (N.B. shifts are symplectic, as they drop out from derivatives.)

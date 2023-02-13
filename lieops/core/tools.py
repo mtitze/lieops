@@ -295,6 +295,9 @@ def get_taylor_map(*evaluation, **kwargs):
     
     Parameters
     ----------
+    evaluation(s):
+        n-jet objects containing polyjet objects.
+        
     dim: int, optional
         The dimension of the domain of the evaluation. This is required
         to construct the 0-tuples for the constants.
@@ -306,7 +309,7 @@ def get_taylor_map(*evaluation, **kwargs):
         Parameters passed to lieops.core.lie.poly.
     '''
     n_args = kwargs.get('dim', len(evaluation))*2
-    tc = get_taylor_coefficients(*evaluation, mult_prm=True, mult_drv=False, n_args=n_args)
+    tc = get_taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
 def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
