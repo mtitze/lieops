@@ -413,10 +413,13 @@ def symcheck(p, tol, warn=True):
                 check += 1j
 
             for order in range(max_power):
-                order_check = max(abs(check.homogeneous_part(order)))
-                if order_check > tol:
-                    result[order] = max([result.get(order, 0), order_check])
+                check_order = abs(check.homogeneous_part(order))
+                if len(check_order) == 0:
+                    continue
+                max_error = max(check_order)
+                if max_error > tol:
+                    result[order] = max([result.get(order, 0), max_error])
                     if warn:
-                        warnings.warn(f'Taylor map non-symplectic at order {order} for components {(k, l)}. Error: {order_check} (tol: {tol})')
+                        warnings.warn(f'Taylor map non-symplectic at order {order} for components {(k, l)}. Error: {max_error} (tol: {tol})')
                         
     return result
