@@ -204,6 +204,12 @@ class _poly:
         Return a list of the monomials of the current polynomial.
         '''
         return [self.__class__(values={k: v}, dim=self.dim, max_power=self.max_power) for k, v in self.items()]
+    
+    def truncate(self, k):
+        '''
+        Truncate the current polynomial with respect to a total power.
+        '''
+        return self.extract(key_cond=lambda x: sum(x) <= k)
         
     def __call__(self, *z):
         '''

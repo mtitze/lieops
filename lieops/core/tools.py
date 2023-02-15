@@ -1,6 +1,7 @@
 # collection of specialized tools operating on polynomials
-
 import numpy as np
+import warnings
+
 from njet import derive, get_taylor_coefficients
 
 import lieops.core.lie
@@ -307,6 +308,11 @@ def get_taylor_map(*evaluation, **kwargs):
         
     **kwargs
         Parameters passed to lieops.core.lie.poly.
+        
+    Returns
+    -------
+    list
+        A list of poly objects, representing the Taylor map.
     '''
     n_args = kwargs.get('dim', len(evaluation))*2
     tc = get_taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
@@ -334,6 +340,16 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     **kwargs
         Optional keyworded arguments passed to njet.derive class (and therefore the underlying
         operators of this beamline).
+        
+    Returns
+    -------
+    dict
+        A dictionary containing the results of the TPSA run.
+                DA: njet derive object, containing the jet evaluation results.
+             input: The input parameters used.
+          position: The position at which the derivative has been calculated.
+        taylor_map: (Only if taylor_map == True) A list of poly objects, representing the Taylor map of 
+                    the given operators at 'position'.
     '''
     assert len(ops) > 0, 'No operator provided.'
     dim = ops[0].argument.dim
@@ -359,3 +375,48 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
         out['taylor_map'] = get_taylor_map(*dchain._evaluation, dim=dim, max_power=max_power)
         
     return out
+
+def symcheck(p, tol, warn=True):
+    '''
+    Check whether a given Taylor map, described as a set of Lie-polynomials, describes a symplectomorphism.
+    
+    Parameters
+    ----------
+    p: list of poly objects
+        The Taylor map to be checked.
+        
+    tol: float
+        The tolerance against to check the relation:
+        p[i]@p[j + dim] = -1j*delta_{ij}
+        in any order.
+        
+    warn: boolean, optional
+        If True, raise a warning every time the check fails at some step.
+        
+    Returns
+    -------
+    dict
+        A dictionary mapping the powers to the maximal error whenever a check failed.
+    '''
+    dim2 = len(p)
+    assert dim2%2 == 0, 'Dimension of map must be even.'
+    dim = dim2//2
+    max_power = max([e.max_power for e in p])
+    result = {}
+    if max_power == float('inf'):
+        raise RuntimeError('max_power of map can not be infinite.')
+        
+    for k in range(dim):
+        for l in range(k, dim):
+            check = p[k]@p[l + dim]
+            if k == l:
+                check += 1j
+
+            for order in range(max_power):
+                order_check = max(abs(check.homogeneous_part(order)))
+                if order_check > tol:
+                    result[order] = max([result.get(order, 0), order_check])
+                    if warn:
+                        warnings.warn(f'Taylor map non-symplectic at order {order} for components {(k, l)}. Error: {order_check} (tol: {tol})')
+                        
+    return result

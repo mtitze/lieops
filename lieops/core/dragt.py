@@ -233,7 +233,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     # This is the reason why we had to use .transpose() in the construction of SA and SB above.
     # See also Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book [1]. In that
     # section, the transposition can be found as well.
-    
+        
     if tol_checks > 0:
         # check if symlogs gives correct results
         assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol_checks
@@ -256,10 +256,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         # the result (3) would be:
         # lexp(SB)(*lexp(SA)(*xieta0))   (4)
         # Note the difference of the order: Now SB and SA in Eq. (4) are reversed in comparison to Eq. (1).
-        #
-        #
-        # (Further idea to run in this check: p[i]@p[k + dim] should be -1j*delta_{ik} etc. But this might often not be well satisfied in higher orders)
-        
+
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
     Ri = -J@R.transpose()@J
     p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
@@ -287,10 +284,10 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         if tol_checks > 0: # (+) check if prerequisits for application of the Poincare Lemma are satisfied
             for i in range(dim2):
                 for j in range(i):
-                    zero = xieta[j]@gk[i] + gk[j]@xieta[i]
-                    assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}):\n{zero}'
-                            
-        fk = sympoincare(*gk).above(tol) # deg(fk) = k + 1
+                    zero = xieta[j]@gk[i] + gk[j]@xieta[i] # Eq. (7.6.5) in Ref. [1]
+                    assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}, flow input: {kwargs}):\n{zero}'    
+        
+        fk = sympoincare(*gk).above(tol) # deg(fk) = k + 1; fk@xieta[j] = gk[j]
         if fk == 0:
             # continue with the next k if the potential is zero within the given tolerance
             continue
@@ -302,7 +299,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
             for i in range(dim2):
                 remainder = (p_new[i] - xieta[i]).above(tol_checks).extract(key_cond=lambda key: sum(key) >= 1)
                 if remainder != 0:
-                    assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.extract(key_cond=lambda key: sum(key) < k + 1)}'
+                    assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.truncate(k)}'
                     
         f_nl.append(fk)
         
