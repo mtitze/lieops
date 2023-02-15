@@ -299,11 +299,11 @@ def get_taylor_map(*evaluation, **kwargs):
     evaluation(s):
         n-jet objects containing polyjet objects.
         
-    dim: int, optional
+    dim2: int, optional
         The dimension of the domain of the evaluation. This is required
         to construct the 0-tuples for the constants.
         Attention: 
-        If this parameter is not provided, 'dim' will be estimated by the
+        If this parameter is not provided, 'dim2' will be taken from the
         number of input evaluations.
         
     **kwargs
@@ -314,7 +314,7 @@ def get_taylor_map(*evaluation, **kwargs):
     list
         A list of poly objects, representing the Taylor map.
     '''
-    n_args = kwargs.get('dim', len(evaluation))*2
+    n_args = kwargs.get('dim2', len(evaluation))
     tc = get_taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
