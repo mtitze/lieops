@@ -413,7 +413,11 @@ def symcheck(p, tol, warn=True):
             if k == l:
                 check += 1j
 
-            for order in range(max_power):
+            for order in range(max_power): # we exclude order = max_power here. 
+                # The reason is that if N denotes the maximal power up to which our checks should run,
+                # then N = k + l - 2 for the two components of max order k and l. The smallest non-trivial
+                # power has k = 1, leading to N = l - 1. So the maximal order N of the check 
+                # can not exceed l - 1, where l is the maximal order of the map which we have determined. 
                 check_order = abs(check.homogeneous_part(order))
                 if len(check_order) == 0:
                     continue

@@ -677,7 +677,7 @@ class tree:
         integrands = {k: hamiltonian for k in range(self.index)}
         ic, _ = self.integration_chain()
         for var, bound in ic[::-1]:
-            Iham = integrands[var].apply('integrate')
+            Iham = integrands[var].applyClassFunc('integrate')
             # bound will be the next element in the integration chain for this specific element.
             # therefore we have to seek out the integrand there and apply the commutator with
             # the hamiltonian at that place

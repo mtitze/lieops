@@ -455,8 +455,7 @@ class _poly:
         return all_results
     
     def __abs__(self):
-        new_values = {k: abs(v) for k, v in self.items()}
-        return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
+        return self.apply(abs)
     
     def __str__(self):
         out = ''
@@ -546,7 +545,24 @@ class _poly:
             jpvalues[frozenset([(j, key[j]) for j in range(self.dim*2) if key[j] != 0])] = v
         return jetpoly(values=jpvalues)
     
-    def apply(self, name, cargs={}, *args, **kwargs):
+    def apply(self, operator):
+        '''
+        Apply an operator to the coefficients of the current Lie-polynomial.
+        
+        Parameters
+        ----------
+        operator: callable
+            The operator.
+            
+        Returns
+        -------
+        poly
+            A Lie-polynomial having the mapped values.
+        '''
+        new_values = {k: operator(v) for k, v in self.items()}
+        return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
+    
+    def applyClassFunc(self, name, cargs={}, *args, **kwargs):
         '''
         Apply a class function of the coefficients of the current Lie-polynomial.
         
