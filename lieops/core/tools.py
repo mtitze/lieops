@@ -347,7 +347,6 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
         A dictionary containing the results of the TPSA run.
                 DA: njet derive object, containing the jet evaluation results.
              input: The input parameters used.
-          position: The position at which the derivative has been calculated.
         taylor_map: (Only if taylor_map == True) A list of poly objects, representing the Taylor map of 
                     the given operators at 'position'.
     '''
@@ -368,7 +367,9 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     out = {}
     out['DA'] = dchain # chain = dchain.func
     out['input'] = kwargs.copy()
-    out['position'] = position
+    out['input']['position'] = position
+    out['input']['taylor_map'] = taylor_map
+    out['input']['order'] = order
     
     if taylor_map:
         max_power = max([e.argument.max_power for e in ops])
