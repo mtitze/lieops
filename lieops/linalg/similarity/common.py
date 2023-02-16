@@ -10,7 +10,7 @@ from lieops.linalg.checks import relative_eq
 
 from njet.functions import get_package_name
 
-def diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
+def diagonal2block(D, code, tol=1e-10, **kwargs):
     r'''
     Computes a unitary map U which will diagonalize a matrix D of the form
     
@@ -35,8 +35,11 @@ def diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
     tol: float, optional
         A small parameter to identify the pairs on the diagonal of D.
         
+    tol_orientation: float, optional
+        A small parameter to determine the orientation (used only if 'orientation' is provided).
+        
     orientation: list, optional
-        A list of expected eigenvalues.
+        A list of expected eigenvalues. By default the orientation will be chosen according to the imaginary parts of D.
     
         Explanation:
         Giving an orientation may be necessary because the Jordan Normal Form (or diagonal form of a matrix) is only determined up to
@@ -54,10 +57,18 @@ def diagonal2block(D, code, orientation=[], tol=1e-10, **kwargs):
     dim2 = len(D)
     assert dim2%2 == 0
     dim = dim2//2
-
+    
+    # Step 0: Determine orientation
+    default_orientation = []
+    if all([d.imag != 0 for d in D]):
+        # For every element d in D with d.imag > 0, there exists also an element d2 in D with d2.imag = -d.imag < 0.
+        default_orientation = [d*-1j for d in D if d.imag > 0]
+    orientation = kwargs.get('orientation', default_orientation)
     if len(orientation) > 0:
         orientation = list(orientation)
-        omat = get_orientation(orientation + orientation, D, **kwargs) # orientation is copied twice here, because "get_orientation" is made to work with two general lists of the same length.
+        if len(orientation) == dim:
+            orientation = orientation*2
+        omat = get_orientation(orientation, D, tol=kwargs.get('tol_orientation', tol)) 
         
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     pairs = identifyPairs(D, condition=lambda x, y: abs(x + y) < tol, **kwargs)

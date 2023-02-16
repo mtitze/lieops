@@ -54,7 +54,8 @@ def get_orientation(Dref, D, tol=1e-10):
         The second list
         
     tol: float, optional
-        Tolerance by which we identify two values to be equal.
+        Tolerance by which we identify two values to be equal. If kept zero, then an orientation is
+        attempted to be found based on the real and imaginary parts of the values.
         
     Returns
     -------
@@ -68,7 +69,7 @@ def get_orientation(Dref, D, tol=1e-10):
     for k in range(dim2):
         a = Dref[k]
         for l in range(dim2):
-            b = D[l]
+            b = D[l]                
             if abs(a - 1j*b) < tol:
                 orient[k, l] = 1j
             elif abs(a + 1j*b) < tol:

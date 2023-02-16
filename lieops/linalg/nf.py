@@ -306,7 +306,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
     Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, n_rows=dim, n_cols=dim)
     if code == 'mpmath':
         Hesse_matrix = mp.matrix(Hesse_matrix)
-
+        
     # Optional: Raise a warning in case the shifted Hamiltonian has first-order terms.
     if check:
         gradient = dHshift.grad() # the gradient of H is evaluated at z0 (note that H has been shifted to z0 above, so that z0 corresponds to the original point z).
@@ -323,7 +323,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
     HK = lambda *zz: Hshift(*Kmap(*zz))
     dHK = derive(HK, order=power, n_args=dim)
     results = dHK(*z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
-    
+        
     if check:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex
         # normal form with the values predicted by linear theory.

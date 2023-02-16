@@ -66,7 +66,8 @@ def symplectic_takagi_old(G, d2b_tol=1e-10, check=True, **kwargs):
         Yi = mp.inverse(Y)
 
     # Yi@GJ@Y will be diagonal
-    U = diagonal2block(evals, code=code, tol=d2b_tol, orientation=kwargs.get('orientation', []))
+    _ = kwargs.pop('tol', None)
+    U = diagonal2block(evals, code=code, tol=d2b_tol, **kwargs)
     Xi = U.transpose().conjugate()@Yi
     X = Y@U
     F = Xi@GJ@X # F = A and GJ = B in Cor. 5.6

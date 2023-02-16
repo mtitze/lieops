@@ -311,7 +311,7 @@ def test_flow2(mu0=0.43, power=40, tol=1e-15, max_power=30, **kwargs):
     
     
 def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
-    # Test if the flow map of a Lie operator is a symplectic map: Test if
+    # Test if the flow map of a Lie operator is a symplectic map (in first order): Test if
     # M := Jacobi_x(phi(t, x)) it holds M.transpose()@Jc@M - Jc = 0, where Jc is the complex symplectic structure given
     # by the (xi, eta)-coordinates.
     mu0 = 2*np.pi*Q

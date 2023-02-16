@@ -363,16 +363,16 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     dchain = derive(chain, n_args=n_args, order=order)
     if len(position) == 0:
         position = (0,)*n_args
-    dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.    
+    dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
     out = {}
     out['DA'] = dchain # chain = dchain.func
     out['input'] = kwargs.copy()
     out['input']['position'] = position
     out['input']['taylor_map'] = taylor_map
     out['input']['order'] = order
-    
+
     if taylor_map:
-        out['taylor_map'] = get_taylor_map(*dchain._evaluation, dim=dim, max_power=order)
+        out['taylor_map'] = get_taylor_map(*dchain._evaluation, dim=dim, max_power=kwargs.get('max_power', order))
         
     return out
 
