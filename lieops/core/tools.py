@@ -372,8 +372,7 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     out['input']['order'] = order
     
     if taylor_map:
-        max_power = max([e.argument.max_power for e in ops])
-        out['taylor_map'] = get_taylor_map(*dchain._evaluation, dim=dim, max_power=max_power)
+        out['taylor_map'] = get_taylor_map(*dchain._evaluation, dim=dim, max_power=order)
         
     return out
 
