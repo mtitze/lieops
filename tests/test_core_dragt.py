@@ -46,7 +46,7 @@ def test_dragtfinn_1d(q0, p0, offset1, offset2, tol1, tol2, tol3, order, **kwarg
     op.calcFlow(method='channell', scheme=yoshida_scheme, **kwargs) # it is imperative to use a symplectic integrator at this point, otherwise dragtfinn will cause errors in its checks.
     reference = op(xi0, eta0)
     
-    tpsa_op = op.tpsa(offset1, offset2, order=order, taylor_map=True)
+    tpsa_op = op.tpsa(offset1, offset2, order=order, taylor_map=True, max_power=10)
     taylor_map = tpsa_op['taylor_map']
     reference2 = [xe(xi0 - offset1, eta0 - offset2) for xe in taylor_map]
     
