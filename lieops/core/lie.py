@@ -1,5 +1,6 @@
 import numpy as np
 import copy
+import warnings
 
 from lieops.linalg.nf import first_order_nf_expansion
 
@@ -413,7 +414,8 @@ class lexp(lieoperator):
         if isinstance(H, poly): # original behavior
             lieoperator.set_argument(self, argument=H, **kwargs)           
         elif hasattr(H, '__call__'): # H a general function (Hamiltonian)
-            assert 'order' in kwargs.keys(), "Lie operator initialized with general callable requires 'order' argument to be set." 
+            warnings.warn('Lie operator with general callable initiated.')
+            assert 'order' in kwargs.keys(), "Lie operator initiated with general callable requires 'order' argument to be set." 
             self.order = kwargs['order']
             # obtain an expansion of H in terms of complex first-order normal form coordinates
             taylor_coeffs, self.nfdict = first_order_nf_expansion(H, **kwargs)

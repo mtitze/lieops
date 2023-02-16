@@ -329,7 +329,8 @@ def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
     xieta = create_coords(1)
     
     t_ref = 1
-    L1 = lexp(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, max_power=max_power)
+    L1 = lexp(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, 
+              max_power=max_power, orientation=[])
     # check Symplecticity of the flow of L1 at position p:
     dL1flow = derive(lambda *x: L1(*x, t=t_ref), order=1, n_args=2)
     ep, epc = dL1flow.eval(p, p.conjugate())
