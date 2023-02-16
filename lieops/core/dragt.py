@@ -144,7 +144,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     pf = p[0]._poisson_factor
     assert all([e._poisson_factor == pf for e in p])
     assert len(p) == dim2, f'Polynomials received: {len(p)} Expected: {dim2}'
-    max_power = max([e.max_power for e in p]) # Required for the input for ad2poly, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
+    max_power = max([2] + [e.max_power for e in p]) # Required for the input for ad2poly, otherwise ad2poly may produce polynomials with max_power = inf, even if input has < inf. This may result in slow code.
     max_deg = max([e.maxdeg() for e in p]) # The degree of the input Taylor map.
     if order == 'auto':
         if warn:
