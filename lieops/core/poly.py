@@ -126,7 +126,7 @@ class _poly:
             new_values[k] = v
         return self.__class__(values=new_values, dim=self.dim, max_power=self.max_power)
     
-    def extract(self, key_cond=lambda x: True, value_cond=lambda x: True):
+    def extract(self, *keys, key_cond=lambda x: True, value_cond=lambda x: True):
         '''
         Extract a Lie polynomial from the current Lie polynomial, based on a condition.
         
@@ -146,8 +146,11 @@ class _poly:
         poly
             The extracted Lie polynomial.
         '''
-        return self.__class__(values={key: value for key, value in self.items() if key_cond(key) and value_cond(value)}, 
-                              dim=self.dim, max_power=self.max_power)
+        if len(keys) == 0:
+            return self.__class__(values={keyc: valuec for keyc, valuec in self.items() if key_cond(keyc) and value_cond(valuec)}, 
+                                  dim=self.dim, max_power=self.max_power)
+        else:
+            return self.__class__(values={key: self[key] for key in keys}, dim=self.dim, max_power=self.max_power)
     
     def homogeneous_part(self, k: int):
         '''

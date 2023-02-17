@@ -117,7 +117,7 @@ def get_monomial_flow(hamiltonian):
             ml = powers[l + dim]
             ql = z[l]
             pl = z[l + dim]
-                
+
             if ml != nl and ml != 0 and nl != 0: # Case 1
                 kappa = A[l]*ql**(nl - 1)*pl**(ml - 1)*(ml - nl)*value + 1
                 out_q.append(kappa**(ml/(ml - nl))*ql)

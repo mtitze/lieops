@@ -3,7 +3,7 @@ import mpmath as mp
 from njet import derive
 
 from lieops.core import create_coords, lexp
-from lieops.core.tools import get_taylor_map
+from lieops.core.tools import get_taylor_map, symcheck
 
 @pytest.mark.parametrize("xi0, eta0", [(0, 0), (0.0287, -0.014)])
 def test_symplecticity(xi0, eta0, order=10, tol=2e-21):
@@ -26,7 +26,8 @@ def test_symplecticity(xi0, eta0, order=10, tol=2e-21):
     # N = l - 1. So the maximal order N of the check can not exceed l - 1, 
     # where l is the maximal order of the map which we have determined. 
     assert max(abs(op1map[0]@op1map[1] + 1j).truncate(order - 1)) < tol
-
+    # second check (symcheck test):
+    assert len(symcheck(op1map, tol=tol)) == 0
 
 def test_2d_hamiltonian(n_slices=100, tol=1e-2, tol2=3e-1):
     '''
