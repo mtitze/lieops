@@ -1,4 +1,32 @@
+import pytest
+import mpmath as mp
+from njet import derive
+
 from lieops.core import create_coords, lexp
+from lieops.core.tools import get_taylor_map
+
+@pytest.mark.parametrize("xi0, eta0", [(0, 0), (0.0287, -0.014)])
+def test_symplecticity(xi0, eta0, order=10, tol=2e-21):
+    '''
+    Compare high-order degrees after application of the solver,
+    using mpmath.
+    '''
+    xi, eta = create_coords(1)
+    ham = -0.06*xi*eta + 0.04*eta**2 + 0.04*xi**2 - 3.3*xi**3 - 10.2*xi**2*eta - 3.4*eta**3
+    mp.mp.dps = 32
+    ham = ham.apply(mp.mpc)
+    op1 = lexp(ham)
+    op1.calcFlow(method='channell')
+    dop1 = derive(op1, order=order, n_args=2)
+    op1map = get_taylor_map(*dop1.eval(xi0, eta0), max_power=order)
+
+    # Let N be the order by which we want to compare the product xi_f@eta_f.
+    # Then N = k + l - 2 where k and l are the orders of xi_f and eta_f. 
+    # The smallest non-trivial power has k = 1, leading to 
+    # N = l - 1. So the maximal order N of the check can not exceed l - 1, 
+    # where l is the maximal order of the map which we have determined. 
+    assert max(abs(op1map[0]@op1map[1] + 1j).truncate(order - 1)) < tol
+
 
 def test_2d_hamiltonian(n_slices=100, tol=1e-2, tol2=3e-1):
     '''
