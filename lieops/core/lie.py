@@ -387,7 +387,8 @@ class lieoperator:
         elif self.argument.maxdeg() <= 2:
             order = 1 # a 2nd order degree polynomial, applied to a coordinate function, will yield a first-order term, so order 1 is sufficient here.
         else:
-            warnings.warn('No order provided for TPSA calculation. Attempting to set order based on max_power...')
+            if kwargs.get('warn', False):
+                warnings.warn('No order provided for TPSA calculation. Attempting to set order based on max_power ...')
             assert self.argument.max_power < np.inf, f'max_power of {self.__class__.__name__}.argument can not be infinite.'
             order = self.argument.max_power + 1 # TODO: check if this is sufficient; see the comment in lieops.core.poly._poly concerning max_power
         kwargs['order'] = order
