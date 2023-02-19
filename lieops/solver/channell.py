@@ -1,4 +1,6 @@
-from njet.functions import exp
+import mpmath as mp
+
+from njet.functions import exp, get_package_name
 from .splitting import iterative_commuting_split
 
 def productExceptSelf(arr):
@@ -105,6 +107,8 @@ def get_monomial_flow(hamiltonian):
     powers = list(monomial.keys())[0] # The tuple representing the powers of the Hamiltonian.
     value = -monomial[powers] # The coefficient in front of the Hamiltonian. Note the minus sign here, which comes from Channell's solution (alternatively we could modify the next equations with "-value").
     dim = monomial.dim
+    
+    code = get_package_name(value) # In the mpmath case we have to ensure that the division in the exponents ml/(ml - nl) etc. (below) are properly treated. We therefore detect the code by the type of the value of the given monomial.
         
     def monomial_flow(*z):
         A = productExceptSelf([z[k]**powers[k]*z[k + dim]**powers[k + dim] for k in range(dim)])
@@ -120,8 +124,14 @@ def get_monomial_flow(hamiltonian):
 
             if ml != nl and ml != 0 and nl != 0: # Case 1
                 kappa = A[l]*ql**(nl - 1)*pl**(ml - 1)*(ml - nl)*value + 1
-                out_q.append(kappa**(ml/(ml - nl))*ql)
-                out_p.append(kappa**(nl/(nl - ml))*pl)
+                if code == 'mpmath':
+                    ex1 = mp.mpc(ml)/(ml - nl)
+                    ex2 = mp.mpc(nl)/(nl - ml)
+                else:
+                    ex1 = ml/(ml - nl)
+                    ex2 = nl/(nl - ml)
+                out_q.append(kappa**ex1*ql)
+                out_p.append(kappa**ex2*pl)
             elif ml == nl and ml != 0: # Case 2; clearly nl != 0 as well
                 exponent = A[l]*(ql*pl)**(ml - 1)*ml*value
                 out_q.append(exp(exponent)*ql)

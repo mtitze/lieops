@@ -15,11 +15,10 @@ def _integrate_k(p, k: int):
     '''
     integral_values = {}
     dim = p.dim
-    power_add = np.zeros(dim*2, dtype=int)
-    power_add[k] = 1
     for powers, values in p.items():
-        powers = np.array(powers)
-        integral_values[tuple(powers + power_add)] = values/(sum(powers) + 1) # Basically Eq. (7.6.24) in Ref. [1] (reference in sympoincare)
+        powers_add = [p for p in powers]
+        powers_add[k] += 1
+        integral_values[tuple(powers_add)] = values/(sum(powers) + 1) # Basically Eq. (7.6.24) in Ref. [1] (reference in sympoincare)
     return p.__class__(values=integral_values, dim=dim, max_power=p.max_power)
 
 def _integrate(*p):
