@@ -2,11 +2,12 @@ import pytest
 import mpmath as mp
 from njet import derive
 
-from lieops.core import create_coords, lexp
+from lieops.core import create_coords, lexp, poly
 from lieops.core.tools import get_taylor_map, symcheck
+from lieops.solver.channell import get_monomial_flow
 
 @pytest.mark.parametrize("xi0, eta0", [(0, 0), (0.0287, -0.014)])
-def test_symplecticity(xi0, eta0, order=10, tol=2e-21):
+def test_symplecticity1(xi0, eta0, order=10, tol=2e-21):
     '''
     Compare high-order degrees after application of the solver,
     using mpmath.
@@ -28,6 +29,19 @@ def test_symplecticity(xi0, eta0, order=10, tol=2e-21):
     assert max(abs(op1map[0]@op1map[1] + 1j).truncate(order - 1)) < tol
     # second check (symcheck test):
     assert len(symcheck(op1map, tol=tol)) == 0
+    
+def test_symplecticity2(dps=64, order=6, tol=1e-51):
+    '''
+    Test symplecticity of Channell's solver in conjuction with mpmath.
+    '''
+    mp.mp.dps = dps
+    testham = poly(values={(6, 1): -9.4 - 5524653677213*1j})
+    testham = testham.apply(mp.mpc)
+    testmap = get_monomial_flow(testham)
+    dmap = derive(testmap, order=order, n_args=2)
+    evaluation = dmap.eval(0, 0)
+    tm = get_taylor_map(*evaluation, max_power=order)
+    assert len(symcheck(tm, tol=tol)) == 0
 
 def test_2d_hamiltonian(n_slices=100, tol=1e-2, tol2=3e-1):
     '''
