@@ -121,14 +121,16 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     for chi0 in chi0s: # (chi0s may be of length 0, 1 or 2)
         nterms_1 = [lexp(chi0)(h, method='2flow') for h in nterms_1]
 
-    if kwargs.get('tol_checks', 0) > 0:
+    tol_checks = kwargs.get('tol_checks', 0)
+    if tol_checks > 0:
         # check if the first-order part has been properly normalized
         dim = len(tunes)
         dim2 = dim*2
         for k in range(dim):
             ek = [0]*dim
             ek[k] = 1
-            assert abs(nterms_1[0][tuple(ek*2)] - tunes[k]) < tol
+            zero_k = abs(nterms_1[0][tuple(ek*2)] - tunes[k])
+            assert zero_k < tol_checks, f'First-order terms not normalized at {k}: {zero_k} >= {tol_checks} (tol_checks)'
     # nterms_1 has been determined. It is a list consisting of a normalized
     # first-order element + some higher-order non-normalized elements
     
