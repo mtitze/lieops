@@ -7,7 +7,6 @@ from lieops.linalg.nf import first_order_nf_expansion
 from .generators import genexp
 from .combine import magnus
 from .poly import _poly
-from .tools import poly2vec
 
 from lieops.core.tools import symcheck
 

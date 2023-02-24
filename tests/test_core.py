@@ -4,6 +4,7 @@ from sympy import Symbol
 import pytest
 
 from njet.functions import cos, sin, exp
+from njet.extras import general_faa_di_bruno
 from njet import derive
 
 from lieops import __version__
@@ -385,7 +386,49 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
     L1 = lexp(H_accu_f, order=order, power=power, n_args=2)
     argflow = L1.argument.lexp(power=L1.power)
     assert argflow(*z) == L1(*z)
+    
 
+def test_lexp_derive(order=5, power=10, tol=1e-15):
+    '''
+    Test if the composition of two vector-valued jets, produced by
+    two lexp-operators, gives the same result as taking the derivative of their composition.
+    '''
+    
+    ham1 = poly(values={(1, 1): (-0.30215107095498517-0.00524*1j),
+                        (0, 2): (0.14892446452250732+0.02984*1j),
+                        (2, 0): (0.14892446452250732+0.023*1j),
+                        (2, 1): (-0.008981378558548105-0.00053*1j),
+                        (1, 2): (-0.008981378558548105-0.24*1j),
+                        (0, 3): (0.008981378558548105+0.003*1j),
+                        (3, 0): (0.008981378558548105+0.002*1j)})
+    ham2 = poly(values={(1, 1): (-0.129074-0.0828j),
+                        (0, 2): (0.064537+0.692j),
+                        (2, 0): (0.064537+0.0006j)})
+        
+    op1 = lexp(ham1)
+    op2 = lexp(ham2)
+        
+    dop1 = derive(op1, order=order, n_args=2)
+    dop2 = derive(op2, order=order, n_args=2)
+    dop12 = derive(lambda *z, **kwargs: op2(*op1(*z, **kwargs), **kwargs), n_args=2, order=order)
+    
+    xi0, eta0 = 0.0027, -0.0012
+    ev1 = dop1.eval(xi0, eta0, power=power)
+    ev2 = dop2.eval(*op1(xi0, eta0, power=power), power=power)
+    ev12_ref = dop12.eval(xi0, eta0, power=power)
+    
+    ev12 = general_faa_di_bruno(ev2, ev1)
+    
+    for k in range(2):
+        diff = (ev12_ref[k] - ev12[k]).get_array()[1:]
+        for e in diff:
+            check = np.abs(list(e.terms.values()))
+            if len(check) > 0:
+                check = max(check)
+            else:
+                check = 0
+            assert check < tol
+            
 
 def test_stold_consistency(n=101, dim=6, tol=5e-15):
     '''
