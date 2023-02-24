@@ -117,7 +117,7 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     C = nterms_1[0]
     nfdict = C.bnf(order=1, **kwargs)
     tunes = nfdict['mu']
-    chi0s = nfdict['chi0']
+    chi0s = nfdict['chi0'] # U@Sinv@U^* = exp(C1)@exp(C2) for nfdict['chi0'] = [C1, C2], see lieops.linalg.nf.normal_form; Sinv contains the linear optics functions
     for chi0 in chi0s: # (chi0s may be of length 0, 1 or 2)
         nterms_1 = [lexp(chi0)(h, method='2flow') for h in nterms_1]
 

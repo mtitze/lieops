@@ -9,7 +9,7 @@ from .combine import magnus
 from .poly import _poly
 from .tools import poly2vec
 
-from lieops.linalg.checks import symplecticity
+from lieops.core.tools import symcheck
 
 from lieops.solver import get_2flow, channell, heyoka
 from lieops.solver.splitting import recursive_monomial_split
@@ -665,9 +665,8 @@ class lexp(lieoperator):
         '''
         tol = kwargs.get('tol', 0)
         tpsa_out = lieoperator.tpsa(self, *args, **kwargs)
-        if tol > 0: # check if map is symplectic
-            R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in tpsa_out['taylor_map']])
-            check, message = symplecticity(R, tol=tol)
+        if tol > 0 and 'taylor_map' in tpsa_out.keys(): # check if map is symplectic
+            _ = symcheck(tpsa_out['taylor_map'], tol=tol)
         return tpsa_out
 
 
