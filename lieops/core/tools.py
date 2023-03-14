@@ -367,7 +367,7 @@ def tpsa(*ops, position=[], order: int, ordering=None, taylor_map=False, **kwarg
         # probes the chain first and so it may produce a calculation overhead.
         def chain(*z, **kwargs1):
             for op in ops:
-                z = ops(*z, **kwargs1)
+                z = op(*z, **kwargs1)
             return z
         dchain = derive(chain, n_args=n_args, order=order)
 
