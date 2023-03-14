@@ -3,6 +3,7 @@ import numpy as np
 import warnings
 
 from njet import derive, get_taylor_coefficients
+from njet.extras import cderive
 
 import lieops.core.lie
 from lieops.linalg.matrix import create_J
@@ -318,7 +319,7 @@ def get_taylor_map(*evaluation, **kwargs):
     tc = get_taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
-def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
+def tpsa(*ops, position=[], order: int, ordering=None, taylor_map=False, **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators.
 
@@ -326,7 +327,7 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     ----------
     *ops: lieoperator(s)
         An operator or a list of operators which should be derived. In case a list
-        is given, the first element of the list will be called first.
+        is given, the first element of the list will be processed first.
     
     position: list
         An optional point of reference. By default the position will be the origin.
@@ -334,18 +335,21 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     order: int
         The number of derivatives we want to take into account.
         
+    ordering: list
+        A list defining an optinonal ordering of the operators. See njet.extras.cderive for
+        details. If nothing provided, the ordering from the given operators is used.
+        
     taylor_map: boolean, optional
-        If true, also compute the taylor map.
+        If true, also compute the taylor map in terms of lieops.poly objects.
 
     **kwargs
-        Optional keyworded arguments passed to njet.derive class (and therefore the underlying
-        operators of this beamline).
+        Optional keyworded arguments passed to njet.cderive class.
         
     Returns
     -------
     dict
         A dictionary containing the results of the TPSA run.
-                DA: njet derive object, containing the jet evaluation results.
+                DA: njet.extras.cderive object, containing the jet evaluation results.
              input: The input parameters used.
         taylor_map: (Only if taylor_map == True) A list of poly objects, representing the Taylor map of 
                     the given operators at 'position'.
@@ -355,15 +359,21 @@ def tpsa(*ops, position=[], order: int, taylor_map=False, **kwargs):
     assert all([op.argument.dim == dim for op in ops]), 'Not all operator dimensions are equal.'
     n_args = dim*2
     
-    def chain(*z, **kwargs1):
-        for op in ops:
-            z = op(*z, **kwargs1)
-        return z
-    
-    dchain = derive(chain, n_args=n_args, order=order)
+    if not ordering is None:
+        dchain = cderive(*ops, n_args=n_args, order=order, ordering=ordering)
+    else:
+        # A direct derivative is usually faster, because if ordering == None, all
+        # functions in the chain are considered to be unique. The cderive class, however,
+        # probes the chain first and so it may produce a calculation overhead.
+        def chain(*z, **kwargs1):
+            for op in ops:
+                z = ops(*z, **kwargs1)
+            return z
+        dchain = derive(chain, n_args=n_args, order=order)
+
     if len(position) == 0:
         position = (0,)*n_args
-    dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
+    _ = dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
     out = {}
     out['DA'] = dchain # chain = dchain.func
     out['input'] = kwargs.copy()
