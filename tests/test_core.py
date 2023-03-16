@@ -335,8 +335,8 @@ def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
     # check Symplecticity of the flow of L1 at position p:
     dL1flow = derive(lambda *x: L1(*x, t=t_ref), order=1, n_args=2)
     ep, epc = dL1flow.eval(p, p.conjugate())
-    jacobi = [[ep.get_taylor_coefficients(n_args=2)[(1, 0)], ep.get_taylor_coefficients(n_args=2)[(0, 1)]],
-              [epc.get_taylor_coefficients(n_args=2)[(1, 0)], epc.get_taylor_coefficients(n_args=2)[(0, 1)]]]
+    jacobi = [[ep.taylor_coefficients(n_args=2)[(1, 0)], ep.taylor_coefficients(n_args=2)[(0, 1)]],
+              [epc.taylor_coefficients(n_args=2)[(1, 0)], epc.taylor_coefficients(n_args=2)[(0, 1)]]]
     jacobi = np.array(jacobi)
     Jc = -1j*create_J(1)
     check = jacobi.transpose()@Jc@jacobi - Jc

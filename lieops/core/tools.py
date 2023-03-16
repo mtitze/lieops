@@ -2,7 +2,7 @@
 import numpy as np
 import warnings
 
-from njet import derive, get_taylor_coefficients
+from njet import derive, taylor_coefficients
 from njet.extras import cderive
 
 import lieops.core.lie
@@ -291,7 +291,7 @@ def action_on_poly(*mu, C, func=lambda z: z):
     return lieops.core.lie.poly(values={powers: v*func(sum([(powers[k] - powers[k + C.dim])*mu[k] for k in range(C.dim)])*1j) for powers, v in C.items()}, 
                 dim=C.dim, max_power=C.max_power)
 
-def get_taylor_map(*evaluation, **kwargs):
+def taylor_map(*evaluation, **kwargs):
     '''
     Obtain the Taylor map from a given jet evaluation in terms of lieops.core.lie.poly objects.
     
@@ -316,10 +316,10 @@ def get_taylor_map(*evaluation, **kwargs):
         A list of poly objects, representing the Taylor map.
     '''
     n_args = kwargs.get('dim2', len(evaluation))
-    tc = get_taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
+    tc = taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
-def tpsa(*ops, order: int, position=[], ordering=None, taylor_map=False, **kwargs):
+def tpsa(*ops, order: int, position=[], ordering=None, taylor=False, **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators.
 
@@ -340,7 +340,7 @@ def tpsa(*ops, order: int, position=[], ordering=None, taylor_map=False, **kwarg
         details. If nothing provided, the ordering from the given operators is used and
         an njet.derive object will be used instead.
         
-    taylor_map: boolean, optional
+    taylor: boolean, optional
         If true, also compute the taylor map in terms of lieops.poly objects.
 
     **kwargs
@@ -374,7 +374,7 @@ def tpsa(*ops, order: int, position=[], ordering=None, taylor_map=False, **kwarg
 
     if len(position) == 0:
         position = (0,)*n_args
-    _ = dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".get_taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
+    _ = dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
     out = {}
     out['DA'] = dchain
     out['input'] = kwargs.copy()
@@ -382,8 +382,8 @@ def tpsa(*ops, order: int, position=[], ordering=None, taylor_map=False, **kwarg
     out['input']['taylor_map'] = taylor_map
     out['input']['order'] = order
 
-    if taylor_map:
-        out['taylor_map'] = get_taylor_map(*dchain._evaluation, dim=dim, max_power=kwargs.get('max_power', order))
+    if taylor:
+        out['taylor_map'] = taylor_map(*dchain._evaluation, dim=dim, max_power=kwargs.get('max_power', order))
         
     return out
 

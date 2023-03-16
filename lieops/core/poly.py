@@ -643,10 +643,10 @@ class _poly:
         some overwork in the poisson bracket routine self.__matmul__.
         
         mult_drv: boolean, optional
-            Control of factorial and permutation coefficients. See njet.poly.jetpoly.get_taylor_coefficients for details.
+            Control of factorial and permutation coefficients. See njet.poly.jetpoly.taylor_coefficients for details.
             
         mult_prm: boolean, optional
-            Control of factorial and permutation coefficients. See njet.poly.jetpoly.get_taylor_coefficients for details.
+            Control of factorial and permutation coefficients. See njet.poly.jetpoly.taylor_coefficients for details.
             
         **kwargs
             Arguments passed to self.__class__.
@@ -671,7 +671,7 @@ class _poly:
         if h1 == 0:
             rbv = {(0,)*self.dim*2: 0}
         else:
-            rbv = h1.get_taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
+            rbv = h1.taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
         return self.__class__(values=rbv, poisson_factor=poisson_factor)
     

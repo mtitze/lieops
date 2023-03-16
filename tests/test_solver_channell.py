@@ -3,7 +3,7 @@ import mpmath as mp
 from njet import derive
 
 from lieops.core import create_coords, lexp, poly
-from lieops.core.tools import get_taylor_map, symcheck
+from lieops.core.tools import taylor_map, symcheck
 from lieops.solver.channell import get_monomial_flow
 
 @pytest.mark.parametrize("xi0, eta0", [(0, 0), (0.0287, -0.014)])
@@ -19,7 +19,7 @@ def test_symplecticity1(xi0, eta0, order=10, tol=2e-21):
     op1 = lexp(ham)
     op1.calcFlow(method='channell')
     dop1 = derive(op1, order=order, n_args=2)
-    op1map = get_taylor_map(*dop1.eval(xi0, eta0), max_power=order)
+    op1map = taylor_map(*dop1.eval(xi0, eta0), max_power=order)
 
     # Let N be the order by which we want to compare the product xi_f@eta_f.
     # Then N = k + l - 2 where k and l are the orders of xi_f and eta_f. 
@@ -40,7 +40,7 @@ def test_symplecticity2(dps=64, order=6, tol=1e-51):
     testmap = get_monomial_flow(testham)
     dmap = derive(testmap, order=order, n_args=2)
     evaluation = dmap.eval(0, 0)
-    tm = get_taylor_map(*evaluation, max_power=order)
+    tm = taylor_map(*evaluation, max_power=order)
     assert len(symcheck(tm, tol=tol)) == 0
 
 def test_2d_hamiltonian(n_slices=100, tol=1e-2, tol2=3e-1):
