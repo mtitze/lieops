@@ -319,7 +319,7 @@ def taylor_map(*evaluation, **kwargs):
     tc = taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
-def tpsa(*ops, order: int, position=[], ordering=None, taylor=False, **kwargs):
+def tpsa(*ops, order: int, position=[], ordering=None, **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators.
 
@@ -339,9 +339,6 @@ def tpsa(*ops, order: int, position=[], ordering=None, taylor=False, **kwargs):
         A list defining an optinonal ordering of the operators. See njet.extras.cderive for
         details. If nothing provided, the ordering from the given operators is used and
         an njet.derive object will be used instead.
-        
-    taylor: boolean, optional
-        If true, also compute the taylor map in terms of lieops.poly objects.
 
     **kwargs
         Optional keyworded arguments passed to njet.extras.cderive or njet.derive class.
@@ -352,8 +349,6 @@ def tpsa(*ops, order: int, position=[], ordering=None, taylor=False, **kwargs):
         A dictionary containing the results of the TPSA run.
                 DA: njet.extras.cderive or njet.derive object, containing the jet evaluation results.
              input: The input parameters used.
-        taylor_map: (Only if taylor_map == True) A list of poly objects, representing the Taylor map of 
-                    the given operators at 'position'.
     '''
     assert len(ops) > 0, 'No operator provided.'
     dim = ops[0].argument.dim
@@ -375,17 +370,7 @@ def tpsa(*ops, order: int, position=[], ordering=None, taylor=False, **kwargs):
     if len(position) == 0:
         position = (0,)*n_args
     _ = dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
-    out = {}
-    out['DA'] = dchain
-    out['input'] = kwargs.copy()
-    out['input']['position'] = position
-    out['input']['taylor_map'] = taylor_map
-    out['input']['order'] = order
-
-    if taylor:
-        out['taylor_map'] = taylor_map(*dchain._evaluation, dim=dim, max_power=kwargs.get('max_power', order))
-        
-    return out
+    return dchain
 
 def symcheck(p, tol, warn=True):
     '''

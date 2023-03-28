@@ -8,8 +8,6 @@ from .generators import genexp
 from .combine import magnus
 from .poly import _poly
 
-from lieops.core.tools import symcheck
-
 from lieops.solver import get_2flow, channell, heyoka
 from lieops.solver.splitting import recursive_monomial_split
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
@@ -393,7 +391,16 @@ class lieoperator:
         kwargs['order'] = order
         
         # 2. Run TPSA
-        return lieops.core.tools.tpsa(self, position=position, **kwargs)
+        self._tpsa = lieops.core.tools.tpsa(self, position=position, **kwargs)
+        return self._tpsa
+    
+    def taylor_map(self, **kwargs):
+        '''
+        Return the Taylor map from a given TPSA evaluation, using the
+        dimensionn and max_power of the current Lie-operator.
+        '''
+        assert hasattr(self, '_tpsa')
+        return lieops.core.tools.taylor_map(*self._tpsa._evaluation, dim=self.argument.dim, max_power=kwargs.get('max_power', self.argument.max_power))
 
     
 class lexp(lieoperator):
@@ -632,11 +639,11 @@ class lexp(lieoperator):
                 xietaf = flow_out['xietaf']
             elif 'flow' in flow_out.keys():
                 # compute the final xi/eta-coordinates from the bare flow function, using TPSA
-                kwargs['taylor'] = True
-                tpsa_out = self.tpsa(**kwargs)
-                xietaf = tpsa_out['taylor_map'] # TODO: check if components = xieta (otherwise xietaf is misleading description).
+                dchain = self.tpsa(**kwargs)
+                xietaf = self.taylor_map()
+                # TODO: check if components = xieta (otherwise xietaf is misleading description).
                 flow_out['xietaf'] = xietaf
-                flow_out['dflow'] = tpsa_out['DA']
+                flow_out['dflow'] = dchain
                 self._flow[method].update(flow_out)
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
@@ -652,20 +659,21 @@ class lexp(lieoperator):
             return self.bch(*z, **kwargs) # Baker-Campbell-Hausdorff (using Magnus/combine routine)
         else:
             return lieoperator.__call__(self, *z, **kwargs)
-        
-    def tpsa(self, *args, **kwargs):
+
+    def taylor_map(self, tol=0, **kwargs):
         '''
-        See lieops.core.tools.tpsa for a description.
+        Return the Taylor map from a given TPSA evaluation, using the
+        dimensionn and max_power of the current Lie-operator.
+        
+        Moreover, perform a symplecticity check if a tolerance is given.
         
         Parameters
-        ----------        
+        ----------
         tol: float, optional
-            If > 0, perform a check on symplecticity of the map.
-        '''
-        tol = kwargs.get('tol', 0)
-        tpsa_out = lieoperator.tpsa(self, *args, **kwargs)
-        if tol > 0 and 'taylor_map' in tpsa_out.keys(): # check if map is symplectic
-            _ = symcheck(tpsa_out['taylor_map'], tol=tol)
-        return tpsa_out
-
-
+            If > 0, perform a symplecticity check on the results.
+        '''        
+        tm = lieoperator.taylor_map(self, **kwargs)
+        if tol > 0:
+            _ = lieops.core.tools.symcheck(tm, tol=tol)
+        return tm
+            
