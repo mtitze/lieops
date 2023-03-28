@@ -47,7 +47,7 @@ def test_dragtfinn_1d(q0, p0, offset1, offset2, tol1, tol2, tol3, order, **kwarg
     reference = op(xi0, eta0)
     
     _ = op.tpsa(offset1, offset2, order=order)
-    taylor_map = op.taylor_map(max_power=10)
+    taylor_map = op.taylor_map(max_power=kwargs.get('max_power', 10))
     reference2 = [xe(xi0 - offset1, eta0 - offset2) for xe in taylor_map]
     
     # Confirm that the determined Taylor expansion gives the same results at the requested

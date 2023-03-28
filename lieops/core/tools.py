@@ -319,7 +319,7 @@ def taylor_map(*evaluation, **kwargs):
     tc = taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
-def tpsa(*ops, order: int, position=[], ordering=None, **kwargs):
+def tpsa(*ops, position=[], ordering=None, **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators.
 
@@ -354,8 +354,10 @@ def tpsa(*ops, order: int, position=[], ordering=None, **kwargs):
     dim = ops[0].argument.dim
     assert all([op.argument.dim == dim for op in ops]), 'Not all operator dimensions are equal.'
     n_args = dim*2
+    assert 'order' in kwargs.keys()
+    order = kwargs.pop('order')
     
-    if not ordering is None:
+    if ordering is not None:
         dchain = cderive(*ops, n_args=n_args, order=order, ordering=ordering)
     else:
         # A direct derivative is usually faster, because if ordering == None, all

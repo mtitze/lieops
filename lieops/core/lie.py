@@ -399,7 +399,7 @@ class lieoperator:
         Return the Taylor map from a given TPSA evaluation, using the
         dimensionn and max_power of the current Lie-operator.
         '''
-        assert hasattr(self, '_tpsa')
+        assert hasattr(self, '_tpsa'), 'TPSA calculation required in advance.'
         return lieops.core.tools.taylor_map(*self._tpsa._evaluation, dim=self.argument.dim, max_power=kwargs.get('max_power', self.argument.max_power))
 
     
