@@ -319,9 +319,10 @@ def taylor_map(*evaluation, **kwargs):
     tc = taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
-def tpsa(*ops, position=[], ordering=None, **kwargs):
+def tpsa(*ops, position=[], ordering=None, outf='default', **kwargs):
     '''
-    Pass n-jets through the flow functions of a chain of Lie-operators.
+    Pass n-jets through the flow functions of a chain of Lie-operators
+    to compute the result for every cycle.
 
     Parameters
     ----------
@@ -339,16 +340,22 @@ def tpsa(*ops, position=[], ordering=None, **kwargs):
         A list defining an optinonal ordering of the operators. See njet.extras.cderive for
         details. If nothing provided, the ordering from the given operators is used and
         an njet.derive object will be used instead.
+        
+    outf: str, optional
+        Control the type of output.
+        'default': return an object of type njet.derive. 
+         'dchain': Return an object of type njet.extras.cderive.
+           'auto': Select the result based on the number of unique elements in the given chain
+                   vs. the ordering.
 
     **kwargs
         Optional keyworded arguments passed to njet.extras.cderive or njet.derive class.
         
     Returns
     -------
-    dict
-        A dictionary containing the results of the TPSA run.
-                DA: njet.extras.cderive or njet.derive object, containing the jet evaluation results.
-             input: The input parameters used.
+    derive or cderive
+        An njet.derive or njet.extras.cderive object, containing the results of the TPSA calculation,
+        depending on the 'outf' parameter.
     '''
     assert len(ops) > 0, 'No operator provided.'
     dim = ops[0].argument.dim
@@ -357,17 +364,25 @@ def tpsa(*ops, position=[], ordering=None, **kwargs):
     assert 'order' in kwargs.keys()
     order = kwargs.pop('order')
     
-    if ordering is not None:
-        dchain = cderive(*ops, n_args=n_args, order=order, ordering=ordering)
-    else:
-        # A direct derivative is usually faster, because if ordering == None, all
-        # functions in the chain are considered to be unique. The cderive class, however,
-        # probes the chain first and so it may produce a calculation overhead.
+    if outf == 'auto':
+        outf = 'default'
+        if ordering is not None:
+            # A direct derivative might be faster if the length of the unique elements
+            # in the chain equals the given ordering. The cderive class probes the chain 
+            # first and so it may produce a calculation overhead.
+            if len(ordering) > len(ops):
+                outf = 'dchain'
+    
+    if outf == 'default':
         def chain(*z, **kwargs1):
             for op in ops:
                 z = op(*z, **kwargs1)
             return z
         dchain = derive(chain, n_args=n_args, order=order)
+    elif outf == 'dchain':
+        dchain = cderive(*ops, n_args=n_args, order=order, ordering=ordering)
+    else:
+        raise RuntimeError(f"Output format '{outf}' not recognized.")
 
     if len(position) == 0:
         position = (0,)*n_args
