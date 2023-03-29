@@ -639,7 +639,8 @@ class lexp(lieoperator):
                 xietaf = flow_out['xietaf']
             elif 'flow' in flow_out.keys():
                 # compute the final xi/eta-coordinates from the bare flow function, using TPSA
-                dchain = self.tpsa(**kwargs)
+                zero = (0,)*self.argument.dim*2
+                dchain = self.tpsa(*zero, **kwargs)
                 xietaf = self.taylor_map()
                 # TODO: check if components = xieta (otherwise xietaf is misleading description).
                 flow_out['xietaf'] = xietaf

@@ -319,7 +319,7 @@ def taylor_map(*evaluation, **kwargs):
     tc = taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
-def tpsa(*ops, position=[], ordering=None, outf='default', **kwargs):
+def tpsa(*ops, position=[], ordering=None, mode='default', **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators
     to compute the result for every cycle.
@@ -334,17 +334,19 @@ def tpsa(*ops, position=[], ordering=None, outf='default', **kwargs):
         The number of derivatives which should be taken into account.
 
     position: list, optional
-        An optional point of reference. By default the position will be the origin.
+        An optional point of reference. If nothing specified, no evaluation of the
+        internal 'derive' (or 'cderive') object will be made. Otherwise, a
+        jet-evaluation at the requested position will be made.
         
     ordering: list, optional
         A list defining an optinonal ordering of the operators. See njet.extras.cderive for
         details. If nothing provided, the ordering from the given operators is used and
         an njet.derive object will be used instead.
         
-    outf: str, optional
+    mode: str, optional
         Control the type of output.
         'default': return an object of type njet.derive. 
-         'dchain': Return an object of type njet.extras.cderive.
+          'chain': Return an object of type njet.extras.cderive.
            'auto': Select the result based on the number of unique elements in the given chain
                    vs. the ordering.
 
@@ -355,7 +357,7 @@ def tpsa(*ops, position=[], ordering=None, outf='default', **kwargs):
     -------
     derive or cderive
         An njet.derive or njet.extras.cderive object, containing the results of the TPSA calculation,
-        depending on the 'outf' parameter.
+        depending on the 'mode' parameter.
     '''
     assert len(ops) > 0, 'No operator provided.'
     dim = ops[0].argument.dim
@@ -364,16 +366,16 @@ def tpsa(*ops, position=[], ordering=None, outf='default', **kwargs):
     assert 'order' in kwargs.keys()
     order = kwargs.pop('order')
     
-    if outf == 'auto':
-        outf = 'default'
+    if mode == 'auto':
+        mode = 'default'
         if ordering is not None:
             # A direct derivative might be faster if the length of the unique elements
             # in the chain equals the given ordering. The cderive class probes the chain 
             # first and so it may produce a calculation overhead.
             if len(ordering) > len(ops):
-                outf = 'dchain'
+                mode = 'chain'
     
-    if outf == 'default':
+    if mode == 'default':
         if ordering is None:
             ordering = range(len(ops))
             
@@ -382,14 +384,13 @@ def tpsa(*ops, position=[], ordering=None, outf='default', **kwargs):
                 z = ops[ordering[k]](*z, **kwargs1)
             return z
         dchain = derive(chain, n_args=n_args, order=order)
-    elif outf == 'dchain':
+    elif mode == 'chain':
         dchain = cderive(*ops, n_args=n_args, order=order, ordering=ordering)
     else:
-        raise RuntimeError(f"Output format '{outf}' not recognized.")
+        raise RuntimeError(f"Output format '{mode}' not recognized.")
 
-    if len(position) == 0:
-        position = (0,)*n_args
-    _ = dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
+    if len(position) > 0:
+        _ = dchain.eval(*position, **kwargs) # N.B. the plain jet output is stored in dchain._evaluation. From here one can use ".taylor_coefficients" with other parameters -- if desired -- or re-use the jets for further processing.
     return dchain
 
 def symcheck(p, tol, warn=True):
