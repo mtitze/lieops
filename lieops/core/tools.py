@@ -374,9 +374,12 @@ def tpsa(*ops, position=[], ordering=None, outf='default', **kwargs):
                 outf = 'dchain'
     
     if outf == 'default':
+        if ordering is None:
+            ordering = range(len(ops))
+            
         def chain(*z, **kwargs1):
-            for op in ops:
-                z = op(*z, **kwargs1)
+            for k in range(len(ordering)):
+                z = ops[ordering[k]](*z, **kwargs1)
             return z
         dchain = derive(chain, n_args=n_args, order=order)
     elif outf == 'dchain':
