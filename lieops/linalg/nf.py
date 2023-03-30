@@ -18,8 +18,7 @@ from njet.ad import getNargs
 from njet.functions import get_package_name
 from njet import derive
 
-@ndsupport
-def symlogs(X, **kwargs):
+def _symlogs(X, **kwargs):
     r'''
     Let X be a complex symplectic matrix, i.e. a matrix satisfying
     X.transpose()@J@X = J.
@@ -53,6 +52,8 @@ def symlogs(X, **kwargs):
     logD = logm(D) # logD.transpose()@J + J@logD = 0
     Y = Vi@logD@V
     return Y, logP
+
+symlogs = ndsupport(_symlogs, n_out_args=2)
 
 def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
     r'''

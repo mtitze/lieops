@@ -5,8 +5,14 @@ import warnings
 
 from lieops.linalg.matrix import create_J
 from lieops.linalg.nf import symlogs
+from lieops.linalg.common import ndsupport
+
 from lieops.core.lie import create_coords, lexp
 from lieops.core.tools import const2poly, poly2vec, ad2poly
+
+@ndsupport
+def logm_nd(X, **kwargs):
+    return logm(X, **kwargs)
 
 def _integrate_k(p, k: int):
     '''
@@ -193,7 +199,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     if comb2:
         try:
             Rtr = np.swapaxes(R, 0, 1) # Explanation why we have to use transpose will follow at (++)
-            A = logm(Rtr)
+            A = logm_nd(Rtr)
             SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
             SB = SA*0
             B = A*0
