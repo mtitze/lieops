@@ -245,7 +245,7 @@ def vec3poly(vec, **kwargs):
 def const2poly(*const, poisson_factor=-1j, **kwargs):
     '''
     Let c_1, ..., c_{2n} be constants. Then compute a first-order polynomial g_1
-    so that {g_1, z_j} = z_j + c_j holds.
+    so that {g_1, z_j} = z_j + c_j holds, where the z_j are canonical coordinates.
     '''
     dim2 = len(const)
     assert dim2%2 == 0, 'Dimension must be even.'

@@ -9,7 +9,7 @@ def printmat(M, tol=1e-14):
     M = mp.matrix(M)
     mp.nprint(mp.chop(M, tol))
 
-def create_J(dim: int):
+def create_J(dim: int, shape=None):
     r'''
     Create a 2*dim-square matrix J, corresponding to the standard 
     symplectic block-matrix
@@ -23,6 +23,10 @@ def create_J(dim: int):
     dim: int
         Dimension/2 of the matrix to be constructed.
         
+    shape: tuple, optional
+        If given, assume that the 0's and 1's in the above matrix
+        have a given shape. Return a multi-dimensional numpy array accordingly.
+        
     Returns
     -------
     list
@@ -30,10 +34,17 @@ def create_J(dim: int):
     '''
     dim2 = 2*dim
     J1, J2 = [], []
+    if shape is None:
+        zeros = 0
+        ones = 1
+    else:
+        zeros = np.zeros(shape, dtype=np.complex128)
+        ones = np.ones(shape, dtype=np.complex128)
+        
     for k in range(dim):
-        J1.append([0 if i != k + dim else -1 for i in range(dim2)])
-        J2.append([0 if i != k else 1 for i in range(dim2)])
-    return np.array(J1 + J2).transpose()
+        J1.append([zeros if i != k + dim else ones for i in range(dim2)])
+        J2.append([zeros if i != k else -ones for i in range(dim2)])        
+    return np.array(J1 + J2)
 
 def expandingSum(pairs):
     '''Compute a transformation matrix T, to transform a given
