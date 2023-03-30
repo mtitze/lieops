@@ -12,11 +12,13 @@ from .matrix import create_J, matrix_from_dict, create_pq2xieta
 from lieops.linalg.congruence.takagi import symplectic_takagi, symplectic_takagi_old
 from lieops.linalg.congruence.williamson import unitary_williamson, williamson
 from lieops.linalg.similarity.symplectic import thm31
+from lieops.linalg.common import ndsupport
 
 from njet.ad import getNargs
 from njet.functions import get_package_name
-from njet import derive    
+from njet import derive
 
+@ndsupport
 def symlogs(X, **kwargs):
     r'''
     Let X be a complex symplectic matrix, i.e. a matrix satisfying

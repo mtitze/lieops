@@ -192,16 +192,19 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     # Compute the 2nd-order polynomial(s) of the Dragt/Finn factorization
     if comb2:
         try:
-            A = logm(R.transpose()) # Explanation why we have to use transpose will follow at (++)
+            Rtr = np.swapaxes(R, 0, 1) # Explanation why we have to use transpose will follow at (++)
+            A = logm(Rtr)
             SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
             SB = SA*0
             B = A*0
         except:
             if warn:
-                warnings.warn(f"Map appears to require two 2nd-order polynomials (tol: {tol}).")
+                warnings.warn(f"Map requires two 2nd-order polynomials (tol: {tol}).")
             comb2 = False
+            
     if not comb2:
-        A, B = symlogs(R.transpose(), tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
+        Rtr = np.swapaxes(R, 0, 1)
+        A, B = symlogs(Rtr, tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
         SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
         SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
         
