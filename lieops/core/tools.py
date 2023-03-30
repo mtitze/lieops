@@ -251,8 +251,8 @@ def const2poly(*const, poisson_factor=-1j, **kwargs):
     assert dim2%2 == 0, 'Dimension must be even.'
     dim = dim2//2
     J = create_J(dim)
-    xieta = lieops.core.lie.create_coords(dim, poisson_factor=poisson_factor, **kwargs)
-    return sum([xieta[k]*(J@const)[k] for k in range(dim2)])/poisson_factor
+    xieta = lieops.core.lie.create_coords(dim, poisson_factor=poisson_factor, **kwargs)    
+    return sum([xieta[k]*(np.tensordot(J, const, axes=([1],[0])))[k] for k in range(dim2)])/poisson_factor
 
 def poly2const(p1):
     '''
