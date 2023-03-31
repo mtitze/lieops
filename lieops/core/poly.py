@@ -183,7 +183,13 @@ class _poly:
             A polynomial having the same keys/values as the current polynomial, but the absolute values are larger
             than the requested threshold.
         '''
-        return self.extract(value_cond=lambda x: abs(x) > tol)
+        def value_cond(x):
+            result = abs(x) > tol
+            if not hasattr(result, '__iter__'):
+                return result
+            else:
+                return result.all() # assuming a numpy array
+        return self.extract(value_cond=value_cond)
     
     def below(self, tol: float):
         '''
@@ -200,7 +206,13 @@ class _poly:
             A polynomial having the same keys/values as the current polynomial, but the absolute values are smaller
             than the requested threshold.
         '''
-        return self.extract(value_cond=lambda x: abs(x) < tol)
+        def value_cond(x):
+            result = abs(x) < tol
+            if not hasattr(result, '__iter__'):
+                return result
+            else:
+                return result.all() # assuming a numpy array
+        return self.extract(value_cond=value_cond)
     
     def monomials(self):
         '''

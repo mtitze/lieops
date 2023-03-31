@@ -191,15 +191,16 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     # Determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     J = create_J(dim)
+    Rtr = np.swapaxes(R, 0, 1) # the transpose of R (also working in case R contains additional dimensions)
+    
     if tol_checks > 0:
         # Symplecticity check of the map; it is crucial to check symplecticity this point *before* applying logm or symlogs etc. to avoid subtle errors produced from 'almost symplectic' maps
-        assert np.linalg.norm(R.transpose()@J@R - J) < tol_checks, f'Map not symplectic within a tolerance of {tol_checks}.'
-    
+        assert np.linalg.norm(Rtr@J@R - J) < tol_checks, f'Map not symplectic within a tolerance of {tol_checks}.'
+        
     # Compute the 2nd-order polynomial(s) of the Dragt/Finn factorization
     if comb2:
         try:
-            Rtr = np.swapaxes(R, 0, 1) # Explanation why we have to use transpose will follow at (++)
-            A = logm_nd(Rtr)
+            A = logm_nd(Rtr) # Explanation why we have to use transpose will follow at (++)
             SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
             SB = SA*0
             B = A*0
@@ -209,7 +210,6 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
             comb2 = False
             
     if not comb2:
-        Rtr = np.swapaxes(R, 0, 1)
         A, B = symlogs(Rtr, tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
         SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
         SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
@@ -244,7 +244,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         
     if tol_checks > 0:
         # check if symlogs gives correct results
-        assert np.linalg.norm(expm(A)@expm(B) - R.transpose()) < tol_checks
+        assert np.linalg.norm(expm(A)@expm(B) - Rtr) < tol_checks
         xieta = create_coords(dim, poisson_factor=pf, max_power=max_power) # for the two checks at (+) below
         # Now it holds with
         # op_result := lexp(SA)(*lexp(SB)(*xieta, power=30), power=30)
@@ -265,8 +265,15 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         # lexp(SB)(*lexp(SA)(*xieta0))   (4)
         # Note the difference of the order: Now SB and SA in Eq. (4) are reversed in comparison to Eq. (1).
 
-    # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
-    Ri = -J@R.transpose()@J
+    # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17).
+    # First step: Compute the inverse Ri = -J@R.transpose()@J. Instead of using a default matrix multiplication
+    # here, we do some NumPy axes gymnastics to include the option that the entries 
+    # of R are multi-dimensional arrays.
+    JRtr = np.tensordot(J, Rtr, axes=(1, 0)) # = J@R.transpose()
+    Ri_1 = -np.tensordot(JRtr, J, axes=(1, 0)) # = -J@R.transpose()@J but axes not in proper order
+    Ri_2 = np.moveaxis(Ri_1, -1, 0)
+    Ri = np.swapaxes(Ri_2, 0, 1)
+    
     p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     if tol > 0:
         # not dropping small values may result in a slow-down of the code. Therefore:
