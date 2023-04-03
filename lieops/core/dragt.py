@@ -178,7 +178,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
 
-    start_is_nonzero = any([e != 0 for e in start])
+    start_is_nonzero = not check_zero(start)
     if start_is_nonzero:
         # preparation step in case of translations, see Ref. [1], Eq. (7.7.17)
         h1 = const2poly(*start, poisson_factor=pf, max_power=max_power) # E.g.: lexp(h1)(xi) = xi + start[0] 
@@ -295,9 +295,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         # lexp(SB)(*lexp(SA)(*xieta0))   (4)
         # Note the difference of the order: Now SB and SA in Eq. (4) are reversed in comparison to Eq. (1).
 
-    # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17).
-
-    
+    # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
     p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     if tol > 0:
         # not dropping small values may result in a slow-down of the code. Therefore:
@@ -369,7 +367,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     if start_is_nonzero:
         f_all.insert(0, -h1)
             
-    if any([~check_zero(e) for e in final]):
+    if any([not check_zero(e) for e in final]):
         g1 = const2poly(*final, poisson_factor=pf, max_power=max_power)
         if start_is_nonzero and len(f_all) == 1:
             # in this case only a single term (-h1) of order 1 is contained in f_all thus far. We shall combine this term with g1 (such a case may happen for a first-order polynomial + offset as input)

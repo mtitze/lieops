@@ -268,7 +268,7 @@ class _poly:
         return result
         
     def __add__(self, other):
-        if other == 0:
+        if check_zero(other):
             return self
         add_values = {k: v for k, v in self.items()}
         if not isinstance(self, type(other)):
