@@ -178,7 +178,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         diff = [final[k] - start[k] for k in range(dim2)]
         return [const2poly(*diff, poisson_factor=pf)]
 
-    start_is_nonzero = not check_zero(start)
+    start_is_nonzero = any([not check_zero(e) for e in start])
     if start_is_nonzero:
         # preparation step in case of translations, see Ref. [1], Eq. (7.7.17)
         h1 = const2poly(*start, poisson_factor=pf, max_power=max_power) # E.g.: lexp(h1)(xi) = xi + start[0] 
