@@ -468,7 +468,7 @@ def ndsupport(func, n_out_args=1):
                 results = np.array(results)
                 z1 = np.moveaxis(results, -1, 0)
                 z2 = np.moveaxis(z1, -1, 0)
-                return z2
+                return np.reshape(z2, X.shape)
             else:
                 results = [np.array(z) for z in results]
                 # revert the axis rolling and reshape 

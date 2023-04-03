@@ -3,6 +3,8 @@ from scipy.linalg import expm, logm
 from tqdm import tqdm
 import warnings
 
+from njet.common import check_zero
+
 from lieops.linalg.matrix import create_J
 from lieops.linalg.nf import symlogs
 from lieops.linalg.common import ndsupport
@@ -213,7 +215,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         A, B = symlogs(Rtr, tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
         SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
         SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
-        
+                
     # (++) 
     # Let us assume that we would have taken "symlogs(R) = A, B" (i.e. exp(A) o exp(B) = R) and consider a 1-dim case.
     # In the following the '~' symbol means that we identify the (1, 0)-key with xi and the (0, 1)-key with eta.
@@ -270,7 +272,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     # here, we do some NumPy axes gymnastics to include the option that the entries 
     # of R are multi-dimensional arrays.
     JRtr = np.tensordot(J, Rtr, axes=(1, 0)) # = J@R.transpose()
-    Ri_1 = -np.tensordot(JRtr, J, axes=(1, 0)) # = -J@R.transpose()@J but axes not in proper order
+    Ri_1 = -np.tensordot(JRtr, J, axes=(1, 0)) # = -J@R.transpose()@J but axes not in proper order yet
     Ri_2 = np.moveaxis(Ri_1, -1, 0)
     Ri = np.swapaxes(Ri_2, 0, 1)
     
@@ -345,7 +347,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     if start_is_nonzero:
         f_all.insert(0, -h1)
             
-    if any([e != 0 for e in final]):
+    if any([~check_zero(e) for e in final]):
         g1 = const2poly(*final, poisson_factor=pf, max_power=max_power)
         if start_is_nonzero and len(f_all) == 1:
             # in this case only a single term (-h1) of order 1 is contained in f_all thus far. We shall combine this term with g1 (such a case may happen for a first-order polynomial + offset as input)
