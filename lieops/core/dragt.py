@@ -194,10 +194,26 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
     J = create_J(dim)
     Rtr = np.swapaxes(R, 0, 1) # the transpose of R (also working in case R contains additional dimensions)
+    # Compute the inverse Ri = -J@R.transpose()@J of R. 
+    # Instead of using a default matrix multiplication here, we do some NumPy 
+    # axes gymnastics to include the option that the entries 
+    # of R are multi-dimensional arrays.
+    JRtr = np.tensordot(J, Rtr, axes=(1, 0)) # = J@R.transpose()
+    Ri_1 = -np.tensordot(JRtr, J, axes=(1, 0)) # = -J@R.transpose()@J but axes not in proper order yet
+    Ri_2 = np.moveaxis(Ri_1, -1, 0)
+    Ri = np.swapaxes(Ri_2, 0, 1)
     
     if tol_checks > 0:
         # Symplecticity check of the map; it is crucial to check symplecticity this point *before* applying logm or symlogs etc. to avoid subtle errors produced from 'almost symplectic' maps
-        assert np.linalg.norm(Rtr@J@R - J) < tol_checks, f'Map not symplectic within a tolerance of {tol_checks}.'
+        # Compute R.transpose()@J@R:
+        RtrJ = np.tensordot(Rtr, J, axes=(1, 0))
+        RtrJR = np.empty(R.shape, dtype=np.complex128) # Calculate R.transpose()@J@R in case R is multi-dimensional
+        for i in range(dim2):
+            for j in range(dim2):
+                RtrJR[i, j, ...] = sum([RtrJ[i, ..., k]*R[k, j, ...] for k in range(dim2)]) # Note that np.tensordot (above) produces a numpy array where the axes order is maintained, so the last axis in RtrJ corresponds to the one in J.
+        JJ = create_J(dim, shape=R.shape[2:])
+        check =  np.sqrt(np.linalg.norm(RtrJR - JJ)**2/np.prod(R.shape[2:])) # Division by the number of matrices
+        assert check < tol_checks, f'Symplecticity check fails: {check} >= {tol_checks} (tol_checks).'
         
     # Compute the 2nd-order polynomial(s) of the Dragt/Finn factorization
     if comb2:
@@ -268,13 +284,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         # Note the difference of the order: Now SB and SA in Eq. (4) are reversed in comparison to Eq. (1).
 
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17).
-    # First step: Compute the inverse Ri = -J@R.transpose()@J. Instead of using a default matrix multiplication
-    # here, we do some NumPy axes gymnastics to include the option that the entries 
-    # of R are multi-dimensional arrays.
-    JRtr = np.tensordot(J, Rtr, axes=(1, 0)) # = J@R.transpose()
-    Ri_1 = -np.tensordot(JRtr, J, axes=(1, 0)) # = -J@R.transpose()@J but axes not in proper order yet
-    Ri_2 = np.moveaxis(Ri_1, -1, 0)
-    Ri = np.swapaxes(Ri_2, 0, 1)
+
     
     p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     if tol > 0:
