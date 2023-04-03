@@ -16,6 +16,10 @@ from lieops.core.tools import const2poly, poly2vec, ad2poly
 def logm_nd(X, **kwargs):
     return logm(X, **kwargs)
 
+@ndsupport
+def expm_nd(X, **kwargs):
+    return expm(X, **kwargs)
+
 def _integrate_k(p, k: int):
     '''
     Let p be a Lie polynomial. Then this routine will
@@ -207,12 +211,12 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         # Symplecticity check of the map; it is crucial to check symplecticity this point *before* applying logm or symlogs etc. to avoid subtle errors produced from 'almost symplectic' maps
         # Compute R.transpose()@J@R:
         RtrJ = np.tensordot(Rtr, J, axes=(1, 0))
-        RtrJR = np.empty(R.shape, dtype=np.complex128) # Calculate R.transpose()@J@R in case R is multi-dimensional
+        RtrJR = np.empty(R.shape, dtype=np.complex128) # Calculate R.transpose()@J@R in case R is multi-dimensional; here we need component-wise multiplication of the remaining terms:
         for i in range(dim2):
             for j in range(dim2):
                 RtrJR[i, j, ...] = sum([RtrJ[i, ..., k]*R[k, j, ...] for k in range(dim2)]) # Note that np.tensordot (above) produces a numpy array where the axes order is maintained, so the last axis in RtrJ corresponds to the one in J.
         JJ = create_J(dim, shape=R.shape[2:])
-        check =  np.sqrt(np.linalg.norm(RtrJR - JJ)**2/np.prod(R.shape[2:])) # Division by the number of matrices
+        check = np.sqrt(np.linalg.norm(RtrJR - JJ)**2/np.prod(R.shape[2:])) # Division by the number of matrices as measure (seems to be good enough rather than computing the norms individually)
         assert check < tol_checks, f'Symplecticity check fails: {check} >= {tol_checks} (tol_checks).'
         
     # Compute the 2nd-order polynomial(s) of the Dragt/Finn factorization
@@ -262,7 +266,15 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         
     if tol_checks > 0:
         # check if symlogs gives correct results
-        assert np.linalg.norm(expm(A)@expm(B) - Rtr) < tol_checks
+        # Calculate expm(A)@expm(B). In case of multi-dimensional arrays, we can not simply use
+        # the matrix multiplication operator '@' however, but instead need to multiply by hand:
+        expA, expB = expm_nd(A), expm_nd(B)
+        expAexpB = np.empty(R.shape, dtype=np.complex128)
+        for i in range(dim2):
+            for j in range(dim2):
+                expAexpB[i, j, ...] = sum([expA[i, k, ...]*expB[k, j, ...] for k in range(dim2)])
+        check = np.sqrt(np.linalg.norm(expAexpB - Rtr)**2/np.prod(R.shape[2:])) # Division by the number of matrices.
+        assert check < tol_checks
         xieta = create_coords(dim, poisson_factor=pf, max_power=max_power) # for the two checks at (+) below
         # Now it holds with
         # op_result := lexp(SA)(*lexp(SB)(*xieta, power=30), power=30)

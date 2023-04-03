@@ -108,9 +108,9 @@ def ad2poly(A, tol=0, poisson_factor=-1j, **kwargs):
                 c1 = abs(A[i, j] + A[j + dim, i + dim])
                 c2 = abs(A[i, j + dim] - A[j, i + dim])
                 c3 = abs(A[i + dim, j] - A[j + dim, i])
-                assert c1 < tol, error_msg + f'({c1}).'
-                assert c2 < tol, error_msg + f'({c2}).'
-                assert c3 < tol, error_msg + f'({c3}).'
+                assert (c1 < tol).all(), error_msg + f'({c1}).'
+                assert (c2 < tol).all(), error_msg + f'({c2}).'
+                assert (c3 < tol).all(), error_msg + f'({c3}).'
             
             mixed_key = [0]*dim2 # key belonging to a coefficient of mixed xi/eta variables.
             mixed_key[i] += 1
