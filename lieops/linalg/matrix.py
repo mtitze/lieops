@@ -1,10 +1,10 @@
 # This file collects routines which are focused on fundamental generation of specific
 # matrices and to perform basic matrix operations.
-
 import numpy as np
 import mpmath as mp
 
 from njet.common import check_zero
+from njet.functions import get_package_name
 
 def printmat(M, tol=1e-14):
     # print a matrix (for e.g. debugging reasons)
@@ -226,3 +226,96 @@ def create_pq2xieta(dim, code, **kwargs):
     if code == 'mpmath':
         out = mp.matrix(out)
     return out
+
+
+class emat:
+    '''
+    emat: extended matrix
+    
+    Class to maintain the same behavior as the ordinary mpmath or numpy arrays
+    concerning matrix multiplication, but when it comes to matrix multiplication
+    and transposition, only modify the first two axes.
+    '''
+    def __init__(self, matrix, code=None):
+        self.__array_priority__ = 1000 # prevent numpy __mul__ and force self.__rmul__ instead if multiplication from left with a numpy object
+        
+        if code is None:
+            self.code = get_package_name(matrix)
+        else:
+            self.code = code
+        self.matrix = matrix
+    
+    def __add__(self, other):
+        assert self.code == other.code
+        return self.__class__(self.matrix + other.matrix, code=self.code)
+    
+    def __radd__(self, other):
+        return self + other
+    
+    def __neg__(self):
+        return self.__class__(-self.matrix, code=self.code)
+    
+    def __sub__(self, other):
+        return self + -other
+    
+    def __rsub__(self, other):
+        return other - self
+    
+    def __mul__(self, other):
+        return self.__class__(self.matrix*other, code=self.code)
+    
+    def __rmul__(self, other):
+        return self*other
+    
+    def __matmul__(self, other):
+        if self.code == 'numpy':
+            if get_package_name(other) == 'numpy':
+                B = other
+            elif hasattr(other, 'matrix'):
+                # assume other is of class emat
+                B = other.matrix
+            else:
+                raise NotImplementedError(f'Matrix multiplication between {self.__class__} and {other.__class__} not implemented.')
+                
+            A = self.matrix
+            shape1 = A.shape
+            shape2 = B.shape
+            assert shape1[1] == shape2[0]
+            if len(shape1[2:]) == 0 and len(shape2[2:]) == 0:
+                # both are ordinary matrices
+                AB = A@B
+            elif len(shape1[2:]) > 0 and len(shape2[2:]) == 0:
+                # B is an ordinary matrix
+                AB1 = np.tensordot(A, B, axes=(1, 0)) # axes not in proper order yet
+                # the last axes of AB1 corresponds to those of the ordinary matrix B, so it needs to be moved to the 2nd position of the result
+                AB2 = np.moveaxis(AB1, -1, 0) 
+                AB = np.swapaxes(AB2, 0, 1)
+            elif len(shape1[2:]) == 0 and len(shape2[2:]) > 0:
+                # A is an ordinary matrix
+                AB = np.tensordot(A, B, axes=(1, 0))
+            else:
+                # component-wise multiplication of the remaining terms
+                AB_shape = [shape1[0]] + [shape2[1]] + list(shape1[2:])
+                AB = np.empty(AB_shape, dtype=np.complex128)
+                for i in range(shape2[1]):
+                    for j in range(shape1[0]):
+                        AB[i, j, ...] = sum([A[i, k, ...]*B[k, j, ...] for k in range(shape1[1])])
+
+            return self.__class__(AB, code=self.code)
+        else:
+            if not hasattr(other, 'matrix'): # other might be a numpy or mpmath array
+                return self.__class__(self.matrix@other, code=self.code)
+            else:
+                return self.__class__(self.matrix@other.matrix, code=self.code)
+            
+        def __rmatmul__(self, other):
+            return self.__class__(other, code=self.code)@self
+        
+    def transpose(self):
+        if self.code == 'numpy':
+            return self.__class__(np.swapaxes(self.matrix, 0, 1), code=self.code)
+        else:
+            return self.__class__(self.matrix.transpose(), code=self.code)
+        
+    def conjugate(self):
+        return self.__class__(self.matrix.conjugate(), code=self.code)

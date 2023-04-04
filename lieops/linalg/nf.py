@@ -13,6 +13,7 @@ from lieops.linalg.congruence.takagi import symplectic_takagi, symplectic_takagi
 from lieops.linalg.congruence.williamson import unitary_williamson, williamson
 from lieops.linalg.similarity.symplectic import thm31
 from lieops.linalg.common import ndsupport
+from lieops.linalg.matrix import emat
 
 from njet.ad import getNargs
 from njet.functions import get_package_name
@@ -55,7 +56,7 @@ def _symlogs(X, **kwargs):
 
 symlogs = ndsupport(_symlogs, n_out_args=2)
 
-def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
+def normal_form(H2, T=None, mode='default', check: bool=False, **kwargs):
     r'''
     Perform linear calculations to transform a given second-order Hamiltonian,
     expressed in canonical coordinates (q, p), to
@@ -130,53 +131,63 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
     dim = len(H2)
     assert dim%2 == 0, 'Dimension must be even.'
     code = get_package_name(H2)
+    H2 = emat(H2) 
         
-    if len(T) != 0: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
+    if T is not None: # transform H2 to default block ordering before entering williamson routine; the results will later be transformed back. This is easier instead of keeping track of orders inside the subroutines.
+        T = emat(T)
         T_ctr = T.transpose()
         H2 = T@H2@T_ctr
 
     J = create_J(dim//2)
     if code == 'mpmath':
         J = mp.matrix(J)
+    J = emat(J)
     
     if check:
         # consistency check: H2@J must be diagonalizable in order that the normal form can be computed.
         # Since computing the Jordan normal form is numerically unstable, we use sympy for this.
         # Note that this will only work for dim = 1 or dim = 2.
-        J_symp = sympy_matrix(J)
-        G_symp = sympy_matrix(H2)
+        J_symp = sympy_matrix(J.matrix)
+        G_symp = sympy_matrix(H2.matrix)
         P_symp, JNF = (G_symp@J_symp).jordan_form()
         if not JNF.is_diagonal():
             raise RuntimeError(f'Jordan normal form of H2@J not diagonal:\nH2:\n{H2}\nJNF:\n{JNF}')
-            
+
     # Perform symplectic diagonalization
     if mode == 'new':
         # will become the default in future; TODO: some tests are failing
-        S, X = symplectic_takagi(H2, **kwargs)
+        S, X = symplectic_takagi(H2.matrix, **kwargs)
+        S, X = emat(S), emat(X)
         S = S.transpose()
         Sinv = -J@S.transpose()@J
-                
+
         D = Sinv.transpose()@H2@Sinv
         U = create_pq2xieta(dim=dim, code=code, **kwargs)
+        U = emat(U)
     elif mode == 'default':
         # will become OLD code. Using symplectic takagi assuming GJ is diagonalizable. This older version
         # works with eigenspaces and eigenvalues routine.
         # TODO: S may change the sign of the Hesse-matrix. Need to figure out the issue. 
-        S, D, _ = symplectic_takagi_old(H2, check=check, **kwargs)
+        S, D, _ = symplectic_takagi_old(H2.matrix, check=check, **kwargs)
+        S, D = emat(S), emat(D)
         S = S.transpose()
         Sinv = -J@S.transpose()@J
         U = create_pq2xieta(dim=dim, code=code, **kwargs)
+        U = emat(U)
     elif mode == 'classic':
         # OLD code, using Williamson or "unitary" Williamson.
-        if is_positive_definite(H2):
-            S, D = williamson(V=H2, **kwargs)
+        if is_positive_definite(H2.matrix):
+            S, D = williamson(V=H2.matrix, **kwargs)
+            S, D = emat(S), emat(D)
 
             U = create_pq2xieta(dim=dim, code=code, **kwargs)
+            U = emat(U)
             Sinv = -J@S.transpose()@J
         else:
             assert code == 'numpy' # TODO: mpmath support
             # apply new general routine in case H2 is not positive definite
-            Sinv, D, U = unitary_williamson(M=H2, **kwargs) # U.conjugate()@Sinv.transpose()@H2@Sinv@U.conjugate().transpose() will be in (xi, eta)-canonical form.
+            Sinv, D, U = unitary_williamson(M=H2.matrix, **kwargs) # U.conjugate()@Sinv.transpose()@H2@Sinv@U.conjugate().transpose() will be in (xi, eta)-canonical form.
+            Sinv, D, U = emat(Sinv), emat(D), emat(U)
             S = -J@Sinv.transpose()@J
     else:
         raise RuntimeError(f"Mode '{mode}' not recognized.")
@@ -194,7 +205,7 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
     K = U@S # K(q, p) = (xi, eta)
     Kinv = Sinv@Uinv  # this map will transform to the new (xi, eta)-coordinates via Kinv.transpose()*H2*Kinv
 
-    if len(T) != 0: # transform results back to the requested (q, p)-ordering
+    if T is not None: # transform results back to the requested (q, p)-ordering
         S = T_ctr@S@T
         Sinv = T_ctr@Sinv@T
         J = T_ctr@J@T
@@ -204,38 +215,43 @@ def normal_form(H2, T=[], mode='default', check: bool=False, **kwargs):
     
     # assemble output
     out = {}
-    out['S'] = S 
-    out['Sinv'] = Sinv # this symplectic map will diagonalize H2 in its original 
+    out['S'] = S.matrix
+    out['Sinv'] = Sinv.matrix # this symplectic map will diagonalize H2 in its original 
     # (q, p)-coordinates via Sinv.transpose()*H2*Sinv. Sinv (and S) are symplectic wrt. J
-    out['H2'] = H2 # the input matrix
-    out['rnf'] = Sinv.transpose()@H2@Sinv # the diagonal matrix obtained as a result of the symplectic diagonalization of H2
-    out['T'] = T
-    out['J'] = J # the original symplectic structure
-    out['J2'] = J2 # the new symplectic structure
-    out['U'] = U # the unitary map from the S(p, q)=(u, v)-block coordinates to the (xi, eta)-coordinates
-    out['Uinv'] = Uinv
-    out['K'] = K # K(q, p) = (xi, eta)
-    out['Kinv'] = Kinv
-    out['cnf'] = Kinv.transpose()@H2@Kinv # the representation of H2 in (xi, eta)-coordinates
-    out['D'] = D
+    out['H2'] = H2.matrix # the input matrix
+    out['rnf'] = (Sinv.transpose()@H2@Sinv).matrix # the diagonal matrix obtained as a result of the symplectic diagonalization of H2
+    if T is not None:
+        out['T'] = T.matrix
+    else:
+        out['T'] = []
+    out['J'] = J.matrix # the original symplectic structure
+    out['J2'] = J2.matrix # the new symplectic structure
+    out['U'] = U.matrix # the unitary map from the S(p, q)=(u, v)-block coordinates to the (xi, eta)-coordinates
+    out['Uinv'] = Uinv.matrix
+    out['K'] = K.matrix # K(q, p) = (xi, eta)
+    out['Kinv'] = Kinv.matrix
+    out['cnf'] = (Kinv.transpose()@H2@Kinv).matrix # the representation of H2 in (xi, eta)-coordinates
+    out['D'] = D.matrix
     
     # Furthermore, compute the map A transforming the Hamiltonian (given in (xi, eta)-coordinates), 
     # whose Hessian corresponds to H2 above, into its first-order normal form.
     # For details see my notes (On_Sp2n.pdf)
     if code != 'mpmath':
-        out['A'] = U@Sinv@Uinv
+        out['A'] = (U@Sinv@Uinv).matrix
         tol_logm = kwargs.get('tol_logm', 1e-14)
         try:
-            B1 = logm(Sinv) # exist always, since Sinv is invertible
+            B1 = logm(Sinv.matrix) # exist always, since Sinv is invertible
             # But: B1 must be in the Lie-algebra sp(2n; C). This is not always guaranteed, so we have to check it here:
+            B1 = emat(B1)
             zero = J@B1.transpose() + B1@J
             assert (all([abs(zero[i, j]) < tol_logm for i in range(dim) for j in range(dim)]))
         except:
             # Sinv can only be represented by two exponentials
-            B1, B2 = symlogs(Sinv, tol2=kwargs.get('symlogs_tol2', 0))
+            B1, B2 = symlogs(Sinv.matrix, tol2=kwargs.get('symlogs_tol2', 0))
             warnings.warn(f'Matrix appears to require two exponentials for representation (tol_logm: {tol_logm})')
-            out['C2'] = U@B2@Uinv
-        out['C1'] = U@B1@Uinv
+            B1, B2 = emat(B1), emat(B2)
+            out['C2'] = (U@B2@Uinv).matrix
+        out['C1'] = (U@B1@Uinv).matrix
         # so that A = exp(C1)@exp(C2)
         # Note that due to the nature of the matrix U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
     return out

@@ -7,11 +7,11 @@ from sympy import diag as sympy_diag
 from njet.functions import get_package_name
 
 from lieops.linalg.matrix import create_J
-from lieops.linalg.common import eigenspaces, get_principal_sqrt
+from lieops.linalg.common import eigenspaces, get_principal_sqrt, ndsupport
 from lieops.linalg.similarity.common import diagonal2block
 from lieops.linalg.matrix import expandingSum
 
-def symplectic_takagi_old(G, d2b_tol=1e-10, check=True, **kwargs):
+def _symplectic_takagi_old(G, d2b_tol=1e-10, check=True, **kwargs):
     '''
     Symplectic Takagi factorization (OLD ROUTINE).
     
@@ -92,7 +92,9 @@ def symplectic_takagi_old(G, d2b_tol=1e-10, check=True, **kwargs):
         
     return YY@X, D, X
 
-def symplectic_takagi(G, **kwargs):
+symplectic_takagi_old = ndsupport(_symplectic_takagi_old, n_out_args=3)
+
+def _symplectic_takagi(G, **kwargs):
     '''
     Symplectic Takagi factorization.
     
@@ -155,3 +157,4 @@ def symplectic_takagi(G, **kwargs):
     S = Y@Xi
     return S, S@G@S.transpose()
 
+symplectic_takagi = ndsupport(_symplectic_takagi, n_out_args=2)
