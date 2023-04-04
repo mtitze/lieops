@@ -4,6 +4,8 @@
 import numpy as np
 import mpmath as mp
 
+from njet.common import check_zero
+
 def printmat(M, tol=1e-14):
     # print a matrix (for e.g. debugging reasons)
     M = mp.matrix(M)
@@ -140,10 +142,20 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
             for j in range(i + 1):
                 hij = M.get((i, j), 0)
                 hji = M.get((j, i), 0)
-                if hij != 0 and hji != 0:
-                    assert hij == symmetry*hji
-                if hij == 0 and hji != 0:
+                
+                hij_c0 = check_zero(hij)
+                hji_c0 = check_zero(hji)
+                
+                if not hij_c0 and not hji_c0 and symmetry != 0:
+                    check = hij == symmetry*hji
+                    try:
+                        assert check
+                    except:
+                        assert check.all()
+
+                if hij_c0 and not hji_c0:
                     hij = symmetry*hji
+                    
                 # (hij != 0 and hji == 0) or (hij == 0 and hji == 0). 
                 mat[j][i] = hij
                 mat[i][j] = symmetry*hij

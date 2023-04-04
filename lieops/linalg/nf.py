@@ -282,20 +282,20 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
         The output of lieops.linalg.nf.normal_form routine, providing the linear map information at the requested point.
     '''
     assert power >= 2
-    dim = n_args
+    dim2 = n_args
     if n_args == 0:
-        dim = getNargs(H)
-    assert dim%2 == 0, 'Dimension must be even; try passing n_args argument.'
+        dim2 = getNargs(H)
+    assert dim2%2 == 0, 'Dimension must be even; try passing n_args argument.'
     
     # Step 1 (optional): Construct H locally around z (N.B. shifts are symplectic, as they drop out from derivatives.)
     # This step is required, because later on (at point (+)) we want to extract the Taylor coefficients, and
     # this works numerically only if we consider a function around zero.
     if len(z) > 0:
-        assert len(z) == dim, f'Dimension ({len(z)}) of custom point mismatch (expected: {dim})'
+        assert len(z) == dim2, f'Dimension ({len(z)}) of custom point mismatch (expected: {dim2})'
         Hshift = lambda *x: H(*[x[k] + z[k] for k in range(len(z))])
     else:
         Hshift = H
-        z = dim*[0]
+        z = dim2*[0]
     
     # Step 2: Obtain the Hesse-matrix of H.
     # N.B. we need to work with the Hesse-matrix here (and *not* with the Taylor-coefficients), because we want to get
@@ -303,17 +303,17 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
     # if the Hesse-matrix of H is transformed to CNF.
     # Note that the Taylor-coefficients of H in 2nd-order are 1/2*Hesse_matrix. This means that at (++) (see below),
     # no factor of two is required.
-    dHshift = derive(Hshift, order=2, n_args=dim)
-    z0 = dim*[0]
+    dHshift = derive(Hshift, order=2, n_args=dim2)
+    z0 = dim2*[0]
     Hesse_dict = dHshift.hess(*z0)
-    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, n_rows=dim, n_cols=dim)
+    Hesse_matrix = matrix_from_dict(Hesse_dict, symmetry=1, n_rows=dim2, n_cols=dim2)
     if code == 'mpmath':
         Hesse_matrix = mp.matrix(Hesse_matrix)
         
     # Optional: Raise a warning in case the shifted Hamiltonian has first-order terms.
     if check:
         gradient = dHshift.grad() # the gradient of H is evaluated at z0 (note that H has been shifted to z0 above, so that z0 corresponds to the original point z).
-        grad_vector = [gradient.get((k,), 0) for k in range(dim)]
+        grad_vector = [gradient.get((k,), 0) for k in range(dim2)]
         if any([abs(c) > tol for c in grad_vector]) > 0:
             warnings.warn(f'Input appears to have a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:\n{grad_vector}')
 
@@ -324,7 +324,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
     # Step 4: Obtain the expansion of the Hamiltonian up to the requested power.
     Kmap = lambda *zz: [sum([zz[k]*Kinv[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: Kinv[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
     HK = lambda *zz: Hshift(*Kmap(*zz))
-    dHK = derive(HK, order=power, n_args=dim)
+    dHK = derive(HK, order=power, n_args=dim2)
     results = dHK(*z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
         
     if check:

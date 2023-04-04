@@ -40,7 +40,7 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0, **kwargs):
         contain imaginary parts.
         
     tol: float, optional
-        Only in effect if len(nf) == 0. If > 0, then drop Hamiltonian coefficients below this threshold.
+        Drop coefficients below this threshold.
         
     **kwargs
         Optional keyword arguments passed to hamiltonian.realBasis routine.
@@ -60,7 +60,11 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0, **kwargs):
         rbh = {k: v.real for k, v in rbh.items()}
 
     if tol > 0:
-        rbh = {k: v for k, v in rbh.items() if abs(v) >= tol}
+        try:
+            rbh = {k: v for k, v in rbh.items() if abs(v) >= tol}
+        except:
+            # Values might be multi-dimensional numpy arrays
+            rbh = {k: v for k, v in rbh.items() if (abs(v) >= tol).all()}
 
     # By construction, the realBasis of a Hamiltonian is given in terms of powers of q and p:
     def ham(*qp):

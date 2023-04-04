@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 
 from lieops.core import lexp, create_coords, poly
-from lieops.core.tools import ad2poly, poly2ad, tpsa
+from lieops.core.tools import ad2poly, poly2ad, tpsa, taylor_map
 from lieops.core.dragt import dragtfinn
 
 twopi = float(np.pi*2)
@@ -96,13 +96,13 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     
     # If first-order elements in the Dragt/Finn factorization have been found, and the mode was 'quick',
     # then we will re-calculate the tpsa map p for this inner part (& raise a warning):
-    kwargs['taylor_map'] = True
     if len(nterms_1) < len(df):
         warnings.warn('Non-zero kicks detected. Will normalize only the interior.')
         if mode == 'quick':
             warnings.warn("mode == 'quick' with non-zero kicks. Performing TPSA for the interior ...")
-            tpsa_out = tpsa(*[lexp(a) for a in nterms_1], order=order, **kwargs)
-            p = tpsa_out['taylor_map']
+            position = [0]*df[0].dim*2
+            tpsa_out = tpsa(*[lexp(a) for a in nterms_1], order=order, position=position, **kwargs)
+            p = taylor_map(*tpsa_out._evaluation, max_power=kwargs.get('max_power', min([f.max_power for f in df])))
 
     ###############################
     # II) First-order normalization
