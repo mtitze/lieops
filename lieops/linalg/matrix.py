@@ -129,19 +129,27 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
     n_rows = kwargs.get('n_rows', dict_shape[0] + 1)
     n_cols = kwargs.get('n_cols', dict_shape[1] + 1)
     
+    # determine shape of entries in case of multi-dimensional input
+    key0 = next(iter(M))
+    val0 = M[key0]
+    if hasattr(val0, 'shape'):
+        zero = np.zeros(val0.shape)
+    else:
+        zero = 0
+    
     # create a column-matrix
     if symmetry == 0:
         mat = [[0]*n_rows for k in range(n_cols)]
         for i in range(n_rows):
             for j in range(n_cols):
-                mat[j][i] = M.get((i, j), 0)
+                mat[i][j] = M.get((i, j), zero)
     else:
         dim = max([n_rows, n_cols])
         mat = [[0]*dim for k in range(dim)]
         for i in range(dim):
             for j in range(i + 1):
-                hij = M.get((i, j), 0)
-                hji = M.get((j, i), 0)
+                hij = M.get((i, j), zero)
+                hji = M.get((j, i), zero)
                 
                 hij_c0 = check_zero(hij)
                 hji_c0 = check_zero(hji)
@@ -157,9 +165,9 @@ def matrix_from_dict(M, symmetry: int=0, **kwargs):
                     hij = symmetry*hji
                     
                 # (hij != 0 and hji == 0) or (hij == 0 and hji == 0). 
-                mat[j][i] = hij
-                mat[i][j] = symmetry*hij
-    return np.array(mat).transpose()
+                mat[i][j] = hij
+                mat[j][i] = symmetry*hij
+    return np.array(mat)
     
 def vecmat(mat):
     '''
