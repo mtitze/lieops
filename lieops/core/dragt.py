@@ -5,7 +5,7 @@ import warnings
 
 from njet.common import check_zero
 
-from lieops.linalg.matrix import create_J
+from lieops.linalg.matrix import create_J, emat
 from lieops.linalg.nf import symlogs
 from lieops.linalg.common import ndsupport
 
@@ -196,33 +196,22 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         
     # Determine the linear part of the map
     R = np.array([poly2vec(e.homogeneous_part(1)).tolist() for e in p])
-    J = create_J(dim)
-    Rtr = np.swapaxes(R, 0, 1) # the transpose of R (also working in case R contains additional dimensions)
-    # Compute the inverse Ri = -J@R.transpose()@J of R. 
-    # Instead of using a default matrix multiplication here, we do some NumPy 
-    # axes gymnastics to include the option that the entries 
-    # of R are multi-dimensional arrays.
-    JRtr = np.tensordot(J, Rtr, axes=(1, 0)) # = J@R.transpose()
-    Ri_1 = -np.tensordot(JRtr, J, axes=(1, 0)) # = -J@R.transpose()@J but axes not in proper order yet
-    Ri_2 = np.moveaxis(Ri_1, -1, 0)
-    Ri = np.swapaxes(Ri_2, 0, 1)
+    R = emat(R)
+    J = emat(create_J(dim))
+    Rtr = R.transpose()    
+    Ri = -J@Rtr@J # The inverse of R. 
     
     if tol_checks > 0:
         # Symplecticity check of the map; it is crucial to check symplecticity this point *before* applying logm or symlogs etc. to avoid subtle errors produced from 'almost symplectic' maps
-        # Compute R.transpose()@J@R:
-        RtrJ = np.tensordot(Rtr, J, axes=(1, 0))
-        RtrJR = np.empty(R.shape, dtype=np.complex128) # Calculate R.transpose()@J@R in case R is multi-dimensional; here we need component-wise multiplication of the remaining terms:
-        for i in range(dim2):
-            for j in range(dim2):
-                RtrJR[i, j, ...] = sum([RtrJ[i, ..., k]*R[k, j, ...] for k in range(dim2)]) # Note that np.tensordot (above) produces a numpy array where the axes order is maintained, so the last axis in RtrJ corresponds to the one in J.
+        RtrJR = Rtr@J@R
         JJ = create_J(dim, shape=R.shape[2:])
-        check = np.sqrt(np.linalg.norm(RtrJR - JJ)**2/np.prod(R.shape[2:])) # Division by the number of matrices as measure (seems to be good enough rather than computing the norms individually)
+        check = np.sqrt(np.linalg.norm(RtrJR.matrix - JJ)**2/np.prod(R.shape[2:])) # Division by the number of matrices as measure (seems to be good enough rather than computing the norms individually)
         assert check < tol_checks, f'Symplecticity check fails: {check} >= {tol_checks} (tol_checks).'
         
     # Compute the 2nd-order polynomial(s) of the Dragt/Finn factorization
     if comb2:
         try:
-            A = logm_nd(Rtr) # Explanation why we have to use transpose will follow at (++)
+            A = logm_nd(Rtr.matrix) # Explanation why we have to use transpose will follow at (++)
             SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
             SB = SA*0
             B = A*0
@@ -232,7 +221,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
             comb2 = False
             
     if not comb2:
-        A, B = symlogs(Rtr, tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
+        A, B = symlogs(Rtr.matrix, tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
         SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
         SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
                 
@@ -269,11 +258,9 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         # Calculate expm(A)@expm(B). In case of multi-dimensional arrays, we can not simply use
         # the matrix multiplication operator '@' however, but instead need to multiply by hand:
         expA, expB = expm_nd(A), expm_nd(B)
-        expAexpB = np.empty(R.shape, dtype=np.complex128)
-        for i in range(dim2):
-            for j in range(dim2):
-                expAexpB[i, j, ...] = sum([expA[i, k, ...]*expB[k, j, ...] for k in range(dim2)])
-        check = np.sqrt(np.linalg.norm(expAexpB - Rtr)**2/np.prod(R.shape[2:])) # Division by the number of matrices.
+        expA, expB = emat(expA), emat(expB)
+        expAexpB = expA@expB
+        check = np.sqrt(np.linalg.norm(expAexpB.matrix - Rtr.matrix)**2/np.prod(R.shape[2:])) # Division by the number of matrices.
         assert check < tol_checks
         xieta = create_coords(dim, poisson_factor=pf, max_power=max_power) # for the two checks at (+) below
         # Now it holds with
@@ -296,7 +283,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
         # Note the difference of the order: Now SB and SA in Eq. (4) are reversed in comparison to Eq. (1).
 
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
-    p_new = [sum([p[k]*Ri[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
+    p_new = [sum([p[k]*Ri.matrix[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
     if tol > 0:
         # not dropping small values may result in a slow-down of the code. Therefore:
         p_new = [e.above(tol) for e in p_new]

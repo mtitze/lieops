@@ -1,6 +1,7 @@
 import lieops.core.lie
 from lieops.solver.common import getRealHamiltonFunction
 from lieops.linalg.nf import first_order_nf_expansion
+from lieops.linalg.matrix import emat
 from lieops.core.tools import ad2poly
 
 def homological_eq(mu, Z, **kwargs):
@@ -150,7 +151,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         H0_values[tpl] = muj
         mu.append(muj)
     H0 = lieops.core.lie.poly(values=H0_values, dim=dim, max_power=max_power)
-    assert len({k: v for k, v in taylor_coeffs.items() if sum(k) == 2 and abs(v) >= tol}) == 0 # All other 2nd order Taylor coefficients must be zero.
+    assert len({k: v for k, v in taylor_coeffs.items() if sum(k) == 2 and (abs(v) >= tol).all()}) == 0 # All other 2nd order Taylor coefficients must be zero.
 
     # For H, we take the values of H0 and add only higher-order terms (so we skip any gradients (and constants). 
     # Note that the skipping of gradients leads to an artificial normal form which may not have any relation
@@ -207,7 +208,8 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         if clabel in nfdict.keys():
             # In this case we can also compute the polynomials which provide the transformation to first-order normal form:
             C = nfdict[clabel]
-            Cp = ad2poly(C.transpose()) # transposition required (see e.g. Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book)
+            C = emat(C).transpose().matrix # transposition required (see e.g. Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book)
+            Cp = ad2poly(C)
             out['chi0'].append(Cp)
         
     return out

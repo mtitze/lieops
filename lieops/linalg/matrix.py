@@ -244,6 +244,8 @@ class emat:
         else:
             self.code = code
         self.matrix = matrix
+        if hasattr(matrix, 'shape'):
+            self.shape = self.matrix.shape
     
     def __add__(self, other):
         assert self.code == other.code
@@ -319,3 +321,4 @@ class emat:
         
     def conjugate(self):
         return self.__class__(self.matrix.conjugate(), code=self.code)
+    
