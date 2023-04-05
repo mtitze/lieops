@@ -35,14 +35,23 @@ def poly2ad(pin):
     dim = pin.dim
     dim2 = dim*2
     poisson_factor = pin._poisson_factor
-    A = np.zeros([dim2, dim2], dtype=np.complex128)
+    
+    # Determine shape of input values
+    val0 = next(iter(pin))
+    if hasattr(val0, 'shape'):
+        A = np.zeros([dim2, dim2] + list(val0.shape), dtype=np.complex128)
+        zero = np.zeros(val0.shape)
+    else:
+        A = np.zeros([dim2, dim2], dtype=np.complex128)
+        zero = 0
+    
     for i in range(dim):
         for j in range(dim):
             mixed_key = [0]*dim2 # key belonging to xi_i*eta_j
             mixed_key[i] += 1
             mixed_key[j + dim] += 1
-            A[i, j] = pin.get(tuple(mixed_key), 0)*-poisson_factor
-            A[j + dim, i + dim] = pin.get(tuple(mixed_key), 0)*poisson_factor
+            A[i, j, ...] = pin.get(tuple(mixed_key), zero)*-poisson_factor
+            A[j + dim, i + dim, ...] = pin.get(tuple(mixed_key), zero)*poisson_factor
             
             if i != j: # if i and j are different, than the key in the polynomial already
                 # corresponds to the sum of the ij and the ji-coefficient. But if they are equal,
@@ -54,12 +63,12 @@ def poly2ad(pin):
             hom_key_xi = [0]*dim2 # key belonging to xi_i*xi_j
             hom_key_xi[i] += 1
             hom_key_xi[j] += 1
-            A[i, j + dim] = pin.get(tuple(hom_key_xi), 0)*poisson_factor*ff
+            A[i, j + dim, ...] = pin.get(tuple(hom_key_xi), zero)*poisson_factor*ff
 
             hom_key_eta = [0]*dim2 # key belonging to eta_i*eta_j
             hom_key_eta[i + dim] += 1
             hom_key_eta[j + dim] += 1
-            A[i + dim, j] = pin.get(tuple(hom_key_eta), 0)*-poisson_factor*ff
+            A[i + dim, j, ...] = pin.get(tuple(hom_key_eta), zero)*-poisson_factor*ff
     return A
 
 def ad2poly(A, tol=0, poisson_factor=-1j, **kwargs):
@@ -180,23 +189,31 @@ def poly3ad(pin):
     dim = pin.dim
     dim2 = dim*2
     poisson_factor = pin._poisson_factor
-    # extended space: (xi/eta)-phase space + constants.
-    pmat = np.zeros([dim2 + 1, dim2 + 1], dtype=np.complex128) 
+    
+    # Determine shape of input values; extended space: (xi/eta)-phase space + constants.
+    val0 = next(iter(pin))
+    if hasattr(val0, 'shape'):
+        pmat = np.zeros([dim2 + 1, dim2 + 1] + list(val0.shape), dtype=np.complex128)
+        zero = np.zeros(val0.shape)
+    else:
+        pmat = np.zeros([dim2 + 1, dim2 + 1], dtype=np.complex128)
+        zero = 0
+        
     # 1. Add the representation with respect to 2x2-matrices:
     pin2 = pin.homogeneous_part(2)
     if len(pin2) != 0:
-        pmat[:dim2, :dim2] = poly2ad(pin2)
+        pmat[:dim2, :dim2, ...] = poly2ad(pin2)
     # 2. Add the representation with respect to the scalar:
     pin1 = pin.homogeneous_part(1)
     if len(pin1) != 0:
         for k in range(dim):
             xi_key = [0]*dim2
             xi_key[k] = 1
-            pmat[dim2, k + dim] = pin1.get(tuple(xi_key), 0)*poisson_factor
+            pmat[dim2, k + dim, ...] = pin1.get(tuple(xi_key), zero)*poisson_factor
 
             eta_key = [0]*dim2
             eta_key[k + dim] = 1
-            pmat[dim2, k] = pin1.get(tuple(eta_key), 0)*-poisson_factor
+            pmat[dim2, k, ...] = pin1.get(tuple(eta_key), zero)*-poisson_factor
     return pmat
 
 def ad3poly(A, **kwargs):
