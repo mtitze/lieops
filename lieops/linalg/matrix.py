@@ -289,9 +289,11 @@ class emat:
             elif len(shape1[2:]) > 0 and len(shape2[2:]) == 0:
                 # B is an ordinary matrix
                 AB1 = np.tensordot(A, B, axes=(1, 0)) # axes not in proper order yet
-                # the last axes of AB1 corresponds to those of the ordinary matrix B, so it needs to be moved to the 2nd position of the result
-                AB2 = np.moveaxis(AB1, -1, 0) 
-                AB = np.swapaxes(AB2, 0, 1)
+                # the last axes of AB1 corresponds to the second axis of the ordinary matrix B, so it needs to be moved to the 2nd position of the result
+                for k in range(len(shape2[1:])):
+                    AB2 = np.moveaxis(AB1, -1, 0)
+                    AB1 = np.swapaxes(AB2, 0, 1)
+                AB = AB1
             elif len(shape1[2:]) == 0 and len(shape2[2:]) > 0:
                 # A is an ordinary matrix
                 AB = np.tensordot(A, B, axes=(1, 0))

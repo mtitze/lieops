@@ -49,9 +49,9 @@ def get_2flow(ham, tol=1e-12):
     if check:
         # in this case we have to rely on a different method to calculate the matrix exponential.
         # for the time being we shall use scipy's expm routine.
-        expH = expm_nd(Hmat)
+        expH = emat(expm_nd(Hmat))
     else:
-        #Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = Hmat holds.
+        #Mi = np.linalg.inv(M) so that M@np.diag(evals)@Mi = Hmat holds.
         Mi = np_inv_nd(M)
         # compute the exponential exp(t*Hmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
         M, Mi = emat(M), emat(Mi)
@@ -82,12 +82,12 @@ def get_2flow(ham, tol=1e-12):
         
         if t != 1:
             if check:
-                expH_t = expm_nd(Hmat*t)
+                expH_t = emat(expm_nd(Hmat*t))
             else:
-                expH_t = M@emat(_diagexp(evals*t))@Mi  
+                expH_t = M@emat(_diagexp(evals*t))@Mi
         else:
             expH_t = expH
-        
+            
         if hasattr(expH_t, 'matrix'):
             expH_t = expH_t.matrix
             
@@ -98,6 +98,7 @@ def get_2flow(ham, tol=1e-12):
             p1 = p.homogeneous_part(1)
             Y = poly3vec(p1)
             Z = expH_t@Y
+            #Z = np.tensordot(expH_t.matrix, Y, (1, 0)) # expH_t@Y
             result += vec3poly(Z)
         if maxdeg > 1:
             p_rest = p.extract(key_cond=lambda x: sum(x) > 1)
@@ -108,6 +109,8 @@ def get_2flow(ham, tol=1e-12):
             unit_vectors = np.concatenate([np.eye(dim2), np.zeros([1, dim2])], axis=0)
             Z = expH_t@unit_vectors
             xietaf = [vec3poly(zz) for zz in Z.transpose()]
+            #Z = np.tensordot(expH_t.matrix, unit_vectors, (1, 0)) # expH_t@unit_vectors
+            #xietaf = [vec3poly(Z[k]) for k in range(len(Z))]
             result += p_rest(*xietaf)
         return result
     return flow
