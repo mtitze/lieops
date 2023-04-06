@@ -432,58 +432,57 @@ def cortho_symmetric_decomposition(M):
 
 def ndsupport(func, n_out_args=1):
     '''
-    Decorate to perform matrix-like calculations for multi-dimensional arrays.
+    Decorator for matrix-like calculations for multi-dimensional arrays.
+    
+    The first two indices of the input array are treated as matrix arrays, while the remaining indices
+    are considered to be running indices.
     
     Parameters
     ----------
     n_out_args: int, optional
-        If > 1, it is assumed that the function output returns more than one output, where
-        each output matrix has the same shape (of the input).
+        If > 1, it is assumed that the function output returns more than one output.
     '''
     def inner(X, **kwargs):
-        if hasattr(X, 'shape'):
-            if len(X.shape) > 2:
-                reference_shape = X.shape[2:]
-                k = 0
-                # Bring first two axes, which we shall assume to run over the matrix indices, to the rear, then iterate over the remaining indices:
-                X1 = np.moveaxis(X, 0, -1)
-                X2 = np.moveaxis(X1, 0, -1)
-                for e in np.ndindex(reference_shape):
-                    out = func(X2[e], **kwargs)
-                    if n_out_args == 1:
-                        if k == 0:
-                            out_shape = out.shape
-                            results = np.empty(list(reference_shape) + list(out.shape), dtype=np.complex128)
-                        else:
-                            results[e, ...] = out
-                    else:
-                        if k == 0:
-                            out_shapes = [z.shape for z in out]
-                            results = [np.empty(list(reference_shape) + list(z.shape), dtype=np.complex128) for z in out]
-                        else:
-                            j = 0
-                            for z in out:
-                                results[j][e, ...] = z
-                                j += 1
-                    k += 1
-
-                # assemble output
-                if n_out_args == 1:
-                    # bring the axes of the output back to the front
-                    for j in range(len(out_shape)):
-                        results = np.moveaxis(results, -1, 0)
-                    return results # Note that by default, the last indices changing fastest, which is in line with np.ndindex.
-                else:
-                    results2 = []
-                    for k in range(n_out_args):
-                        z = results[k]
-                        # bring the axes of the output back to the front
-                        for j in range(len(out_shapes[k])):
-                            z = np.moveaxis(z, -1, 0)
-                        results2.append(z) # Note that by default, the last indices changing fastest, which is in line with np.ndindex.
-                    return (*results2,)
-            else:
-                return func(X, **kwargs)
-        else:
+        if not hasattr(X, 'shape'):
             return func(X, **kwargs)
+        elif not len(X.shape) > 2: # no modification required
+            return func(X, **kwargs)
+        else:
+            reference_shape = X.shape[2:]
+            k = 0
+            # Bring first two axes, which we shall assume to run over the matrix indices, to the rear, then iterate over the remaining indices:
+            X1 = np.moveaxis(X, 0, -1)
+            X2 = np.moveaxis(X1, 0, -1)
+            for e in np.ndindex(reference_shape):
+                out = func(X2[e], **kwargs)
+                if n_out_args == 1:
+                    if k == 0:
+                        out_shape = out.shape
+                        results = np.empty(list(reference_shape) + list(out.shape), dtype=np.complex128)
+                    results[e] = out
+                else:
+                    if k == 0:
+                        out_shapes = [z.shape for z in out]
+                        results = [np.empty(list(reference_shape) + list(z.shape), dtype=np.complex128) for z in out]
+                    j = 0
+                    for z in out:
+                        results[j][e] = z
+                        j += 1
+                k += 1
+
+            if n_out_args == 1:
+                results = np.copy(results) # prevent overwriting results in case function is called repeatedly
+                for k in range(len(out_shape)):
+                    results = np.moveaxis(results, -1, 0)
+                return results
+            else:
+                results2 = []
+                j = 0
+                for z in results:
+                    z = np.copy(z)
+                    for k in range(len(out_shapes[j])):                        
+                        z = np.moveaxis(z, -1, 0)
+                    results2.append(z)
+                    j += 1
+                return (*results2,)
     return inner

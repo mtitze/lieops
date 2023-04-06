@@ -6,6 +6,9 @@ from lieops.core.tools import poly3ad, ad3poly, vec3poly, poly3vec
 from lieops.linalg.common import ndsupport
 import lieops.core.lie
 
+np_eig_nd = ndsupport(np.linalg.eig, n_out_args=2)
+np_inv_nd = ndsupport(np.linalg.inv)
+
 def get_2flow(ham, tol=1e-12):
     '''
     Compute the exact flow of a Hamiltonian, modeled by a polynomial of first or second-order.
@@ -35,15 +38,16 @@ def get_2flow(ham, tol=1e-12):
     
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     
-    # Alternative:
-    evals, M = np.linalg.eig(Hmat)
+    evals, M = np_eig_nd(Hmat)
+    #import pdb; pdb.set_trace()
     check = abs(np.linalg.det(M)) < tol
     if check:
         # in this case we have to rely on a different method to calculate the matrix exponential.
         # for the time being we shall use scipy's expm routine.
         expH = expm(Hmat)
     else:
-        Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = Hmat holds.
+        #Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = Hmat holds.
+        Mi = np_inv_nd(M)
         # compute the exponential exp(t*Hmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
         expH = M@np.diag(np.exp(evals))@Mi
 
