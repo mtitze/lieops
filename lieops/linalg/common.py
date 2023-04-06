@@ -430,7 +430,7 @@ def cortho_symmetric_decomposition(M):
     # G@Q = M
     return Q, G
 
-def ndsupport(func, n_out_args=1):
+def ndsupport(func, n_out_args=1, n_inp_axes=2):
     '''
     Decorator for matrix-like calculations for multi-dimensional arrays.
     
@@ -441,20 +441,25 @@ def ndsupport(func, n_out_args=1):
     ----------
     n_out_args: int, optional
         If > 1, it is assumed that the function output returns more than one output.
+        
+    n_inp_axes: int, optional
+        Define the number of input axes (ascending from the first axis upwards) 
+        which should be considered as input for the function in question.
     '''
     def inner(X, **kwargs):
         if not hasattr(X, 'shape'):
             return func(X, **kwargs)
-        elif not len(X.shape) > 2: # no modification required
+        elif not len(X.shape) > n_inp_axes: # no modification required
             return func(X, **kwargs)
         else:
-            reference_shape = X.shape[2:]
+            reference_shape = X.shape[n_inp_axes:]
+            # Bring first two axes (which we shall assume to run over the matrix indices) to the rear, then iterate over the remaining indices:
+            for k in range(n_inp_axes):
+                X = np.moveaxis(X, 0, -1)
+                
             k = 0
-            # Bring first two axes, which we shall assume to run over the matrix indices, to the rear, then iterate over the remaining indices:
-            X1 = np.moveaxis(X, 0, -1)
-            X2 = np.moveaxis(X1, 0, -1)
             for e in np.ndindex(reference_shape):
-                out = func(X2[e], **kwargs)
+                out = func(X[e], **kwargs)
                 if n_out_args == 1:
                     if k == 0:
                         out_shape = out.shape

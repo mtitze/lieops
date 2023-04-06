@@ -322,3 +322,6 @@ class emat:
     def conjugate(self):
         return self.__class__(self.matrix.conjugate(), code=self.code)
     
+    def __len__(self):
+        return len(self.matrix)
+    

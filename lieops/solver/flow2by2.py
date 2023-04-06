@@ -4,10 +4,16 @@ import warnings
 
 from lieops.core.tools import poly3ad, ad3poly, vec3poly, poly3vec
 from lieops.linalg.common import ndsupport
+from lieops.linalg.matrix import emat
+
 import lieops.core.lie
 
 np_eig_nd = ndsupport(np.linalg.eig, n_out_args=2)
 np_inv_nd = ndsupport(np.linalg.inv)
+
+_checkf = ndsupport(lambda x: abs(np.linalg.det(x)))
+expm_nd = ndsupport(expm)
+_diagexp = ndsupport(lambda d: np.diag(np.exp(d)), n_inp_axes=1)
 
 def get_2flow(ham, tol=1e-12):
     '''
@@ -38,18 +44,18 @@ def get_2flow(ham, tol=1e-12):
     
     Hmat = poly3ad(ham) # Hmat: (2n + 1)x(2n + 1)-matrix
     
-    evals, M = np_eig_nd(Hmat)
-    #import pdb; pdb.set_trace()
-    check = abs(np.linalg.det(M)) < tol
+    evals, M = np_eig_nd(Hmat) # Compute the eigenvalues and eigenvectors of Hmat
+    check = (_checkf(M) < tol).any()
     if check:
         # in this case we have to rely on a different method to calculate the matrix exponential.
         # for the time being we shall use scipy's expm routine.
-        expH = expm(Hmat)
+        expH = expm_nd(Hmat)
     else:
         #Mi = np.linalg.inv(M) # so that M@np.diag(evals)@Mi = Hmat holds.
         Mi = np_inv_nd(M)
         # compute the exponential exp(t*Hmat) = exp(M@(t*D)@Mi) = M@exp(t*D)@Mi:
-        expH = M@np.diag(np.exp(evals))@Mi
+        M, Mi = emat(M), emat(Mi)
+        expH = M@emat(_diagexp(evals))@Mi
 
     def flow(p, t=1, **kwargs):
         '''
@@ -76,11 +82,14 @@ def get_2flow(ham, tol=1e-12):
         
         if t != 1:
             if check:
-                expH_t = expm(Hmat*t)
+                expH_t = expm_nd(Hmat*t)
             else:
-                expH_t = M@np.diag(np.exp(evals*t))@Mi  
+                expH_t = M@emat(_diagexp(evals*t))@Mi  
         else:
             expH_t = expH
+        
+        if hasattr(expH_t, 'matrix'):
+            expH_t = expH_t.matrix
             
         maxdeg = p.maxdeg()
         p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
