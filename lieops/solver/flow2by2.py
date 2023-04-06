@@ -3,6 +3,7 @@ from scipy.linalg import expm
 import warnings
 
 from lieops.core.tools import poly3ad, ad3poly, vec3poly, poly3vec
+from lieops.linalg.common import ndsupport
 import lieops.core.lie
 
 def get_2flow(ham, tol=1e-12):
