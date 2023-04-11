@@ -298,12 +298,12 @@ class emat:
                 # A is an ordinary matrix
                 AB = np.tensordot(A, B, axes=(1, 0))
             else:
+                assert shape1[2:] == shape2[2:]
                 # component-wise multiplication of the remaining terms
                 AB_shape = [shape1[0]] + [shape2[1]] + list(shape1[2:])
                 AB = np.empty(AB_shape, dtype=np.complex128)
                 for i in range(shape2[1]):
-                    for j in range(shape1[0]):
-                        AB[i, j, ...] = sum([A[i, k, ...]*B[k, j, ...] for k in range(shape1[1])])
+                    AB[i, ...] = sum([A[i, k, ...]*B[k, ...] for k in range(shape1[1])])
 
             return self.__class__(AB, code=self.code)
         else:

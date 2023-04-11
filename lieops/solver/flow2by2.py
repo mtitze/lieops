@@ -87,30 +87,33 @@ def get_2flow(ham, tol=1e-12):
                 expH_t = M@emat(_diagexp(evals*t))@Mi
         else:
             expH_t = expH
-            
-        if hasattr(expH_t, 'matrix'):
-            expH_t = expH_t.matrix
-            
+                        
         maxdeg = p.maxdeg()
         p0 = p.homogeneous_part(0) # the constants will be reproduced in the end (by the '1' in the flow)
         result = p0
+        
         if maxdeg > 0:
             p1 = p.homogeneous_part(1)
-            Y = poly3vec(p1)
+            Y = emat(poly3vec(p1))
             Z = expH_t@Y
-            #Z = np.tensordot(expH_t.matrix, Y, (1, 0)) # expH_t@Y
-            result += vec3poly(Z)
-        if maxdeg > 1:
+            result += vec3poly(Z.matrix) # Z (and Y) are modeled here by 'emat' objects (extended matrices). This object also works for vectors, which is the case here.
+            
+        if maxdeg > 1: # compute the flow using the Pull-back property of exp(:f:)
             p_rest = p.extract(key_cond=lambda x: sum(x) > 1)
-            # compute the flow using the Pull-back property of exp(:f:)
             dim = p.dim
             dim2 = dim*2
-            xieta = lieops.core.lie.create_coords(dim=dim)
-            unit_vectors = np.concatenate([np.eye(dim2), np.zeros([1, dim2])], axis=0)
-            Z = expH_t@unit_vectors
-            xietaf = [vec3poly(zz) for zz in Z.transpose()]
-            #Z = np.tensordot(expH_t.matrix, unit_vectors, (1, 0)) # expH_t@unit_vectors
-            #xietaf = [vec3poly(Z[k]) for k in range(len(Z))]
+            
+            # Create unit vectors where each has attached one zero in the end (for the dim2 + 1 scenario).
+            shape = expH_t.shape[2:]
+            zeros = np.zeros(shape, dtype=np.complex128)
+            ones = np.ones(shape, dtype=np.complex128)
+            E = np.array([[zeros if i != k else ones for i in range(dim2)] for k in range(dim2 + 1)])
+            
+            # Apply the matrix representation to the unit vectors
+            Z = (expH_t@E).transpose()
+            xietaf = [vec3poly(Z.matrix[j]) for j in range(len(Z))]
             result += p_rest(*xietaf)
+            
         return result
+    
     return flow
