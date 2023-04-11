@@ -19,8 +19,12 @@ def _rot_kernel(fk, mu):
         m1 = powers[:dim]
         m2 = powers[dim:]
         z = sum([(m1[k] - m2[k])*mu[k] for k in range(dim)])*1j
-        if z.real != 0 or (z.real == 0 and (z.imag/twopi)%1 != 0): # I.e. exp(z) != 1
-            a[powers] = value/(1 - np.exp(-z)) # for the -1 sign in front of z see my notes regarding Normal form (Lie_techniques.pdf); this -1 is due to the fact that R^(-1) must be considered.
+        
+        cond = np.logical_or(z.real != 0, np.logical_and(z.real == 0, (z.imag/twopi)%1 != 0)) # I.e. exp(z) != 1
+        a[powers] = np.divide(value, 1 - np.exp(-z), out=np.zeros_like(value), where=cond)
+        # Remarks:
+        # 1) for the -1 sign in front of z see my notes regarding Normal form (Lie_techniques.pdf); this -1 is due to the fact that R^(-1) must be considered.
+        # 2) The poly class will check the values "a" above by zero. Only non-zero terms will be stored.
     return poly(values=a, dim=dim, max_power=fk.max_power)
 
     
@@ -68,7 +72,24 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
                  Note that if first-order elements in the Dragt/Finn factorization are detected,
                  one TPSA calculation will be done for this interior part.
         'tpsa': The Taylor map of the next step is computed by using TPSA on M'.
-                
+        
+    Returns
+    -------
+    dict
+        A dictionary containing the following keys:
+         'dragtfinn': The output of the Dragt/Finn factorization of the given Taylor map
+            'bnfout': The output of the Birkhoff normal form routine for order 1, used in the first step
+                      in the normalization.
+            'nf_all': A list X of lists, where each element E of X contains the Lie-polynomials n_j
+                      which represent one step in the normalization procedure according to Ref. [1], 
+                      Eq. (4.31). The last elements of X therefore yield the entire normalization.
+        'normalform': The last element of 'nf_all'.
+               'chi': The normalizing Lie-polynomials in ascending order. This means that
+                      "N = chi[::-1] o M o chi[::-1]**(-1)"
+                      is the normalized form of M (the lowest orders needs to be applied on M first).
+            'tm_all': A list of Taylor-maps which were used in each step in the normalization procedure,
+                      see the discussion in Ref. [1] around Eq. (4.31).
+        'taylor_map': The last element in 'tm_all'.               
         
     Reference(s)
     ------------
