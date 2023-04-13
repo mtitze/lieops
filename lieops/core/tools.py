@@ -150,10 +150,19 @@ def poly2vec(p):
     '''
     assert p.maxdeg() == 1 and p.mindeg() == 1
     dim = p.dim
-    out = [0]*dim*2
+    
+    # Determine the shape of the zeros to be filled:
+    v0 = next(iter(p))
+    if hasattr(v0, 'shape'):
+        zeros = np.zeros(v0.shape, dtype=np.complex128)
+    else:
+        zeros = 0
+        
+    out = [zeros]*dim*2
     for k, v in p.items():
         j = list(k).index(1)
         out[j] = v
+        
     return np.array(out, dtype=np.complex128)
 
 def vec2poly(v):
