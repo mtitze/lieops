@@ -28,7 +28,7 @@ def _rot_kernel(fk, mu):
     return poly(values=a, dim=dim, max_power=fk.max_power)
 
     
-def fnf(*p, order: int=1, mode='quick', **kwargs):
+def fnf(*p, order: int=1, mode='conj', **kwargs):
     '''
     Obtain maps to Normal form for a given chain of Lie-operators. The concept
     is outlined in Sec. 4.4 in Ref. [1].
@@ -67,10 +67,10 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
         
     mode: str, optional
         Control the way of how the successive Taylor maps are computed:
-        'quick': The Taylor map of the next step (for the map M' = exp(:ak:) M exp(-:ak:)) is computed
-                 from the previous Taylor map by pull-back using the maps exp(:ak:) and exp(-:ak:).
-                 Note that if first-order elements in the Dragt/Finn factorization are detected,
-                 one TPSA calculation will be done for this interior part.
+        'conj': The Taylor map of the next step (for the map M' = exp(:ak:) M exp(-:ak:)) is computed
+                from the previous Taylor map by conjugation with the map exp(:ak:).
+                Note that if first-order elements in the Dragt/Finn factorization are detected,
+                one TPSA calculation will be done for this interior part.
         'tpsa': The Taylor map of the next step is computed by using TPSA on M'.
         
     Returns
@@ -117,13 +117,14 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
     
     # If first-order elements in the Dragt/Finn factorization have been found, and the mode was 'quick',
     # then we will re-calculate the tpsa map p for this inner part (& raise a warning):
+    default_max_power = kwargs.get('max_power', min([f.max_power for f in df]))
     if len(nterms_1) < len(df):
         warnings.warn('Non-zero kicks detected. Will normalize only the interior.')
         if mode == 'quick':
             warnings.warn("mode == 'quick' with non-zero kicks. Performing TPSA for the interior ...")
             position = [0]*df[0].dim*2
             tpsa_out = tpsa(*[lexp(a) for a in nterms_1], order=order, position=position, **kwargs)
-            p = taylor_map(*tpsa_out._evaluation, max_power=kwargs.get('max_power', min([f.max_power for f in df])))
+            p = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)
 
     ###############################
     # II) First-order normalization
@@ -190,16 +191,17 @@ def fnf(*p, order: int=1, mode='quick', **kwargs):
         ak = _rot_kernel(fk, tunes)
         chi.append(ak)
 
-        if mode == 'quick':
+        if mode == 'conj':
             xietaf = lexp(ak)(*xieta, **kwargs)
             xietaf2 = lexp(-ak)(*xieta, **kwargs)
             final_coords = [coord(*xietaf) for coord in nmap]
             nmap = [ww(*final_coords) for ww in xietaf2]
         elif mode == 'tpsa':
             # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
-            operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors           
-            tpsa_out = tpsa(*operators, order=order, **kwargs)
-            nmap = tpsa_out['taylor_map']
+            operators = [lexp(-ak)] + [lexp(f) for f in nterms_k] + [lexp(ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors
+            position = [0]*df[0].dim*2
+            tpsa_out = tpsa(*operators, order=order, position=position, **kwargs)
+            nmap = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)
             
         all_nmaps.append(nmap)
 

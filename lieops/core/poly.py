@@ -225,7 +225,18 @@ class _poly:
         Truncate the current polynomial with respect to a total power.
         '''
         return self.extract(key_cond=lambda x: sum(x) <= k)
-        
+    
+    def _prepare_input(self, *z):
+        '''
+        Consistency check & input preparation prior to evaluation.
+        '''
+        if len(z) == self.dim and self._poisson_factor == -1j:
+            # for xi/eta-variables we conveniently conjugate the remaining components if they are not explicitly given
+            z = [e for e in z] + [e.conjugate() for e in z]
+        dim2 = self.dim*2
+        assert len(z) == dim2, f'Number of input parameters: {len(z)}, expected: {dim2} (or {self.dim})'
+        return z
+
     def __call__(self, *z):
         '''
         Evaluate the polynomial at a specific position z.
@@ -238,11 +249,7 @@ class _poly:
             where z = (xi, eta) denote a set of complex conjugated coordinates.
         '''        
         # prepare input vector
-        if len(z) == self.dim and self._poisson_factor == -1j:
-            # for xi/eta-variables we conveniently conjugate the remaining components if they are not explicitly given
-            z = [e for e in z] + [e.conjugate() for e in z]
-        dim2 = self.dim*2
-        assert len(z) == dim2, f'Number of input parameters: {len(z)}, expected: {dim2} (or {self.dim})'
+        z = self._prepare_input(*z)
         
         # compute the occuring powers ahead of evaluation
         z_powers = {}
