@@ -98,14 +98,14 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
     #####################
     # Progress user input
     #####################
-    tol = kwargs.get('tol', 0)
+    tol = kwargs.pop('tol', 0)
     disable_tqdm = kwargs.get('disable_tqdm', False) # show progress bar (if requested) in the loop below
     kwargs['disable_tqdm'] = True # never show progress bars within the loop(s) itself
     
     # Compute the Dragt/Finn factorization up to a specific order
     kwargs['pos2'] = 'left'
     kwargs['comb2'] = True
-    df = dragtfinn(*p, order=order, **kwargs)
+    df = dragtfinn(*p, order=order, tol=tol, **kwargs)
 
     nterms_1 = [f for f in df if f.maxdeg() > 1]
     df_orders = [f.maxdeg() for f in nterms_1]
@@ -181,12 +181,14 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
     for k in tqdm(range(3, order + 2), disable=disable_tqdm): # k will run up and including order + 1, because 'dragtfinn' for a specific order refers to the order of the Taylor map, and therefore produces a chain of Hamiltonians up and including order + 1.
         
         # find the term of order k in the current Dragt/Finn factorization
-        orders_k = [f.maxdeg() for f in nterms_k]
-        if k in orders_k:
-            fk = nterms_k[orders_k.index(k)]
-        else:
-            # Then fk = 0, so ak = 0 as well and we just continue (lexp(ak) = 1).
+        fk_all = [f for f in nterms_k if f.maxdeg() == k]
+        if len(fk_all) == 0:
+            # Then fk = 0, so ak = 0 as well, and we just continue (lexp(ak) = 1).
             continue
+        elif len(fk_all) == 1:
+            fk = fk_all[0]
+        else:
+            raise RuntimeError(f'More than one term in the Dragt/Finn factorization at order {k} found.')
         
         ak = _rot_kernel(fk, tunes)
         chi.append(ak)
@@ -198,14 +200,14 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
             nmap = [ww(*final_coords) for ww in xietaf2]
         elif mode == 'tpsa':
             # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
-            operators = [lexp(-ak)] + [lexp(f) for f in nterms_k] + [lexp(ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors.
+            operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors.
             position = [0]*df[0].dim*2
             tpsa_out = tpsa(*operators, order=order, position=position, **kwargs)
             nmap = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)
             
         all_nmaps.append(nmap)
 
-        nterms_k = dragtfinn(*nmap, order=order, **kwargs)
+        nterms_k = dragtfinn(*nmap, order=order, tol=tol, **kwargs)
         all_nterms.append(nterms_k)
         
     out = {}
