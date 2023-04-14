@@ -19,6 +19,10 @@ from njet.ad import getNargs
 from njet.functions import get_package_name
 from njet import derive
 
+@ndsupport
+def logm_nd(X, **kwargs):
+    return logm(X, **kwargs)
+
 def _symlogs(X, **kwargs):
     r'''
     Let X be a complex symplectic matrix, i.e. a matrix satisfying
@@ -240,11 +244,11 @@ def normal_form(H2, T=None, mode='default', check: bool=False, **kwargs):
         out['A'] = (U@Sinv@Uinv).matrix
         tol_logm = kwargs.get('tol_logm', 1e-14)
         try:
-            B1 = logm(Sinv.matrix) # exist always, since Sinv is invertible
+            B1 = logm_nd(Sinv.matrix) # exist always, since Sinv is invertible
             # But: B1 must be in the Lie-algebra sp(2n; C). This is not always guaranteed, so we have to check it here:
             B1 = emat(B1)
             zero = J@B1.transpose() + B1@J
-            assert (all([abs(zero[i, j]) < tol_logm for i in range(dim) for j in range(dim)]))
+            assert all([(abs(zero.matrix[i, j]) < tol_logm).all() for i in range(dim) for j in range(dim)])
         except:
             # Sinv can only be represented by two exponentials
             B1, B2 = symlogs(Sinv.matrix, tol2=kwargs.get('symlogs_tol2', 0))

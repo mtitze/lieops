@@ -115,13 +115,13 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
         warnings.warn('No 2nd-order terms found => Normal form identical to input.')
         return {'dragtfinn': df, 'nterms': [nterms_1], 'chi': [], 'nmaps': [p]}
     
-    # If first-order elements in the Dragt/Finn factorization have been found, and the mode was 'quick',
+    # If first-order elements in the Dragt/Finn factorization have been found, and the mode is 'conj',
     # then we will re-calculate the tpsa map p for this inner part (& raise a warning):
     default_max_power = kwargs.get('max_power', min([f.max_power for f in df]))
     if len(nterms_1) < len(df):
         warnings.warn('Non-zero kicks detected. Will normalize only the interior.')
-        if mode == 'quick':
-            warnings.warn("mode == 'quick' with non-zero kicks. Performing TPSA for the interior ...")
+        if mode == 'conj':
+            warnings.warn(f"mode == '{mode}' with non-zero kicks. Performing TPSA for the interior ...")
             position = [0]*df[0].dim*2
             tpsa_out = tpsa(*[lexp(a) for a in nterms_1], order=order, position=position, **kwargs)
             p = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)
@@ -198,7 +198,7 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
             nmap = [ww(*final_coords) for ww in xietaf2]
         elif mode == 'tpsa':
             # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
-            operators = [lexp(-ak)] + [lexp(f) for f in nterms_k] + [lexp(ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors
+            operators = [lexp(-ak)] + [lexp(f) for f in nterms_k] + [lexp(ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors.
             position = [0]*df[0].dim*2
             tpsa_out = tpsa(*operators, order=order, position=position, **kwargs)
             nmap = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)

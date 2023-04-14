@@ -236,7 +236,7 @@ class _poly:
         dim2 = self.dim*2
         assert len(z) == dim2, f'Number of input parameters: {len(z)}, expected: {dim2} (or {self.dim})'
         return z
-
+        
     def __call__(self, *z):
         '''
         Evaluate the polynomial at a specific position z.
