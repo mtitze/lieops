@@ -80,7 +80,8 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     dict
         A dictionary with the following keys:
         nfdict : The output of lieops.linalg.nf.first_order_nf_expansion.
-        H      : Dictionary denoting the used Hamiltonian.
+        H_func : Callable denoting the Hamiltonian in (q, p)-coordinates whose derivatives will be calculated.
+        H      : Dictionary denoting the Hamiltonian used at the start of the normal form procedure.
         H0     : Dictionary denoting the second-order coefficients of H.
         mu     : List of the tunes used (coefficients of H0).
         chi    : List of poly objects, denoting the Lie-polynomials of degree >= 3 which map to normal form.
@@ -192,6 +193,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
     out = {}
     out['nfdict'] = nfdict
     out['H'] = H
+    out['H_func'] = Hinp
     out['H0'] = H0
     out['mu'] = mu
     out['lchi_inv'] = lchi_all

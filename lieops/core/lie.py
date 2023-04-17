@@ -46,7 +46,7 @@ class poly(_poly):
         kwargs['max_power'] = kwargs.get('max_power', self.max_power)
         return lexp(self, *args, **kwargs)
     
-    def bnf(self, order: int=1, power=10, **kwargs):
+    def bnf(self, order: int=1, **kwargs):
         '''
         Compute the Birkhoff normal form of the current Lie exponential operator.
         
@@ -69,7 +69,7 @@ class poly(_poly):
             Optional arguments passed to 'lieops.core.birkhoff.bnf' routine.
         '''
         kwargs['max_power'] = kwargs.get('max_power', self.max_power)
-        return lieops.core.birkhoff.bnf(self, order=order, power=power, n_args=self.dim*2, **kwargs)
+        return lieops.core.birkhoff.bnf(self, order=order, n_args=self.dim*2, **kwargs)
     
     def calcFlow(self, *args, **kwargs):
         '''
