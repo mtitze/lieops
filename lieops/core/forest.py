@@ -200,7 +200,7 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
             nmap = [ww(*final_coords) for ww in xietaf2]
         elif mode == 'tpsa':
             # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
-            operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k], but first checks indicated that this may increase numerical errors.
+            operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k]
             position = [0]*df[0].dim*2
             tpsa_out = tpsa(*operators, order=order, position=position, **kwargs)
             nmap = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)

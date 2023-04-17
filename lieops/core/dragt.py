@@ -212,7 +212,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
     if comb2:
         try:
             A = logm_nd(Rtr.matrix) # Explanation why we have to use transpose will follow at (++)
-            SA = ad2poly(A, poisson_factor=pf, tol=tol, max_power=max_power).above(tol)
+            SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
             SB = SA*0
             B = A*0
         except:
