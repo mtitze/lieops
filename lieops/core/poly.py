@@ -621,7 +621,7 @@ class _poly:
             out = {key: getattr(v, name)(*args, **kwargs) for key, v in self.items()}
         return self.__class__(values=out, dim=self.dim, max_power=self.max_power)
     
-    def realBasis(self, **kwargs):
+    def realBasis(self):
         '''
         Note that it holds xi = (q + 1j*p)/sqrt2, eta = (q - 1j*p)/sqrt2.
         '''
@@ -630,9 +630,9 @@ class _poly:
             xi = (q + p*1j)/sqrt2
             eta = (q - p*1j)/sqrt2 # = xi.conjugate()
             return xi, eta
-        return self.transform(trf=trf, poisson_factor=1, **kwargs)
+        return self.transform(trf=trf, poisson_factor=1)
         
-    def complexBasis(self, **kwargs):
+    def complexBasis(self):
         '''
         Note that it holds xi = (q + 1j*p)/sqrt2, eta = (q - 1j*p)/sqrt2.
         '''
@@ -641,9 +641,9 @@ class _poly:
             q = (xi + eta)/sqrt2
             p = (xi - eta)/sqrt2/1j
             return q, p
-        return self.transform(trf=trf, poisson_factor=-1j, **kwargs)
+        return self.transform(trf=trf, poisson_factor=-1j)
         
-    def transform(self, trf, poisson_factor, mult_drv=False, mult_prm=False, **kwargs):
+    def transform(self, trf, poisson_factor, mult_drv=False, mult_prm=False):
         '''
         Cast the current polynomial into a different form.
         
@@ -666,9 +666,6 @@ class _poly:
             
         mult_prm: boolean, optional
             Control of factorial and permutation coefficients. See njet.poly.jetpoly.taylor_coefficients for details.
-            
-        **kwargs
-            Arguments passed to self.__class__.
 
         Returns
         -------
@@ -692,7 +689,7 @@ class _poly:
         else:
             rbv = h1.taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
-        return self.__class__(values=rbv, poisson_factor=poisson_factor)
+        return self.__class__(values=rbv, poisson_factor=poisson_factor, max_power=self.max_power)
     
     def split(self, keys, scheme, check=False, **kwargs):
         '''

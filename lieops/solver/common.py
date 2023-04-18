@@ -26,7 +26,7 @@ def complexHamiltonEqs(hamiltonian):
         return dxi
     return eqs
 
-def getRealHamiltonFunction(hamiltonian, real=False, tol=0, **kwargs):
+def getRealHamiltonFunction(hamiltonian, real=False, tol=0):
     '''
     Create a Hamilton function H(q, p), for a given Hamiltonian H(xi, eta).
     
@@ -41,10 +41,7 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0, **kwargs):
         
     tol: float, optional
         Drop coefficients below this threshold.
-        
-    **kwargs
-        Optional keyword arguments passed to hamiltonian.realBasis routine.
-        
+                
     Returns
     -------
     callable
@@ -52,7 +49,7 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0, **kwargs):
         It will represent the Hamiltonian with respect to its real (q, p)-coordinates.
     '''
     dim = hamiltonian.dim
-    rbh = hamiltonian.realBasis(**kwargs)
+    rbh = hamiltonian.realBasis()
     if real:
         # In this case we remove the imaginary parts from rbh outright.
         # This becomes necessary if we want to apply the heyoka solver, which complains if
