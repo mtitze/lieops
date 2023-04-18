@@ -338,7 +338,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
             warnings.warn(f'Input appears to have a non-zero gradient around the requested point\n{z}\nfor given tolerance {tol}:\n{grad_vector}')
 
     # Step 3: Compute the linear map to first-order complex normal form near z.
-    nfdict = normal_form(Hesse_matrix, tol=tol, check=check, **kwargs)
+    nfdict = normal_form(Hesse_matrix, check=check, **kwargs)
     Kinv = nfdict['Kinv'] # Kinv.transpose()@Hesse_matrix@Kinv is in cnf; K(q, p) = (xi, eta)
     
     # Step 4: Obtain the expansion of the Hamiltonian up to the requested power.

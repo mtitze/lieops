@@ -43,7 +43,7 @@ def homological_eq(mu, Z, **kwargs):
             Q[powers] = value
     return chi, Q
 
-def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
+def bnf(H, order: int=1, tol_drop=0, tol=1e-12, cmplx=True, **kwargs):
     '''
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
@@ -69,8 +69,11 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
         If false, assume that the coefficients of the second-order terms of the Hamiltonian are real.
         In this case a check will be done and an error will be raised if that is not the case.
         
+    tol_drop: float, optional
+        Tolerance below which values in the Hamiltonian are set to zero.
+        
     tol: float, optional
-        Tolerance below which values are assumed to be zero.
+        Tolerance for consistency checks.
         
     **kwargs
         Keyword arguments are passed to lieops.linalg.nf.first_order_nf_expansion routine.
@@ -121,7 +124,7 @@ def bnf(H, order: int=1, tol=1e-12, cmplx=True, **kwargs):
             # we have to transfom the call-routine of H: H depend on (xi, eta)-coordinates, but the nf routines later on assume (q, p)-coordinates.
             # In principle, one can change this transformation somewhere else, but this may cause the normal form routines
             # to either yield inconsistent output at a general point z -- or it may introduce additional complexity.
-            Hinp = getRealHamiltonFunction(H, tol=tol)
+            Hinp = getRealHamiltonFunction(H, tol=tol_drop)
         taylor_coeffs, nfdict = first_order_nf_expansion(Hinp, tol=tol, **kwargs)
         # N.B. while Hinp is given in terms of (q, p) variables, taylor_coeffs correspond to the Taylor-expansion
         # of the Hamiltonian around z=(q0, p0) with respect to the normal form (xi, eta) coordinates (see first_order_nf_expansion routine).
