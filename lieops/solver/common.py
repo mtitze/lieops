@@ -26,7 +26,7 @@ def complexHamiltonEqs(hamiltonian):
         return dxi
     return eqs
 
-def getRealHamiltonFunction(hamiltonian, real=False, tol=0):
+def getRealHamiltonFunction(hamiltonian, real=False, tol_drop=0):
     '''
     Create a Hamilton function H(q, p), for a given Hamiltonian H(xi, eta).
     
@@ -39,7 +39,7 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0):
         This flag is intended to be used on Hamiltonians whose real form is expected to not
         contain imaginary parts.
         
-    tol: float, optional
+    tol_drop: float, optional
         Drop coefficients below this threshold.
                 
     Returns
@@ -56,12 +56,12 @@ def getRealHamiltonFunction(hamiltonian, real=False, tol=0):
         # one attempts to multiply a complex value with one of its variables
         rbh = {k: v.real for k, v in rbh.items()}
 
-    if tol > 0:
+    if tol_drop > 0:
         try:
-            rbh = {k: v for k, v in rbh.items() if abs(v) >= tol}
+            rbh = {k: v for k, v in rbh.items() if abs(v) >= tol_drop}
         except:
             # Values might be multi-dimensional numpy arrays
-            rbh = {k: v for k, v in rbh.items() if (abs(v) >= tol).all()}
+            rbh = {k: v for k, v in rbh.items() if (abs(v) >= tol_drop).all()}
 
     # By construction, the realBasis of a Hamiltonian is given in terms of powers of q and p:
     def ham(*qp):

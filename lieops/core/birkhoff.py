@@ -124,7 +124,7 @@ def bnf(H, order: int=1, tol_drop=0, tol=1e-12, cmplx=True, **kwargs):
             # we have to transfom the call-routine of H: H depend on (xi, eta)-coordinates, but the nf routines later on assume (q, p)-coordinates.
             # In principle, one can change this transformation somewhere else, but this may cause the normal form routines
             # to either yield inconsistent output at a general point z -- or it may introduce additional complexity.
-            Hinp = getRealHamiltonFunction(H, tol=tol_drop)
+            Hinp = getRealHamiltonFunction(H, tol_drop=tol_drop)
         taylor_coeffs, nfdict = first_order_nf_expansion(Hinp, tol=tol, **kwargs)
         # N.B. while Hinp is given in terms of (q, p) variables, taylor_coeffs correspond to the Taylor-expansion
         # of the Hamiltonian around z=(q0, p0) with respect to the normal form (xi, eta) coordinates (see first_order_nf_expansion routine).

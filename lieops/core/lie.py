@@ -271,6 +271,7 @@ class lieoperator:
         self._flow_method = kwargs.get('method', self._flow_method)
         update = self._update_flow_parameters(**kwargs)
         if update or not self._flow_method in self._flow.keys():
+            _ = kwargs.pop('method', None) # do not pass the keyword 'method' to the underlying flow input parameters
             self._calcFlowFromParameters(**kwargs)
         # set the current flow function to the requested method.
         self.flow = self._flow[self._flow_method]['flow'] 
