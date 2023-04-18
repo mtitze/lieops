@@ -4,6 +4,7 @@ import warnings
 
 from njet import derive, taylor_coefficients
 from njet.extras import cderive
+from njet.common import check_zero
 
 import lieops.core.lie
 from lieops.linalg.matrix import create_J
@@ -345,7 +346,7 @@ def taylor_map(*evaluation, **kwargs):
     tc = taylor_coefficients(evaluation, mult_prm=True, mult_drv=False, n_args=n_args, output_format=1)
     return [lieops.core.lie.poly(values=e, **kwargs) for e in tc]
 
-def tpsa(*ops, position=[], ordering=None, mode='default', **kwargs):
+def tpsa(*ops, position=[], ordering=None, mode='auto', **kwargs):
     '''
     Pass n-jets through the flow functions of a chain of Lie-operators
     to compute the result for every cycle.
@@ -373,8 +374,7 @@ def tpsa(*ops, position=[], ordering=None, mode='default', **kwargs):
         Control the type of output.
         'default': return an object of type njet.derive. 
           'chain': Return an object of type njet.extras.cderive.
-           'auto': Select the result based on the number of unique elements in the given chain
-                   vs. the ordering.
+           'auto': Select the result based on the number of unique elements in the given chain.
 
     **kwargs
         Optional keyworded arguments passed to njet.extras.cderive or njet.derive class.
@@ -464,7 +464,7 @@ def symcheck(p, tol, warn=True):
                 if len(check_order) == 0:
                     continue
                 max_error = max(check_order)
-                if max_error > tol:
+                if check_zero(max_error - tol):
                     result[order] = max([result.get(order, 0), max_error])
                     if warn:
                         warnings.warn(f'Taylor map non-symplectic at order {order} for components {(k, l)}. Error: {max_error} (tol: {tol})')
