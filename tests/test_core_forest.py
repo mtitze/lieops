@@ -207,4 +207,56 @@ def test_normalform3():
 
             assert rel_err12 < tolerance3
             assert rel_err13 < tolerance3
+            
+def test_normalform4():
+    '''
+    Test the multi-dimensional capabilities of the routines involved in the cycling -- in conjunction with
+    normal form procedures.
     
+    First, a run with a single value is performed. Then, a multi-dimensional array is processed. 
+    The entries in the results are compared with each other.
+    
+    Test includes non-zero kicks.
+    '''
+    order = 6
+    power = 30
+    
+    position1 = [0.0002, 0.001]
+    position2 = [np.array([[0, 0.0003, 0.0006], [position1[0], -0.00042, 0.0001]]), 
+                 np.array([[0, 0.001, -0.0005], [position1[1], -0.00008, 0.00015]])]
+    
+    nf_dict1 = cycle(operators=operators, ordering=default_ordering, order=order, position=position1, power=power)
+    nf_dict2 = cycle(operators=operators, ordering=default_ordering, order=order, position=position2, power=power)
+    
+    na = sum(nf_dict1['normalform'])
+    nb = sum(nf_dict2['normalform'])
+    
+    # Check 0: Output shapes correct?
+    assert na[1, 1].shape == (80,) # len(default_ordering) == 80
+    assert nb[1, 1].shape == (80, 2, 3)
+    
+    # Check 1: Normalization successfull?
+    tolerances = [1e-14, 1e-14, 2e-14, 1e-13, 3e-10, 1e-8, 5e-6]
+    na_0 = above_hompart(na, tolerances)
+    nb_0 = above_hompart(nb, tolerances)
+    assert list(na_0.keys()) == [(1, 1), (2, 2), (3, 3)]
+    assert list(nb_0.keys()) == [(1, 1), (2, 2), (3, 3)]
+    
+    # Check 2: Values agree in each result
+    tolerances1 = 5e-15
+    for key in [(1, 1), (2, 2), (3, 3)]:
+        assert max(abs(na_0[key] - nb_0[key][..., 1, 0])) < tolerances1
+        
+    c1, c2 = nf_dict1['chi'], nf_dict2['chi']
+    assert len(c1) == len(c2)
+
+    for k in range(len(c1)):
+        c1k, c2k = c1[k], c2[k]
+        assert c1k.keys() == c2k.keys()
+
+        for key in c1k.keys():
+            ar1 = c1k[key]
+            ar2 = c2k[key]
+
+            err12 = max(abs(ar1 - ar2[..., 1, 0]))
+            assert err12 < tolerances1
