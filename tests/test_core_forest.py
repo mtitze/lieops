@@ -48,6 +48,19 @@ def cycle(operators, ordering, order, position, **kwargs):
     tm = taylor_map(*cc, max_power=operators[0].argument.max_power) # note that max_power < inf is important here, otherwise the code becomes very (!) slow, if it stops at all...
     return fnf(*tm, order=order, **kwargs)
 
+def above_hompart(p, tolerances):
+    '''
+    Helper function for checks; remove terms of a polynomial relative to given tolerances,
+    for each homogeneous part. The reason is that higher-order terms tend to be much larger
+    than lower-order terms, so tolerances in checks can be finetuned for each order.
+    '''
+    assert len(tolerances) == p.maxdeg()
+    p_new = 0
+    for k in range(len(tolerances)):
+        tol = tolerances[k]
+        p_new += p.homogeneous_part(k).above(tol)
+    return p_new
+
 #########
 # Tests #
 #########
@@ -119,5 +132,79 @@ def test_normalform2(ordering, position, power, order=4, tol1=1e-8, tol2=5e-7, t
             
             assert max(rel_errors) < tol3
 
+def test_normalform3():
+    '''
+    Test the multi-dimensional capabilities of the routines involved in the normal form calculation.
     
+    First, a run with a single value is performed. Then, two multi-dimensional arrays are processed. 
+    The entries in the results are compared with each other.
+    
+    Test includes non-zero kicks.
+    '''
+    order = 6
+    power = 30
+    
+    position1 = [0.0002, 0.001]
+    # The other positions are arrays in which position1 will appear somewhere:
+    position2 = [np.array([0, position1[0], 0.0006]), np.array([0, position1[1], -0.0005])]
+    position3 = [np.array([[0, 0.0003, 0.0006], [position1[0], -0.00042, 0.0001]]), 
+                 np.array([[0, 0.001, -0.0005], [position1[1], -0.00008, 0.00015]])]
+    
+    nf_dict1 = normalform(operators=operators, ordering=default_ordering, order=order, position=position1, power=power)
+    nf_dict2 = normalform(operators=operators, ordering=default_ordering, order=order, position=position2, power=power)
+    nf_dict3 = normalform(operators=operators, ordering=default_ordering, order=order, position=position3, power=power)
+    
+    n1 = sum(nf_dict1['normalform'])
+    n2 = sum(nf_dict2['normalform'])
+    n3 = sum(nf_dict3['normalform'])
+    
+    # Check 0: shape consistency
+    assert np.array(position1).shape[1:] == ()
+    assert np.array(position2).shape[1:] == (3,)
+    assert np.array(position3).shape[1:] == (2, 3)
+    assert n1[1, 1].shape == ()
+    assert n2[1, 1].shape == (3,)
+    assert n3[1, 1].shape == (2, 3)
+        
+    # Check 1: Normalization successfull?
+    tolerances = [1e-14, 1e-14, 2e-14, 1e-13, 5e-10, 5e-8, 5e-5]
+    n1_0 = above_hompart(n1, tolerances)
+    n2_0 = above_hompart(n2, tolerances)
+    n3_0 = above_hompart(n3, tolerances)
+    assert list(n1_0.keys()) == [(1, 1), (2, 2), (3, 3)]
+    assert list(n2_0.keys()) == [(1, 1), (2, 2), (3, 3)]
+    assert list(n3_0.keys()) == [(1, 1), (2, 2), (3, 3)]
+    
+    # Check 2: Values agree in each result
+    tolerances1 = [5e-15, 5e-10, 1e-1]
+    j = 0
+    for key in [(1, 1), (2, 2), (3, 3)]:
+        assert abs(n1_0[key] - n2_0[key][1]) < tolerances1[j]
+        assert abs(n1_0[key] - n3_0[key][1, 0]) < tolerances1[j]
+        j += 1
+        
+    zero_threshold = 1e-12 # threshold beyond which we shall consider relative errors rather than absolute errors
+    tolerance3 = 2e-9
+    c1, c2, c3 = nf_dict1['chi'], nf_dict2['chi'], nf_dict3['chi']
+    assert len(c1) == len(c2)
+    assert len(c1) == len(c3)
+
+    for k in range(len(c1)):
+        c1k, c2k, c3k = c1[k], c2[k], c3[k]
+        assert c1k.keys() == c2k.keys()
+        assert c1k.keys() == c3k.keys()
+
+        for key in c1k.keys():
+            ar1 = c1k[key]
+            ar2 = c2k[key]
+            ar3 = c3k[key]
+
+            rel_err12 = abs(ar1 - ar2[1])
+            rel_err13 = abs(ar1 - ar3[1, 0])
+            if abs(ar1) > zero_threshold:
+                rel_err12 = rel_err12/abs(ar1)
+                rel_err13 = rel_err13/abs(ar1)
+
+            assert rel_err12 < tolerance3
+            assert rel_err13 < tolerance3
     

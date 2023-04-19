@@ -4,7 +4,6 @@ import warnings
 
 from njet import derive, taylor_coefficients
 from njet.extras import cderive
-from njet.common import check_zero
 
 import lieops.core.lie
 from lieops.linalg.matrix import create_J
@@ -463,8 +462,8 @@ def symcheck(p, tol, warn=True):
                 check_order = abs(check.homogeneous_part(order))
                 if len(check_order) == 0:
                     continue
-                max_error = max(check_order)
-                if check_zero(max_error - tol):
+                max_error = np.amax(list(check_order.values()))
+                if max_error > tol:
                     result[order] = max([result.get(order, 0), max_error])
                     if warn:
                         warnings.warn(f'Taylor map non-symplectic at order {order} for components {(k, l)}. Error: {max_error} (tol: {tol})')
