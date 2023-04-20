@@ -1,12 +1,11 @@
 import numpy as np
 
-def LDL_cholesky(A):
+def LDL_cholesky1(A):
     '''
     Compute the LDL-Cholesky decomposition of a Hermitian positive definite matrix A
     so that it holds
     A == L@D@L.transpose().conjugate()
-    where L is a (in general complex) lower triangular matrix.
-    Also L**(-1/2) is returned (as it is internally computed along L and D).
+    where L is a (in general complex) lower triangular matrix with units on its diagonal.
     
     Parameters
     ----------
@@ -20,10 +19,12 @@ def LDL_cholesky(A):
     Di12: ndarray
     '''
     C = np.linalg.cholesky(A) # C@C^* == A with C lower trianglular
-    Di12 = np.diag(np.sqrt(C.diagonal())**-1)
-    L = C@Di12
-    D = np.diag(C.diagonal())
-    return L, D, Di12
+    Cd = C.diagonal()
+    Si = np.diag(Cd**-1)
+    L = C@Si # thus C = L@S, so that L@S@S^*@L^* = A. We thus have D = S@S^*:
+    D = np.diag(Cd*Cd.conjugate())
+    # Moreover, the diagonal entries of L are 1, by construction.
+    return L, D
 
 def iwasawa(X):
     '''
@@ -51,13 +52,15 @@ def iwasawa(X):
     dim = dim2//2
     XX = X.transpose().conjugate()@X
     A1, B1 = XX[:dim,:dim], XX[:dim, dim:]
-    Qs, H, Qsi12 = LDL_cholesky(A1) # A1 == Qs@H@Qs.transpose().conjugate()
+    Qs, H = LDL_cholesky1(A1) # A1 == Qs@H@Qs.transpose().conjugate()
     Hi = np.diag(H.diagonal()**-1)
     Q = Qs.transpose().conjugate()
     A = np.zeros([dim2, dim2], dtype=np.complex128)
-    Qs12 = np.diag(Qsi12.diagonal()**-1)
-    A[:dim, :dim] = Qs12
-    A[dim:, dim:] = Qsi12
+    H12_d = np.sqrt(H.diagonal())
+    H12 = np.diag(H12_d)
+    Hi12 = np.diag(H12_d**-1)
+    A[:dim, :dim] = H12
+    A[dim:, dim:] = Hi12
     Qi = np.linalg.inv(Q) # ... improvement possible here?
     Qitr = Qi.transpose()
     N = np.zeros([dim2, dim2], dtype=np.complex128)
