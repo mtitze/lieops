@@ -52,9 +52,9 @@ def iwasawa(X):
     dim = dim2//2
     XX = X.transpose().conjugate()@X
     A1, B1 = XX[:dim,:dim], XX[:dim, dim:]
-    Qs, H = LDL_cholesky1(A1) # A1 == Qs@H@Qs.transpose().conjugate()
+    W, H = LDL_cholesky1(A1) # A1 == W@D@W.transpose().conjugate() with W unit *lower* triangular
+    Q = W.conjugate().transpose() # notation in Ref. [1]; Q is therefore unit *upper* triangular, as required in Ref. [1].
     Hi = np.diag(H.diagonal()**-1)
-    Q = Qs.transpose().conjugate()
     A = np.zeros([dim2, dim2], dtype=np.complex128)
     H12_d = np.sqrt(H.diagonal())
     H12 = np.diag(H12_d)
