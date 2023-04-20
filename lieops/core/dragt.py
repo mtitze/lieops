@@ -82,7 +82,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
+def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -217,7 +217,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
             B = A*0
         except:
             if warn:
-                warnings.warn(f"Map requires two 2nd-order polynomials (tol: {tol}).")
+                warnings.warn(f"Map requires two 2nd-order polynomials (tol_checks: {tol_checks}).")
             comb2 = False
             
     if not comb2:
@@ -323,7 +323,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=1e-6, t
             for i in range(dim2):
                 remainder = (p_new[i] - xieta[i]).above(tol_checks).extract(key_cond=lambda key: sum(key) >= 1)
                 if remainder != 0:
-                    assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol: {tol_checks}):\n{remainder.truncate(k)}'
+                    assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol_checks: {tol_checks}):\n{remainder.truncate(k)}'
                     
         f_nl.append(fk)
         
