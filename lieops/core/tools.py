@@ -73,7 +73,7 @@ def poly2ad(pin):
 
 def ad2poly(A, tol=0, poisson_factor=-1j, **kwargs):
     '''
-    Transform a complex (2n)x(2n)-matrix representation of a polynomial back to 
+    Transform a complex (2n)x(2n)-matrix representation of a polynomial to 
     its polynomial xi/eta-representation. This is the inverse of the 'poly2ad' routine.
     
     Attention: A matrix admits a polynomial representation if and only if it is an element

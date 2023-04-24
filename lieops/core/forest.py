@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 
 from lieops.core import lexp, create_coords, poly
-from lieops.core.tools import ad2poly, poly2ad, tpsa, taylor_map
+from lieops.core.tools import tpsa, taylor_map
 from lieops.core.dragt import dragtfinn
 
 twopi = float(np.pi*2)
@@ -28,7 +28,7 @@ def _rot_kernel(fk, mu):
     return poly(values=a, dim=dim, max_power=fk.max_power)
 
     
-def fnf(*p, order: int=1, mode='conj', **kwargs):
+def fnf(*p, order: int, mode='conj', **kwargs):
     '''
     Obtain maps to Normal form for a given chain of Lie-operators. The concept
     is outlined in Sec. 4.4 in Ref. [1].
@@ -58,7 +58,7 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
         symplectic map (for example, the result of a TPSA calculation through a 
         chain of Lie-operators).
         
-    order: int, optional
+    order: int
         The order of the normalization proceduere.
         
     tol: float, optional

@@ -43,7 +43,7 @@ def homological_eq(mu, Z, **kwargs):
             Q[powers] = value
     return chi, Q
 
-def bnf(H, order: int=1, tol_drop=0, tol=1e-12, cmplx=True, **kwargs):
+def bnf(H, order: int, tol_drop=0, tol=1e-12, cmplx=True, **kwargs):
     '''
     Compute the Birkhoff normal form of a given Hamiltonian up to a specific order.
     
@@ -95,13 +95,25 @@ def bnf(H, order: int=1, tol_drop=0, tol=1e-12, cmplx=True, **kwargs):
         Zk     : List of poly objects, notation see Lem. 1.4.5. in Ref. [1]. 
         Qk     : List of poly objects, notation see Lem. 1.4.5. in Ref. [1].
         
-    Example
-    -------      
+    Example(s)
+    ----------
     nfdict = H1.bnf(order=4)
     w = H1.copy()
     for c in nfdict['chi0'] + nfdict['chi']:
         w = c.lexp(power=10)(w)
         print (w.above(1e-12)) # example
+        
+    
+    # first-order normal form:
+    bnfd = ham.bnf(1)
+    c = bnfd['chi0'][0] # assuming a single element
+    def ncheck(*z, **kwargs):
+        z = lexp(c)(*z, **kwargs)
+        z = lexp(-ham)(*z, **kwargs)
+        z = lexp(-c)(*z, **kwargs)
+        return z
+    # Then ncheck will be 'normalized'. Its effect will
+    # be the same as lexp(-bnfd['H0']).
 
     References
     ----------

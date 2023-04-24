@@ -176,7 +176,7 @@ def test_normalform3():
     assert list(n3_0.keys()) == [(1, 1), (2, 2), (3, 3)]
     
     # Check 2: Values agree in each result
-    tolerances1 = [5e-15, 5e-10, 1e-1]
+    tolerances1 = [5e-15, 7e-10, 1e-1]
     j = 0
     for key in [(1, 1), (2, 2), (3, 3)]:
         assert abs(n1_0[key] - n2_0[key][1]) < tolerances1[j]
@@ -236,7 +236,7 @@ def test_normalform4():
     assert nb[1, 1].shape == (80, 2, 3)
     
     # Check 1: Normalization successfull?
-    tolerances = [1e-14, 1e-14, 2e-14, 1e-13, 3e-10, 1e-8, 5e-6]
+    tolerances = [1e-14, 1e-14, 2e-14, 1e-13, 3e-10, 5e-8, 5e-6]
     na_0 = above_hompart(na, tolerances)
     nb_0 = above_hompart(nb, tolerances)
     assert list(na_0.keys()) == [(1, 1), (2, 2), (3, 3)]

@@ -124,7 +124,9 @@ def normal_form(H2, T=None, mode='default', check: bool=False, **kwargs):
         A      : A complex matrix transforming the underlying Hamiltonian H (whose Hesse-matrix corresponds to H2),
                  given in terms of complex (xi, eta)-coordinates, into normal form N via N = H o A.
                  It holds A = U@Sinv@Uinv.
+                 By definition of U, the matrix A is complex symplectic with respect to J.
                  *Currently only returned for numpy input*
+        Ainv   : The inverse of A.
         S1, S2 : Elements of sp(2n; C) (the Lie-algebra of complex symplectic matrices) satisfying
                  A = exp(S1)@exp(S2). These matrices can be used to obtain respective polynomial representations
                  of the Lie-operator, mapping the given Hamiltonian H into its "first-order" normal form N (see
@@ -244,6 +246,7 @@ def normal_form(H2, T=None, mode='default', check: bool=False, **kwargs):
     # For details see my notes (On_Sp2n.pdf)
     if code != 'mpmath':
         out['A'] = (U@Sinv@Uinv).matrix
+        out['Ainv'] = (U@S@Uinv).matrix
         tol_logm = kwargs.get('tol_logm', 1e-14)
         try:
             B1 = logm_nd(Sinv.matrix) # exist always, since Sinv is invertible
