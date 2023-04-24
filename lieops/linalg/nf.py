@@ -123,13 +123,15 @@ def normal_form(H2, T=None, mode='default', check: bool=False, **kwargs):
                  normalizing (xi, eta)-coordinates (the 'new' complex symplectic structure).
         A      : A complex matrix transforming the underlying Hamiltonian H (whose Hesse-matrix corresponds to H2),
                  given in terms of complex (xi, eta)-coordinates, into normal form N via N = H o A.
-                 It holds A = U@Sinv@Uinv. *Currently only returned for numpy input*
+                 It holds A = U@Sinv@Uinv.
+                 *Currently only returned for numpy input*
         S1, S2 : Elements of sp(2n; C) (the Lie-algebra of complex symplectic matrices) satisfying
                  A = exp(S1)@exp(S2). These matrices can be used to obtain respective polynomial representations
                  of the Lie-operator, mapping the given Hamiltonian H into its "first-order" normal form N (see
-                 also the commment above). Note that if S1 or S2 does not exist, this means that the respective element is zero, so the element A can be repesented as a single exponential. The tolerance which
-                 determines this behavior can be controlled with the tol_logm parameter. So if that parameter
-                 is set to zero, there will always be returned two elements.
+                 also the commment above). Note that if S1 or S2 does not exist, this means that the respective 
+                 element is zero, so the element A can be repesented as a single exponential. The tolerance which
+                 determines this behavior can be controlled with the 'tol_logm' parameter. So if that parameter
+                 is set to zero, then there will always be two elements returned.
                  *Currently only returned for numpy input*
     ''' 
     dim = len(H2)
@@ -251,13 +253,13 @@ def normal_form(H2, T=None, mode='default', check: bool=False, **kwargs):
             assert all([(abs(zero.matrix[i, j]) < tol_logm).all() for i in range(dim) for j in range(dim)])
         except:
             # Sinv can only be represented by two exponentials
-            B1, B2 = symlogs(Sinv.matrix, tol2=kwargs.get('symlogs_tol2', 0))
+            B1, B2 = symlogs(Sinv.matrix, tol2=kwargs.get('symlogs_tol2', 0)) # exp(B1)@exp(B2) = Sinv
             warnings.warn(f'Matrix appears to require two exponentials for representation (tol_logm: {tol_logm})')
             B1, B2 = emat(B1), emat(B2)
             out['C2'] = (U@B2@Uinv).matrix
         out['C1'] = (U@B1@Uinv).matrix
         # so that A = exp(C1)@exp(C2)
-        # Note that due to the nature of the matrix U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
+        # Note that by definition of U, the Cj's are elements of sp(2n; C), so they admit a polynomial representation.
     return out
 
 def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: int=0, tol: float=1e-14,
@@ -318,8 +320,8 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
         z = dim2*[0]
     
     # Step 2: Obtain the Hesse-matrix of H.
-    # N.B. we need to work with the Hesse-matrix here (and *not* with the Taylor-coefficients), because we want to get
-    # a (linear) map K so that the Hesse-matrix of H o K is in CNF (complex normal form). This is guaranteed
+    # N.B. we need to work with the Hesse-matrix here (and *not* with the Taylor-coefficients, although we will return them), 
+    # because we want to get '+a (linear) map K so that the Hesse-matrix of H o K is in CNF (complex normal form). This is guaranteed
     # if the Hesse-matrix of H is transformed to CNF.
     # Note that the Taylor-coefficients of H in 2nd-order are 1/2*Hesse_matrix. This means that at (++) (see below),
     # no factor of two is required.
@@ -345,7 +347,7 @@ def first_order_nf_expansion(H, power: int=2, z=[], check: bool=False, n_args: i
     Kmap = lambda *zz: [sum([zz[k]*Kinv[j, k] for k in range(len(zz))]) for j in range(len(zz))] # TODO: implement column matrix class. Attention: Kinv[j, k] must stand on right-hand side, otherwise zz[k] may be inserted into a NumPy array!
     HK = lambda *zz: Hshift(*Kmap(*zz))
     dHK = derive(HK, order=power, n_args=dim2)
-    results = dHK(*z0, mult_drv=False) # mult_drv=False ensures that we obtain the Taylor-coefficients of the new Hamiltonian. (+)
+    results = dHK(*z0, mult_drv=False) # mult_drv=False yield the Taylor-coefficients of the new Hamiltonian. (+)
         
     if check:
         # Check if the 2nd order Taylor coefficients of the derived shifted Hamiltonian agree in complex

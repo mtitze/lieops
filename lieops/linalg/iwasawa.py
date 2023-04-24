@@ -5,7 +5,7 @@ def LDL_cholesky1(A):
     Compute the LDL-Cholesky decomposition of a Hermitian positive definite matrix A
     so that it holds
     A == L@D@L.transpose().conjugate()
-    where L is a (in general complex) lower triangular matrix with units on its diagonal.
+    where L is a (in general complex) lower triangular matrix with ones on its diagonal.
     
     Parameters
     ----------
@@ -15,8 +15,13 @@ def LDL_cholesky1(A):
     Returns
     -------
     L: ndarray
+        A lower triangular matrix with ones on its diagonal.
+        
     D: ndarray
+        A diagonal matrix
+        
     Di12: ndarray
+        The inverse of the square root of D
     '''
     C = np.linalg.cholesky(A) # C@C^* == A with C lower trianglular
     Cd = C.diagonal()
@@ -31,6 +36,7 @@ def iwasawa(X):
     Compute matrices A, N in the Iwasawa decomposition 
     X = K@A@N
     of a complex symplectic matrix X according to Ref. [1].
+    Hereby K is a complex symplectic and unitary matrix.
     
     Parameters
     ----------
@@ -40,7 +46,10 @@ def iwasawa(X):
     Returns
     -------
     A: ndarray
+        A diagonal matrix with positive entries of the form diag(x1, x2, ..., xn, 1/x1, 1/x2, ..., 1/xn).
+        
     N: ndarray
+        A block upper triangular matrix with the properties described in Ref. [1].
     
     Reference(s)
     ------------

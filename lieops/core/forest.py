@@ -137,9 +137,10 @@ def fnf(*p, order: int=1, mode='conj', **kwargs):
     nterms_1 = nterms_1[i1:]
     
     C = nterms_1[0]
+    # Compute the first-order normalization of the 2nd-order polynomials
     nfdict = C.bnf(order=1, **kwargs)
     tunes = nfdict['mu']
-    chi0s = nfdict['chi0'] # U@Sinv@U^* = exp(C1)@exp(C2) for nfdict['chi0'] = [C1, C2], see lieops.linalg.nf.normal_form; Sinv contains the linear optics functions
+    chi0s = nfdict['chi0'] # U@Sinv@U^* = exp(C1)@exp(C2) for nfdict['chi0'] = [C1, C2], see lieops.linalg.nf.normal_form; Sinv contains the linear optics functions.
     for chi0 in chi0s: # (chi0s may be of length 0, 1 or 2)
         nterms_1 = [lexp(chi0)(h, method='2flow') for h in nterms_1]
 

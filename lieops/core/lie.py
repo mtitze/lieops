@@ -46,19 +46,10 @@ class poly(_poly):
         kwargs['max_power'] = kwargs.get('max_power', self.max_power)
         return lexp(self, *args, **kwargs)
     
-    def bnf(self, order: int=1, **kwargs):
+    def bnf(self, order: int, **kwargs):
         '''
-        Compute the Birkhoff normal form of the current Lie exponential operator.
-        
-        Example
-        ------- 
-        nf = self.bnf()
-        echi1 = nf['chi'][0].flow(t=1) # exp(:chi1:)
-        echi1i = nf['chi'][0].flow(t=-1) # exp(-:chi1:)
-        
-        Then the map 
-          z -> exp(:chi1:)(self(exp(-:chi1:)(z))) 
-        will be in NF.
+        Compute the Birkhoff normal form of the current Lie polynomial, assuming it represents
+        the Hamiltonian of a Lie operator.
         
         Parameters
         ----------
