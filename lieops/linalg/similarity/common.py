@@ -71,10 +71,10 @@ def diagonal2block(D, code, tol=1e-10, tol_orientation=1e-10, **kwargs):
         orientation = list(orientation)
         if len(orientation) == dim:
             orientation = orientation*2
-        omat = get_orientation(orientation, D, tol=tol_orientation) 
+        omat, check = get_orientation(orientation, D, tol=tol_orientation) 
         # check if there are exactly 2 entries for each column. If this is not the case,
         # orientation can not be used.
-        if np.count_nonzero(omat) == dim2**2 - 2*dim2:
+        if check == dim2**2 - 2*dim2:
             use_orientation = True
         else:
             warnings.warn(f'Orientation determination failed; tol_orientation: {tol_orientation}')
