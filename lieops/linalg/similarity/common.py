@@ -2,6 +2,8 @@
 
 import numpy as np
 import mpmath as mp
+import warnings
+warnings.simplefilter('once', UserWarning)
 
 from lieops.linalg.misc import identifyPairs, get_orientation
 from lieops.linalg.matrix import create_pq2xieta
@@ -10,7 +12,7 @@ from lieops.linalg.checks import relative_eq
 
 from njet.functions import get_package_name
 
-def diagonal2block(D, code, tol=1e-10, **kwargs):
+def diagonal2block(D, code, tol=1e-10, tol_orientation=1e-10, **kwargs):
     r'''
     Computes a unitary map U which will diagonalize a matrix D of the form
     
@@ -64,15 +66,22 @@ def diagonal2block(D, code, tol=1e-10, **kwargs):
         # For every element d in D with d.imag > 0, there exists also an element d2 in D with d2.imag = -d.imag < 0.
         default_orientation = [d*-1j for d in D if d.imag > 0]
     orientation = kwargs.get('orientation', default_orientation)
+    use_orientation = False
     if len(orientation) > 0:
         orientation = list(orientation)
         if len(orientation) == dim:
             orientation = orientation*2
-        omat = get_orientation(orientation, D, tol=kwargs.get('tol_orientation', tol)) 
+        omat = get_orientation(orientation, D, tol=tol_orientation) 
+        # check if there are exactly 2 entries for each column. If this is not the case,
+        # orientation can not be used.
+        if np.count_nonzero(omat) == dim2**2 - 2*dim2:
+            use_orientation = True
+        else:
+            warnings.warn(f'Orientation determination failed; tol_orientation: {tol_orientation}')
         
     # Step 1: Determine the pairs on the diagonal which should be mapped.
     pairs = identifyPairs(D, condition=lambda x, y: abs(x + y) < tol, **kwargs)
-    
+        
     # Step 2: Construct U, assuming that it will transform a matrix with the above order
     if code == 'numpy':
         U = np.eye(dim2, dtype=complex)
@@ -84,7 +93,7 @@ def diagonal2block(D, code, tol=1e-10, **kwargs):
     for k in range(len(pairs)):
         i, j = pairs[k]
 
-        if len(orientation) > 0:
+        if use_orientation:
             # Using
             # U2by2perm := matrix([[0, 1], [1, 0]])@U2by2
             # instead of the default U2by2 corresponds to an exchange of the two eigenvalue pairs.

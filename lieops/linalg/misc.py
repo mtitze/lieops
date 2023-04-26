@@ -65,7 +65,6 @@ def get_orientation(Dref, D, tol=1e-10):
     dim2 = len(D)
     assert len(Dref) == dim2
     orient = np.zeros([dim2, dim2], dtype=np.complex128)
-    check = 0 
     for k in range(dim2):
         a = Dref[k]
         for l in range(dim2):
@@ -75,8 +74,5 @@ def get_orientation(Dref, D, tol=1e-10):
             elif abs(a + 1j*b) < tol:
                 orient[k, l] = -1j
             else:
-                check += 1
                 continue
-    # check if there are exactly 2 entries for each column. If this is not the case, something went wrong.
-    assert check == dim2**2 - 2*dim2, f'Orientation could not be determined using tol: {tol}'
     return orient
