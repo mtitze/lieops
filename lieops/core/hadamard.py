@@ -103,9 +103,9 @@ def reshuffle2d(*hamiltonians, keys, exact=False, **kwargs):
             else:
                 op = lexp(ad2poly(current_g1_operator, max_power=max_power), **kwargs)
                 new_hamiltonians.append(op(hamiltonian, **kwargs))
-    if len(current_g1_operator) == 0 or len(new_hamiltonians) == 0:
+    if len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with, using keys: {keys}.')
-    return new_hamiltonians, [ad2poly(current_g1_operator, max_power=max_power)], [ad2poly(op, max_power=max_power) for op in g1_operators]
+    return new_hamiltonians, [ad2poly(current_g1_operator, max_power=max_power)], [ad2poly(op1, max_power=max_power) for op1 in g1_operators]
 
 def reshuffle(*hamiltonians, condition: lambda h: False, **kwargs):
     '''
@@ -181,7 +181,7 @@ def reshuffle(*hamiltonians, condition: lambda h: False, **kwargs):
         else:
             new_hamiltonians.append((len(g1_operators), hamiltonian))
             
-    if len(g1_operators) == 0 or len(new_hamiltonians) == 0:
+    if len(new_hamiltonians) == 0:
         warnings.warn(f'No operators found to commute with for given condition {condition}.')
         
     return new_hamiltonians, g1_operators
