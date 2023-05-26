@@ -117,7 +117,7 @@ def fnf(*p, order: int, mode='conj', **kwargs):
     
     # If first-order elements in the Dragt/Finn factorization have been found, and the mode is 'conj',
     # then we will re-calculate the tpsa map p for this inner part (& raise a warning):
-    default_max_power = kwargs.get('max_power', min([f.max_power for f in df]))
+    default_max_power = kwargs.setdefault('max_power', min([f.max_power for f in df]))
     if len(nterms_1) < len(df):
         warnings.warn('Non-zero kicks detected. Will normalize only the interior.')
         if mode == 'conj':
