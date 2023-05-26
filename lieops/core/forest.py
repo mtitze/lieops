@@ -113,7 +113,7 @@ def fnf(*p, order: int, mode='conj', **kwargs):
     # R^(-1) != 1, otherwise the normal form will be identical to the input
     if 2 not in df_orders:
         warnings.warn('No 2nd-order terms found => Normal form identical to input.')
-        return {'dragtfinn': df, 'nterms': [nterms_1], 'chi': [], 'nmaps': [p]}
+        return {'dragtfinn': df, 'nf_all': [nterms_1], 'chi': [], 'tm_all': [p], 'normalform': nterms_1}
     
     # If first-order elements in the Dragt/Finn factorization have been found, and the mode is 'conj',
     # then we will re-calculate the tpsa map p for this inner part (& raise a warning):
