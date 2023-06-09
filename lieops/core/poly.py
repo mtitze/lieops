@@ -565,7 +565,7 @@ class _poly:
             if sum(key) == 0: # we already dealt with the constant term.
                 continue
             jpvalues[frozenset([(j, key[j]) for j in range(self.dim*2) if key[j] != 0])] = v
-        return jetpoly(values=jpvalues)
+        return jetpoly(terms=jpvalues)
     
     def apply(self, operator, *args, **kwargs):
         '''

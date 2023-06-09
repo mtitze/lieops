@@ -103,7 +103,7 @@ def fnf(*p, order: int, mode='conj', **kwargs):
     kwargs['disable_tqdm'] = True # never show progress bars within the loop(s) itself
     
     # Compute the Dragt/Finn factorization up to a specific order
-    kwargs['pos2'] = 'left'
+    kwargs['pos2'] = 'left' # ensure that the 2nd order term is neighbour to the third-order term
     kwargs['comb2'] = True
     df = dragtfinn(*p, order=order, tol=tol, **kwargs)
 
