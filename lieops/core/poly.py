@@ -3,7 +3,7 @@
 # it is not recommended to construct poly objects directly from that file.
 import numpy as np
 
-from njet import derive, jetpoly
+from njet import derive, jetpoly, jet
 from njet.common import check_zero, factorials
 
 class _poly:
@@ -566,7 +566,36 @@ class _poly:
                 continue
             jpvalues[frozenset([(j, key[j]) for j in range(self.dim*2) if key[j] != 0])] = v
         return jetpoly(terms=jpvalues)
-    
+
+    def to_jet(self, max_order=np.inf, **kwargs):
+        '''
+        Map the current Lie polynomial to an njet jet class.
+
+        Returns
+        -------
+        jet
+            A jet class of self.dim*2 variables, representing the current Lie polynomial.
+        '''
+        dim2 = self.dim*2
+        constant_key = (0,)*dim2
+        deg = min([self.maxdeg(), max_order])
+        jet_array = [0] + [{} for k in range(deg)]
+
+        if 'factorials' not in kwargs.keys():
+            facts = factorials(deg)
+        else:
+            facts = kwargs['factorials']
+
+        if constant_key in self.keys():
+            jet_array[0] = self._values[constant_key]
+
+        for key, v in self.items():
+            order = sum(key)
+            if order == 0 or order > max_order: # we already dealt with the constant term.
+                continue
+            jet_array[order].update({frozenset([(j, key[j]) for j in range(dim2) if key[j] != 0]): v*facts[order]})
+        return jet(*([jet_array[0]] + [jetpoly(terms=ja) for ja in jet_array[1:]]))
+
     def apply(self, operator, *args, **kwargs):
         '''
         Apply an operator to the coefficients of the current Lie-polynomial.
