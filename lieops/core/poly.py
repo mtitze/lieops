@@ -4,7 +4,72 @@
 import numpy as np
 
 from njet import derive, jetpoly, jet
-from njet.common import check_zero, factorials
+from njet.common import check_zero, factorials, nCr
+
+def _shift_component(shift_value, shift_component, terms, **kwargs):
+    '''
+    Shift the terms of a polynomial by a given value and component index, using binomial coefficients.
+    
+    Parameters
+    ----------
+    shift_value: float or complex
+        The value to be shifted
+    
+    shift_component: int
+        The index of the component to be shifted
+        
+    terms: dict
+        A dictionary, mapping tuples to (e.g.) float or complex.
+        The terms defining the indices and their exponents of a polynomial.
+        
+    Returns
+    -------
+    dict
+        A dictionary defining the indices and powers of the shifted polynomial.
+    
+    Example
+    =======
+    shift_component(0.1, 3, {(0, 0, 0, 2): 7})
+    # shifts the fourth component by 0.1. If we denote this component by x, then
+    # the rule would be:    
+    # 7*x**2 -> 7*(x + 0.1)**2 = 7*x**2 + 14*x*0.1 + 7*0.1**2 = 7*x**2 + 1.4*x + 0.07
+    # The result is
+    {(0, 0, 0, 2): 7.0, (0, 0, 0, 1): 1.4, (0, 0, 0, 0): 0.07}
+    '''
+    
+    required_powers = set(k[shift_component] for k in terms.keys() if k[shift_component] > 0)
+    if len(required_powers) == 0:
+        return terms
+    
+    max_power = max(required_powers)
+    shift_powers = np.arange(max_power + 1)
+    new_shift_values = shift_value**shift_powers
+    
+    if 'binomials' not in kwargs.keys():
+        binomials = nCr(max_power)
+    else:
+        binomials = kwargs['binomials']
+    
+    new_terms = {}
+    for powers, value in terms.items():
+        power_component = powers[shift_component] # the power of the component in question
+        if power_component == 0:
+            new_terms[powers] = new_terms.get(powers, 0) + value
+            continue
+
+        sp = shift_powers[:power_component + 1]
+        new_keys = (tuple(powers[k] if k != shift_component else l for k in range(len(powers))) for l in sp[::-1])
+
+        nsv = new_shift_values[:power_component + 1]
+        b = binomials[power_component]
+        new_values = value*nsv*b
+
+        j = 0
+        for nk in new_keys:
+            new_terms[nk] = new_terms.get(nk, 0) + new_values[j]
+            j += 1
+            
+    return new_terms
 
 class _poly:
     '''
@@ -576,6 +641,12 @@ class _poly:
         jet
             A jet class of self.dim*2 variables, representing the current Lie polynomial.
         '''
+        # Development comment: 
+        # TODO: 1) May add mult_prm and mult_drv options
+        #       2) To think about:
+        #          Do this in njet, so the flow would be: to_jetpoly -> to_jet? 
+        #          and here the conversion to_jetpoly will be done, then to_jet?
+        #       3) Note also that to_jet and to_jetpoly currently give different results due to the factorials involved here.
         dim2 = self.dim*2
         constant_key = (0,)*dim2
         deg = min([self.maxdeg(), max_order])
@@ -591,7 +662,7 @@ class _poly:
 
         for key, v in self.items():
             order = sum(key)
-            if order == 0 or order > max_order: # we already dealt with the constant term.
+            if order == 0 or order > deg: # we already dealt with the constant term.
                 continue
             jet_array[order].update({frozenset([(j, key[j]) for j in range(dim2) if key[j] != 0]): v*facts[order]})
         return jet(*([jet_array[0]] + [jetpoly(terms=ja) for ja in jet_array[1:]]))
@@ -718,7 +789,7 @@ class _poly:
         else:
             rbv = h1.taylor_coefficients(2*self.dim, facts=factorials(self.maxdeg()), 
                                           mult_drv=mult_drv, mult_prm=mult_prm)
-        return self.__class__(values=rbv, poisson_factor=poisson_factor, max_power=self.max_power)
+        return self.__class__(values=rbv, poisson_factor=poisson_factor, dim=self.dim, max_power=self.max_power)
     
     def split(self, keys, scheme, check=False, **kwargs):
         '''
@@ -757,6 +828,33 @@ class _poly:
             check1, check2 = sum(c), sum(d)
             assert check1 == 1 and check2 == 1, f'Both sums need to be 1:\nsum1: {check1}, sum2: {check2}'
         return out
+    
+    def shift(self, shift, **kwargs):
+        '''
+        Shift the polynonmial by a given value, i.e. replace xi[k] by xi[k] + a[k] etc.
+        
+        This may be faster than using automatic differentiation at the point "a".
+        
+        Parameters
+        ----------
+        shift: subscriptable
+            The vector by which the polynomial should be shifted.
+            
+        **kwargs
+            Optional keyworded arguments passed to njet.poly._shift_component routine.
+            
+        Returns
+        -------
+        poly:
+            A polynomial object corresponding to the shifted original polynomial.
+        '''
+
+        poly_terms = {k: v for k, v in self._values.items()}
+        j = 0
+        for shift_value in shift:
+            poly_terms = _shift_component(shift_value, j, poly_terms, **kwargs)
+            j += 1
+        return self.__class__(values=poly_terms, dim=self.dim, max_power=self.max_power)
     
     
 def construct(f, *lps, **kwargs):
