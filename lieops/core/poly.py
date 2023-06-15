@@ -5,6 +5,7 @@ import numpy as np
 
 from njet import derive, jetpoly, jet
 from njet.common import check_zero, factorials, nCr
+from njet.extras import general_faa_di_bruno
 
 def _shift_component(shift_value, shift_component, terms, **kwargs):
     '''
@@ -301,21 +302,40 @@ class _poly:
         dim2 = self.dim*2
         assert len(z) == dim2, f'Number of input parameters: {len(z)}, expected: {dim2} (or {self.dim})'
         return z
-        
-    def __call__(self, *z):
+    
+    def insert(self, *z, **kwargs):
         '''
-        Evaluate the polynomial at a specific position z.
+        Insert other polynomials into the current polynomial, to yield a new polynomial.
+        
+        This routine is called also by self.__call__, if lie polynomials are inserted.
         
         Parameters
         ----------
-        z: subscriptable
-            The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim,
-            in which case the components of z are assumed to be xi-values. Otherwise, it is assumed that len(z) == 2*self.dim,
-            where z = (xi, eta) denote a set of complex conjugated coordinates.
+        *z: polynomials
+            The polynomials at which the current polynomial should be evaluated at.
+            
+        max_order: int, optional
+            An integer defining the maximal order up to which the result should be computed. 
+            Setting a value here is highly recommended, as default values could be large and
+            therefore could lead to poor performance.
+            
+        Returns
+        -------
+        jet
+            The jet corresponding to the composition of the polynomials.
         '''        
-        # prepare input vector
-        z = self._prepare_input(*z)
+        max_order = kwargs.get('max_order', self.max_power)
         
+        # Combine the respective jets which represent the involved polynomials (this is much faster than using self.evaluate on polynomials):
+        zjets = [e.to_jet(max_order=max_order) for e in z]
+        return general_faa_di_bruno([self.shift([zj.array(0) for zj in zjets]).to_jet(max_order=max_order)], zjets)[0]        
+        
+    def evaluate(self, *z, **kwargs):
+        '''
+        Insert other objects into the current polynomial, to yield a new object.
+        
+        This routine is called also by self.__call__, depending on the input type.
+        '''        
         # compute the occuring powers ahead of evaluation
         z_powers = {}
         j = 0
@@ -338,6 +358,26 @@ class _poly:
             result += prod*v # v needs to stay on the right-hand side here, because prod may be a jet class (if we compute the derivative(s) of the Lie polynomial)
             
         return result
+    
+    def __call__(self, *z, **kwargs):
+        '''
+        Evaluate the polynomial at a specific position z.
+        
+        Parameters
+        ----------
+        z: subscriptable
+            The point at which the polynomial should be evaluated. It is assumed that len(z) == self.dim,
+            in which case the components of z are assumed to be xi-values. Otherwise, it is assumed that len(z) == 2*self.dim,
+            where z = (xi, eta) denote a set of complex conjugated coordinates.
+        '''
+        # prepare input vector
+        z = self._prepare_input(*z)
+        
+        # check input type
+        if all([isinstance(e, type(self)) for e in z]):
+            return self.insert(*z, **kwargs)
+        else:
+            return self.evaluate(*z, **kwargs)
         
     def __add__(self, other):
         if check_zero(other):
@@ -649,9 +689,12 @@ class _poly:
         #       3) Note also that to_jet and to_jetpoly currently give different results due to the factorials involved here.
         dim2 = self.dim*2
         constant_key = (0,)*dim2
-        deg = min([self.maxdeg(), max_order])
+        if max_order == np.inf:
+            deg = self.maxdeg()
+        else:
+            deg = max_order
         jet_array = [0] + [{} for k in range(deg)]
-
+        
         if 'factorials' not in kwargs.keys():
             facts = factorials(deg)
         else:
@@ -664,7 +707,7 @@ class _poly:
             order = sum(key)
             if order == 0 or order > deg: # we already dealt with the constant term.
                 continue
-            jet_array[order].update({frozenset([(j, key[j]) for j in range(dim2) if key[j] != 0]): v*facts[order]})
+            jet_array[order].update({frozenset((j, key[j]) for j in range(dim2) if key[j] != 0): v*facts[order]})
         return jet(*([jet_array[0]] + [jetpoly(terms=ja) for ja in jet_array[1:]]))
 
     def apply(self, operator, *args, **kwargs):
@@ -793,7 +836,7 @@ class _poly:
     
     def split(self, keys, scheme, check=False, **kwargs):
         '''
-        Split the Hamiltonian with respect to a set of keys. 
+        Split the polynomial with respect to a set of keys. 
         Return a list of polynomials according to the requested number of slices and the splitting.
         
         Parameters
@@ -849,7 +892,7 @@ class _poly:
             A polynomial object corresponding to the shifted original polynomial.
         '''
 
-        poly_terms = {k: v for k, v in self._values.items()}
+        poly_terms = {k: v for k, v in self.items()}
         j = 0
         for shift_value in shift:
             poly_terms = _shift_component(shift_value, j, poly_terms, **kwargs)

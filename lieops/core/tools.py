@@ -3,6 +3,7 @@ import numpy as np
 import warnings
 
 from njet import derive, taylor_coefficients
+from njet.common import factorials
 from njet.extras import cderive
 
 import lieops.core.lie
@@ -469,3 +470,46 @@ def symcheck(p, tol, warn=True):
                         warnings.warn(f'Taylor map non-symplectic at order {order} for components {(k, l)}. Error: {max_error} (tol: {tol})')
                         
     return result
+
+    
+def from_jet(je, **kwargs):
+    '''
+    Convert an njet.jet object to a (lie)-polynomial.
+    
+    The jet has to contain a float/complex value in its first entry and jetpoly objects in its higher-order entries.
+    '''
+    je_ar = je.get_array()
+    terms = {}
+    for p in je_ar[1:]:
+        assert hasattr(p, 'terms'), 'Jet-input appears not to contain jetpoly objects in its higher-order entries.'
+        terms.update(p.terms)
+        
+    # determine dimension
+    if 'dim' not in kwargs.keys():
+        u = set()
+        for e in je_ar[1:]:
+            for fs in e.terms.keys():
+                u.update(fs)
+        dim2 = max([e[0] for e in u]) + 1
+        dim = dim2//2
+    else:
+        dim = kwargs['dim']
+    assert dim2%2 == 0, 'Dimension not even.'
+        
+    # assemble terms
+    if 'factorials' not in kwargs.keys():
+        facts = factorials(len(je_ar) - 1)
+    else:
+        facts = kwargs['factorials']
+    zero_key = (0,)*dim2
+    out = {zero_key: je_ar[0]}
+    for key, value in terms.items():
+        tpl = [0]*dim2
+        for fs in key:
+            index, power = fs
+            tpl[index] = power
+            
+        power = sum(tpl)
+        out[tuple(tpl)] = value/facts[power]
+        
+    return lieops.core.lie.poly(values=out, dim=dim, **kwargs)

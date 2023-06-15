@@ -89,7 +89,30 @@ class poly(_poly):
         if isinstance(other, lieoperator):
             return -other(self)
         else:
-            return _poly.__matmul__(self, other)        
+            return _poly.__matmul__(self, other)
+        
+    def insert(self, *args, **kwargs):
+        '''
+        Insert other polynomials into the current polynomial, to yield a new polynomial.
+        
+        This routine is called also by self.__call__, if lie polynomials are inserted.
+        
+        Parameters
+        ----------
+        *z: polynomials
+            The polynomials at which the current polynomial should be evaluated at.
+            
+        max_order: int, optional
+            An integer defining the maximal order up to which the result should be computed. 
+            Setting a value here is highly recommended, as default values could be large and
+            therefore could lead to poor performance.
+            
+        Returns
+        -------
+        lieops.core.lie.poly
+            A polynomial representing the result of combination.
+        '''
+        return lieops.core.tools.from_jet(_poly.insert(self, *args, **kwargs), **kwargs)
 
     
 def create_coords(dim, real=False, **kwargs):
@@ -267,7 +290,7 @@ class lieoperator:
         # set the current flow function to the requested method.
         self.flow = self._flow[self._flow_method]['flow'] 
         
-    def _calcFlowFromParameters(self, **kwargs):
+    def _calcFlowFromParameters(self, **kwargs): # TODO: Create dedicated flow-routines in the "solver" section, and then import them here.
         if self._flow_method == 'bruteforce':
             flow_parameters = self.get_flow_parameters()
             if not 'components' in flow_parameters.keys():
