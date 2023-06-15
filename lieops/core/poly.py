@@ -315,16 +315,14 @@ class _poly:
             The polynomials at which the current polynomial should be evaluated at.
             
         max_order: int, optional
-            An integer defining the maximal order up to which the result should be computed. 
-            Setting a value here is highly recommended, as default values could be large and
-            therefore could lead to poor performance.
+            An integer defining the maximal order up to which the result should be computed.
             
         Returns
         -------
         jet
             The jet corresponding to the composition of the polynomials.
         '''        
-        max_order = kwargs.get('max_order', self.max_power)
+        max_order = kwargs.get('max_order', self.maxdeg())
         
         # Combine the respective jets which represent the involved polynomials (this is much faster than using self.evaluate on polynomials):
         zjets = [e.to_jet(max_order=max_order) for e in z]

@@ -3,7 +3,7 @@ import numpy as np
 import warnings
 
 from njet import derive, taylor_coefficients
-from njet.common import factorials
+from njet.common import factorials, check_zero
 from njet.extras import cderive
 
 import lieops.core.lie
@@ -481,13 +481,18 @@ def from_jet(je, **kwargs):
     je_ar = je.get_array()
     terms = {}
     for p in je_ar[1:]:
-        assert hasattr(p, 'terms'), 'Jet-input appears not to contain jetpoly objects in its higher-order entries.'
-        terms.update(p.terms)
+        if hasattr(p, 'terms'):
+            terms.update(p.terms)
+        else:
+            # we assume zero for higher-order components
+            assert check_zero(p), 'Jet appears to have a non-zero entry which is not a jetpoly object in its higher-order entries.'
         
     # determine dimension
     if 'dim' not in kwargs.keys():
         u = set()
         for e in je_ar[1:]:
+            if not hasattr(e, 'terms'):
+                continue
             for fs in e.terms.keys():
                 u.update(fs)
         dim2 = max([e[0] for e in u]) + 1
