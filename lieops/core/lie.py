@@ -112,7 +112,7 @@ class poly(_poly):
         lieops.core.lie.poly
             A polynomial representing the result of combination.
         '''
-        return lieops.core.tools.from_jet(_poly.insert(self, *args, **kwargs), **kwargs)
+        return lieops.core.tools.from_jet(_poly.insert(self, *args, **kwargs), dim=self.dim, **kwargs)
 
     
 def create_coords(dim, real=False, **kwargs):

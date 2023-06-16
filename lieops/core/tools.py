@@ -474,9 +474,23 @@ def symcheck(p, tol, warn=True):
     
 def from_jet(je, **kwargs):
     '''
-    Convert an njet.jet object to a (lie)-polynomial.
+    Convert an njet.jet object to a (Lie)-polynomial.
     
     The jet has to contain a float/complex value in its first entry and jetpoly objects in its higher-order entries.
+    
+    Parameters
+    ----------
+    dim: int, optional
+        The dimension of the resulting Lie-polynomial. If no dimension is given, it will be attempted to determine the
+        dimension by looking at the variables in the given jet. Therefore it is recommended to specify the dimension in
+        case that not all variables might be present in the input jet.
+        
+    **kwargs
+        Additional optional keyworded parameters passed to lieops.core.lie.poly.
+        
+    Returns
+    -------
+    lieops.core.lie.poly
     '''
     je_ar = je.get_array()
     terms = {}
@@ -496,10 +510,12 @@ def from_jet(je, **kwargs):
             for fs in e.terms.keys():
                 u.update(fs)
         dim2 = max([e[0] for e in u]) + 1
+        assert dim2%2 == 0, 'Dimension not even.'
         dim = dim2//2
+        kwargs['dim'] = dim
     else:
         dim = kwargs['dim']
-    assert dim2%2 == 0, 'Dimension not even.'
+        dim2 = dim*2
         
     # assemble terms
     if 'factorials' not in kwargs.keys():
@@ -517,4 +533,4 @@ def from_jet(je, **kwargs):
         power = sum(tpl)
         out[tuple(tpl)] = value/facts[power]
         
-    return lieops.core.lie.poly(values=out, dim=dim, **kwargs)
+    return lieops.core.lie.poly(values=out, **kwargs) # kwargs will have 'dim' as parameter in any case

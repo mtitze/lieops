@@ -322,7 +322,10 @@ class _poly:
         jet
             The jet corresponding to the composition of the polynomials.
         '''        
-        max_order = kwargs.get('max_order', self.maxdeg())
+        if 'max_order' not in kwargs.keys():
+            max_order = max([e.maxdeg() for e in z] + [self.maxdeg()])
+        else:
+            max_order = kwargs['max_order']
         
         # Combine the respective jets which represent the involved polynomials (this is much faster than using self.evaluate on polynomials):
         zjets = [e.to_jet(max_order=max_order) for e in z]
