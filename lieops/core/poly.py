@@ -37,6 +37,8 @@ def _shift_component(shift_value, shift_component, terms, **kwargs):
     # The result is
     {(0, 0, 0, 2): 7.0, (0, 0, 0, 1): 1.4, (0, 0, 0, 0): 0.07}
     '''
+    if check_zero(shift_value):
+        return terms
     
     required_powers = set(k[shift_component] for k in terms.keys() if k[shift_component] > 0)
     if len(required_powers) == 0:
@@ -63,7 +65,11 @@ def _shift_component(shift_value, shift_component, terms, **kwargs):
 
         nsv = new_shift_values[:power_component + 1]
         b = binomials[power_component]
-        new_values = value*nsv*b
+        nsvb = nsv*b
+        try:
+            new_values = value*nsvb
+        except: # 'value' could be some numpy array. We try:
+            new_values = np.outer(nsvb, value)
 
         j = 0
         for nk in new_keys:
