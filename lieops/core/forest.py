@@ -153,6 +153,8 @@ def fnf(*p, order: int, mode='conj', **kwargs):
             ek = [0]*dim
             ek[k] = 1
             zero_k = abs(nterms_1[0][tuple(ek*2)] - tunes[k])
+            if hasattr(zero_k, '__iter__'):
+                zero_k = max(zero_k)
             assert zero_k < tol_checks, f'First-order terms not normalized at {k}: {zero_k} >= {tol_checks} (tol_checks)'
     # nterms_1 has been determined. It is a list consisting of a normalized
     # first-order element + some higher-order non-normalized elements
@@ -172,7 +174,7 @@ def fnf(*p, order: int, mode='conj', **kwargs):
     for chi0 in chi0s[::-1]:
         xietaf2 = lexp(-chi0)(*xietaf2, method='2flow')
     final_coords = [coord(*xietaf) for coord in p]
-    nmap = [ww(*final_coords) for ww in xietaf2]
+    nmap = [ww(*final_coords, max_order=order + 1) for ww in xietaf2]
     
     # Loop over the requested order
     all_nmaps = [nmap]
@@ -196,9 +198,11 @@ def fnf(*p, order: int, mode='conj', **kwargs):
 
         if mode == 'conj':
             xietaf = lexp(ak)(*xieta, **kwargs)
+            xietaf = [xe.extract(key_cond=lambda k: sum(k) <= order + 1) for xe in xietaf]
             xietaf2 = lexp(-ak)(*xieta, **kwargs)
-            final_coords = [coord(*xietaf) for coord in nmap]
-            nmap = [ww(*final_coords) for ww in xietaf2]
+            xietaf2 = [xe2.extract(key_cond=lambda k: sum(k) <= order + 1) for xe2 in xietaf2]
+            final_coords = [coord(*xietaf, max_order=order + 1) for coord in nmap]
+            nmap = [ww(*final_coords, max_order=order + 1) for ww in xietaf2]
         elif mode == 'tpsa':
             # This mode is experimental and may require the removal of small non-zero operators at each step to reduce errors.
             operators = [lexp(ak)] + [lexp(f) for f in nterms_k] + [lexp(-ak)] # or [lexp(lexp(ak)(f, **kwargs)) for f in nterms_k]
@@ -207,7 +211,6 @@ def fnf(*p, order: int, mode='conj', **kwargs):
             nmap = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)
             
         all_nmaps.append(nmap)
-
         nterms_k = dragtfinn(*nmap, order=order, tol=tol, **kwargs)
         all_nterms.append(nterms_k)
         

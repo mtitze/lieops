@@ -112,6 +112,7 @@ class poly(_poly):
         lieops.core.lie.poly
             A polynomial representing the result of combination.
         '''
+        _ = kwargs.setdefault('max_power', self.max_power)
         return lieops.core.tools.from_jet(_poly.insert(self, *args, **kwargs), dim=self.dim, **kwargs)
 
     
@@ -303,7 +304,7 @@ class lieoperator:
         # For a general Lie operator g(:f:), we apply g(:f:) to the given operand directly
         result = {}
         final_components = BFcalcFlow(lo=self, **kwargs) # n.b. 't' may be a keyword of 'kwargs'. In any case it also has been updated in self._flow_parameters
-        result['flow'] = lambda *z: [final_components[k](*z) for k in range(len(final_components))]
+        result['flow'] = lambda *z, **kwargs2: [final_components[k](*z, **kwargs2) for k in range(len(final_components))]
         result['taylor_map'] = final_components
         self._flow['bruteforce'] = result
         
@@ -531,8 +532,8 @@ class lexp(lieoperator):
             xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
             _ = kwargs.setdefault('t', self._flow_parameters['bruteforce']['t'])
             xietaf = BFcalcFlow(lo=self, components=xieta, **kwargs) # n.b. 't' may be a keyword of 'kwargs'
-            final_components = [c(*xietaf) for c in requested_components]
-            flow = lambda *z: [final_components[k](*z) for k in range(len(final_components))]
+            final_components = [c(*xietaf, **kwargs) for c in requested_components]
+            flow = lambda *z, **kwargs2: [final_components[k](*z, **kwargs2) for k in range(len(final_components))]
             self._flow['bruteforce'] = {'xietaf': xietaf, 'taylor_map': final_components, 'flow': flow}
         else:
             lieoperator._calcFlow_bruteforce(self, **kwargs)
@@ -563,7 +564,7 @@ class lexp(lieoperator):
         # flow is a function expecting lieops.core.lie.poly objects. Therefore:
         xieta = create_coords(self.argument.dim, max_power=self.argument.max_power)
         xietaf = [flow(xe) for xe in xieta]
-        flow = lambda *z: [xef(*z) for xef in xietaf]
+        flow = lambda *z, **kwargs2: [xef(*z, **kwargs2) for xef in xietaf]
         self._flow['2flow'] = {'xieta': xieta, 'xietaf': xietaf, 'flow': flow}
         
     def _calcFlow_njet(self, n_slices: int=1, **kwargs):
@@ -664,7 +665,7 @@ class lexp(lieoperator):
             else:
                 raise RuntimeError(f"No result(s) field present for method '{method}'.")
             # Compute the result by pullback: exp(:f:)Q(xi_1, ..., eta_n) = Q(exp(:f:) xi_1, ..., exp(:f:)eta_n) holds:
-            final_components = [c(*xietaf) for c in parameters['components']]
+            final_components = [c(*xietaf, **kwargs) for c in parameters['components']]
             self._flow[method]['taylor_map'] = final_components
             return final_components
         else:

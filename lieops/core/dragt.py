@@ -326,7 +326,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_
                     assert remainder.mindeg() >= k + 1, f'Lie operator of order {k + 1} does not properly cancel the Taylor-map terms of order {k} (tol_checks: {tol_checks}):\n{remainder.truncate(k)}'
                     
         f_nl.append(fk)
-        
+                
     # Now by construction we have (up to order k + 1) for the xi/eta Lie-polynomials xieta:
     # xieta + O(k + 1) = lexp(-f_k)(*lexp(-f_{k - 1})(...*lexp(-f_3)(*p_new)) ...)
     # or conversely:

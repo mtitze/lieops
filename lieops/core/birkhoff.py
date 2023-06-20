@@ -226,7 +226,7 @@ def bnf(H, order: int, tol_drop=0, tol=1e-12, cmplx=True, **kwargs):
             # In this case we can also compute the polynomials which provide the transformation to first-order normal form:
             C = nfdict[clabel]
             C = emat(C).transpose().matrix # transposition required (see e.g. Sec. 8.3.5 "Dual role of the Phase-Space Coordinates" in Dragt's book)
-            Cp = ad2poly(C)
+            Cp = ad2poly(C, **kwargs)
             out['chi0'].append(Cp)
         
     return out
