@@ -62,7 +62,7 @@ def diagonal2block(D, code, tol=1e-10, tol_orientation=1e-10, **kwargs):
     
     # Step 0: Determine orientation
     default_orientation = []
-    if all([d.imag != 0 for d in D]):
+    if all([abs(d.imag) > tol_orientation for d in D]):
         # For every element d in D with d.imag > 0, there exists also an element d2 in D with d2.imag = -d.imag < 0.
         default_orientation = [d*-1j for d in D if d.imag > 0]
     orientation = kwargs.get('orientation', default_orientation)
