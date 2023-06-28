@@ -82,7 +82,7 @@ def sympoincare(*g):
     # 3) The final minus sign is used to ensure that we have H on the left in Eq. (2)
     return -_integrate(*[sum([g[k]*Jinv[l, k] for k in range(dim2)]) for l in range(dim2)])/pf
 
-def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
+def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol_drop=0, tol_checks=0, disable_tqdm=False, force_order=False, warn=True, **kwargs):
     '''
     Let p_1, ..., p_n be polynomials representing the Taylor expansions of
     the components of a symplectic map M. 
@@ -119,7 +119,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_
         If false, then lieops.linalg.symlogs will be used (which may produce two Lie-polynomials even
         in certain cases in which there would already exist a single one doing the job).
 
-    tol: float, optional
+    tol_drop: float, optional
         Identify small fk and drop them if all their values are below this threshold.
         
     tol_checks: float, optional
@@ -212,7 +212,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_
     if comb2:
         try:
             A = logm_nd(Rtr.matrix) # Explanation why we have to use transpose will follow at (++)
-            SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
+            SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol_drop)
             SB = SA*0
             B = A*0
         except:
@@ -222,8 +222,8 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_
             
     if not comb2:
         A, B = symlogs(Rtr.matrix, tol2=tol_checks) # This means: exp(A) o exp(B) = R.transpose(). Explanation why we have to use transpose will follow at (++)
-        SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
-        SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol)
+        SA = ad2poly(A, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol_drop)
+        SB = ad2poly(B, poisson_factor=pf, tol=tol_checks, max_power=max_power).above(tol_drop)
                 
     # (++) 
     # Let us assume that we would have taken "symlogs(R) = A, B" (i.e. exp(A) o exp(B) = R) and consider a 1-dim case.
@@ -284,9 +284,9 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_
 
     # Ensure that the Poincare-Lemma is met for the first step; See Ref. [1], Eq. (7.6.17):
     p_new = [sum([p[k]*Ri.matrix[l, k] for k in range(dim2)]) for l in range(dim2)] # multiply Ri from right to prevent operator overloading from numpy.
-    if tol > 0:
+    if tol_drop > 0:
         # not dropping small values may result in a slow-down of the code. Therefore:
-        p_new = [e.above(tol) for e in p_new]
+        p_new = [e.above(tol_drop) for e in p_new]
         
     # Construct & collect the chain of operators of the Dragt/Finn factorization.
     # We shall collect these operators in a list 'f_all' so that the first operator 
@@ -309,9 +309,9 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_
             for i in range(dim2):
                 for j in range(i):
                     zero = xieta[j]@gk[i] + gk[j]@xieta[i] # Eq. (7.6.5) in Ref. [1]
-                    assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol: {tol_checks}, flow input: {kwargs}):\n{zero}'    
+                    assert zero.above(tol_checks) == 0, f'Poincare Lemma prerequisits not met for order {k} (tol_checks: {tol_checks}, flow input: {kwargs}):\n{zero}'    
         
-        fk = sympoincare(*gk).above(tol) # deg(fk) = k + 1; fk@xieta[j] = gk[j]
+        fk = sympoincare(*gk).above(tol_drop) # deg(fk) = k + 1; fk@xieta[j] = gk[j]
         if fk == 0:
             # continue with the next k if the potential is zero within the given tolerance
             continue
@@ -349,7 +349,7 @@ def dragtfinn(*p, order='auto', offset=[], pos2='right', comb2=True, tol=0, tol_
         f_hdm = []
         if len(f_nl) > 0:
             f_hdm = lexp(-SB)(*lexp(-SA)(*f_nl, outl1=True, method='2flow'), outl1=True, method='2flow') # the outl1 parameters are True here to cope with special cases that SA or its input is zero. In this case the Lie-operators would return a Lie-polynomial. That would cause a problem with the use of '*' here and f_hdm may also not be a list ...
-        f_all = f_all + [f.above(tol) for f in f_hdm if f.above(tol) != 0] # Every entry in f_nl is non-zero (wrt. tol) by construction. Since the lexp(-SB) and lexp(-SA) operators are invertible, the elements in f_hdm are therefore also non-zero. However, the lexp-operators may still generate many small terms which should be removed here.
+        f_all = f_all + [f.above(tol_drop) for f in f_hdm if f.above(tol_drop) != 0] # Every entry in f_nl is non-zero (wrt. tol_drop) by construction. Since the lexp(-SB) and lexp(-SA) operators are invertible, the elements in f_hdm are therefore also non-zero. However, the lexp-operators may still generate many small terms which should be removed here.
         
     if start_is_nonzero:
         f_all.insert(0, -h1)

@@ -61,7 +61,7 @@ def fnf(*p, order: int, mode='conj', **kwargs):
     order: int
         The order of the normalization proceduere.
         
-    tol: float, optional
+    tol_drop: float, optional
         A small number to identify polynomials which should be zero. Required in dragtfinn to
         identify if the two 2nd order polynomials can be combined.
         
@@ -98,14 +98,14 @@ def fnf(*p, order: int, mode='conj', **kwargs):
     #####################
     # Progress user input
     #####################
-    tol = kwargs.pop('tol', 0)
+    tol_drop = kwargs.pop('tol_drop', 0)
     disable_tqdm = kwargs.get('disable_tqdm', False) # show progress bar (if requested) in the loop below
     kwargs['disable_tqdm'] = True # never show progress bars within the loop(s) itself
     
     # Compute the Dragt/Finn factorization up to a specific order
     kwargs['pos2'] = 'left' # ensure that the 2nd order term is neighbour to the third-order term
     kwargs['comb2'] = True
-    df = dragtfinn(*p, order=order, tol=tol, **kwargs)
+    df = dragtfinn(*p, order=order, tol_drop=tol_drop, **kwargs)
 
     nterms_1 = [f for f in df if f.maxdeg() > 1]
     df_orders = [f.maxdeg() for f in nterms_1]
@@ -211,7 +211,7 @@ def fnf(*p, order: int, mode='conj', **kwargs):
             nmap = taylor_map(*tpsa_out._evaluation, max_power=default_max_power)
             
         all_nmaps.append(nmap)
-        nterms_k = dragtfinn(*nmap, order=order, tol=tol, **kwargs)
+        nterms_k = dragtfinn(*nmap, order=order, tol_drop=tol_drop, **kwargs)
         all_nterms.append(nterms_k)
         
     out = {}
