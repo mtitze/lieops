@@ -32,8 +32,8 @@ class heyoka_solver:
         self.hamiltonian = -hamiltonian
         self.dim = self.hamiltonian.dim
         self.variables, self.hameqs, self.realHamiltonian = self.getHamiltonEqs(**kwargs)
-        self.integrator = hy.taylor_adaptive(self.hameqs, [0]*self.dim*2)
-        self.t = kwargs.get('t', 1)
+        self.integrator = hy.taylor_adaptive(self.hameqs, [0.]*self.dim*2)
+        self.t = kwargs.get('t', 1.)
         
     def getHamiltonEqs(self, **kwargs):
         '''
