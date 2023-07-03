@@ -6,8 +6,7 @@ from .generators import genexp
 from .combine import magnus
 from .poly import _poly
 
-from lieops.solver import get_2flow, channell, heyoka
-from lieops.solver.bruteforce import calcFlow as BFcalcFlow
+from lieops.solver import get_2flow, channell, heyoka, BFcalcFlow
 
 import lieops.core.tools
 import lieops.core.birkhoff

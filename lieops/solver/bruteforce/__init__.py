@@ -3,4 +3,8 @@ Collection of routines to perform calculations involving a Lie operator, by dire
 specific orders (aka: "brute force").
 '''
 
-from .bruteforce import calcFlow
+from .bruteforce import calcFlow as _calcFlow
+
+def flow(lo, **kwargs):
+    return _calcFlow(lo=lo, **kwargs)
+    
