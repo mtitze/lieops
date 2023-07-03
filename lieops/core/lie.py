@@ -9,7 +9,6 @@ from .combine import magnus
 from .poly import _poly
 
 from lieops.solver import get_2flow, channell, heyoka
-from lieops.solver.splitting import recursive_monomial_split
 from lieops.solver.bruteforce import calcFlow as BFcalcFlow
 
 import lieops.core.tools

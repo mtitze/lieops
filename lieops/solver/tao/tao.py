@@ -3,7 +3,7 @@ from njet import derive
 import warnings
 import itertools
 
-from .common import getRealHamiltonFunction
+from lieops.solver.common import getRealHamiltonFunction
 
 class integrator:
     

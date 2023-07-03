@@ -1,7 +1,7 @@
 import heyoka as hy
 import numpy as np
 
-from .common import realHamiltonEqs
+from lieops.solver.common import realHamiltonEqs
 
 def trf(func):
     '''

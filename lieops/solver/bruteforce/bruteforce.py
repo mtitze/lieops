@@ -1,8 +1,3 @@
-'''
-Collection of routines to perform calculations involving a Lie operator, by directly summing up terms up to
-specific orders (aka: "brute force").
-'''
-
 def action(lo, y, **kwargs):
     '''
     Apply the Lie operator g(:x:) to a given lie polynomial y, to return the elements

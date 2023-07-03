@@ -1,7 +1,7 @@
 import mpmath as mp
 
 from njet.functions import exp, get_package_name
-from .splitting import iterative_commuting_split
+from lieops.solver.splitting import iterative_commuting_split
 
 def productExceptSelf(arr):
     '''
