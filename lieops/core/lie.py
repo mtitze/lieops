@@ -2,8 +2,6 @@ import numpy as np
 import copy
 import warnings
 
-from lieops.linalg.nf import first_order_nf_expansion
-
 from .generators import genexp
 from .combine import magnus
 from .poly import _poly
@@ -432,19 +430,6 @@ class lexp(lieoperator):
         if 'power' in kwargs.keys():
             self.set_generator(kwargs['power'])
         lieoperator.__init__(self, argument=argument, *args, **kwargs)
-        
-    def set_argument(self, H, **kwargs):
-        if isinstance(H, poly): # original behavior
-            lieoperator.set_argument(self, argument=H, **kwargs)           
-        elif hasattr(H, '__call__'): # H a general function (Hamiltonian)
-            warnings.warn('Lie operator with general callable initiated.')
-            assert 'order' in kwargs.keys(), "Lie operator initiated with general callable requires 'order' argument to be set." 
-            self.order = kwargs['order']
-            # obtain an expansion of H in terms of complex first-order normal form coordinates
-            taylor_coeffs, self.nfdict = first_order_nf_expansion(H, **kwargs)
-            lieoperator.set_argument(self, argument=poly(values=taylor_coeffs, **kwargs)) # max_power may be set here.
-        else:
-            raise TypeError(f"Argument of type '{H.__class__.__name__}' not supported.")
             
     def set_generator(self, power, **kwargs):
         lieoperator.set_generator(self, generator=genexp(power), **kwargs)

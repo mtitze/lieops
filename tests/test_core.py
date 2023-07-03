@@ -327,11 +327,10 @@ def test_flow3(Q=0.252, p=0.232, max_power=30, order=10, power=50, tol=1e-12):
     
     H_accu_f = lambda *z: H_accu((z[0] + 1j*z[1])/np.sqrt(2), (z[0] - 1j*z[1])/np.sqrt(2))
 
-    xieta = create_coords(1)
+    taylor_coeffs, nfdict = first_order_nf_expansion(H_accu_f, power=power, n_args=2, order=order, orientation=[])
+    L1 = lexp(poly(values=taylor_coeffs, max_power=max_power), power=power)
     
     t_ref = 1
-    L1 = lexp(H_accu_f, order=order, components=xieta, t=t_ref, power=power, n_args=2, 
-              max_power=max_power, orientation=[])
     # check Symplecticity of the flow of L1 at position p:
     dL1flow = derive(lambda *x: L1(*x, t=t_ref), order=1, n_args=2)
     ep, epc = dL1flow.eval(p, p.conjugate())
@@ -382,8 +381,10 @@ def test_lexp_flow_consistency(z=[0.2, 0.2], Q=0.252, order=20, power=30):
                           (0, 3): coeff/(1 - np.exp(-3*1j*mu0))})
             
     H_accu_f = lambda *z: H_accu((z[0] + 1j*z[1])/np.sqrt(2), (z[0] - 1j*z[1])/np.sqrt(2))
-    
-    L1 = lexp(H_accu_f, order=order, power=power, n_args=2)
+
+    taylor_coeffs, nfdict = first_order_nf_expansion(H_accu_f, power=power, n_args=2, order=order)
+    L1 = lexp(poly(values=taylor_coeffs), power=power)
+
     argflow = L1.argument.lexp(power=L1.power)
     assert argflow(*z) == L1(*z)
     
