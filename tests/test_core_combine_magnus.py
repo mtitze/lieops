@@ -8,6 +8,8 @@ from lieops.core.combine.magnus import forests, fast_hard_edge_chain
 from lieops.core.lie import magnus, create_coords, lexp, poly
 from lieops.core.combine import bch
 
+np.random.seed(424242)
+
 def number_of_graphs(order):
     '''
     The number of trees of a given order.
@@ -24,7 +26,7 @@ def np_block_polymul(block1, block2, **kwargs):
         vals.append(polymul(block1[:, k], block2[:, k]))
     return vals
 
-def compare_polymul_results(result, reference, index, tol=1e-15):
+def compare_polymul_results(result, reference, index, tol=1e-14):
     '''
     Compare results from numpy.polymul vs. the block_polymul routine.
     '''

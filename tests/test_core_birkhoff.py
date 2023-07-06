@@ -11,6 +11,8 @@ from lieops.core import create_coords, poly, lexp
 from lieops.core.birkhoff import homological_eq, bnf
 from lieops.linalg.nf import first_order_nf_expansion
 
+np.random.seed(42)
+
 # Some helper routines to generate arbitrary Lie-polynomials; these routines are not optimal 
 # but they should be fine for the test(s) below.
 

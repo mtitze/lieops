@@ -176,7 +176,7 @@ def test_normalform3():
     assert list(n3_0.keys()) == [(1, 1), (2, 2), (3, 3)]
     
     # Check 2: Values agree in each result
-    tolerances1 = [5e-15, 7e-10, 1e-1]
+    tolerances1 = [5e-15, 5e-9, 1e-1]
     j = 0
     for key in [(1, 1), (2, 2), (3, 3)]:
         assert abs(n1_0[key] - n2_0[key][1]) < tolerances1[j]

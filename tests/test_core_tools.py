@@ -7,6 +7,8 @@ from lieops.linalg.matrix import create_J
 
 from .common import make_random_cmplx, get_max
 
+np.random.seed(42)
+
 def create_sp2n_matrix(dim, max_path=2*np.pi):
     '''
     Create an arbitrary matrix in sp(2n; C), the Lie-algebra of complex

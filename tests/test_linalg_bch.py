@@ -5,6 +5,8 @@ from scipy.linalg import expm
 from lieops.linalg.bch import bch_2x2
 from lieops.linalg.bch.bch_2x2 import get_params
 
+np.random.seed(142)
+
 def bch_2x2_multiplication_table(A, B):
     '''
     Get the multiplication table in Thm. 1 in Ref. [1].

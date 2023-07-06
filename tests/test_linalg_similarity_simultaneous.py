@@ -5,6 +5,8 @@ from lieops.linalg.similarity import simuldiag
 
 # Preliminary functions to create the tests.
 
+np.random.seed(123456789)
+
 def matrix_power(X, k: int):
     '''
     Compute the power of a matrix.

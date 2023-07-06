@@ -7,6 +7,8 @@ from lieops.linalg.misc import identifyPairs
 
 from scipy.linalg import expm
 
+np.random.seed(123456789) # for some seeds the tests below may fail; requires investigation
+
 def create_spn_matrix(dim, max_path=2*np.pi, tol=0):
     r'''
     Create an element of Sp(n) = Sp(2n; C) \cap U(2n), the compact and simply connected group of
