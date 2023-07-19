@@ -297,6 +297,30 @@ class _poly:
         Truncate the current polynomial with respect to a total power.
         '''
         return self.extract(key_cond=lambda x: sum(x) <= k)
+
+    def project(self, *projection):
+        '''
+        Project the current polynomial to a specific subspace, by dropping monomials which contain indices belonging to other dimensions.
+
+        Example:
+        self.project(0)
+        will leave terms containing powers of the form (i_0, 0, 0, ..., i_{self.dim}, 0, 0).
+        '''
+        # Input consistency checks
+        new_dim = len(projection)
+        assert new_dim > 0, 'Subspace not specified.'
+        assert new_dim <= self.dim, 'Requested dimension too large.'
+        assert max(projection) < self.dim, 'At least one dimension-index larger than current dimension.'
+
+        # Perform the projection
+        projection = list(projection) + [p + self.dim for p in projection] # the eta-components duplicate the indices.
+        complement = [k for k in range(2*self.dim) if not k in projection]
+        new_values = {}
+        for k, v in self.items():
+            if any([k[p] != 0 for p in complement]): # only keep those coefficients which do not couple to other directions
+                continue
+            new_values[tuple([k[p] for p in projection])] = v
+        return self.__class__(values=new_values, dim=new_dim, max_power=self.max_power)
     
     def _prepare_input(self, *z):
         '''
