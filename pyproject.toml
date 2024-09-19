@@ -21,7 +21,7 @@ sphinxcontrib-napoleon = {version = "^0.7", optional = true}
 njet = ">=0.3.3"
 scipy = "^1.8.0"
 pandas = ">=2.0.1"
-heyoka = ">=5.1.0"
+# heyoka = ">=5.1.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1"
