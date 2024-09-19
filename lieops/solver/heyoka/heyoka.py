@@ -1,4 +1,4 @@
-import heyoka as hy
+# import heyoka as hy
 import numpy as np
 
 from lieops.solver.common import realHamiltonEqs
